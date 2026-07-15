@@ -1,0 +1,34 @@
+# ===== SafeCity - dépendances backend & bureau =====
+
+# --- Backend web / temps réel ---
+Flask==3.0.3
+Flask-Cors==4.0.1
+Flask-SocketIO==5.3.6
+python-socketio==5.11.2
+python-engineio==4.9.1
+eventlet==0.36.1
+SQLAlchemy==2.0.31
+Flask-SQLAlchemy==3.1.1
+
+# --- Base de données professionnelle (optionnel) ---
+# Décommenter pour PostgreSQL :
+# psycopg2-binary==2.9.9
+
+# --- Sécurité ---
+bcrypt==4.2.0
+PyJWT==2.9.0
+cryptography==43.0.1
+
+# --- Intelligence artificielle (classification des incidents) ---
+scikit-learn==1.5.1
+numpy==1.26.4
+# Optionnel (analyse d'image / avancé) :
+# opencv-python==4.10.0.84
+# tensorflow==2.17.0
+
+# --- Déploiement Windows ---
+waitress==3.0.0
+# pyinstaller==6.10.0
+
+# --- Application bureau (installer séparément sur le poste opérateur) ---
+# PySide6==6.7.2

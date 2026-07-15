@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Base de données & uploads (données locales)
+backend/safecity.db
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Build / déploiement
+build/
+dist/
+*.spec
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store

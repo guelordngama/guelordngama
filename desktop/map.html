@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Carte SafeCity</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    html, body, #map { height: 100%; margin: 0; }
+    .alert-popup b { color: #c1121f; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <script>
+    // Carte centrée par défaut sur la zone de surveillance.
+    var map = L.map("map").setView([-4.325, 15.3222], 13);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "© OpenStreetMap", maxZoom: 19,
+    }).addTo(map);
+
+    var markers = {}; // id -> marker
+
+    // Icône rouge personnalisée pour les alertes actives.
+    function alertIcon(urgency) {
+      var colors = { critique: "#9d0208", haute: "#e76f51", moyenne: "#e9a100", faible: "#2a9d8f" };
+      var c = colors[urgency] || "#c1121f";
+      return L.divIcon({
+        className: "",
+        html: '<div style="width:18px;height:18px;border-radius:50%;background:' + c +
+              ';border:3px solid #fff;box-shadow:0 0 0 2px ' + c + '"></div>',
+        iconSize: [18, 18], iconAnchor: [9, 9],
+      });
+    }
+
+    // API appelée depuis Python (via runJavaScript).
+    window.addAlert = function (a) {
+      if (markers[a.id]) { map.removeLayer(markers[a.id]); }
+      if (a.status === "cloturee") { delete markers[a.id]; return; }
+      var m = L.marker([a.lat, a.lng], { icon: alertIcon(a.urgency) }).addTo(map);
+      m.bindPopup(
+        '<div class="alert-popup"><b>' + (a.type || "").toUpperCase() + "</b><br/>" +
+        "Quartier : " + (a.neighborhood || "—") + "<br/>" +
+        "Lat/Lng : " + a.lat.toFixed(5) + ", " + a.lng.toFixed(5) + "<br/>" +
+        "Heure : " + (a.time || "—") + "<br/>" +
+        "Distance : " + (a.distance_m != null ? Math.round(a.distance_m) + " m" : "—") + "</div>"
+      );
+      markers[a.id] = m;
+    };
+
+    // Centre la carte sur une alerte donnée.
+    window.focusAlert = function (id) {
+      var m = markers[id];
+      if (m) { map.setView(m.getLatLng(), 16); m.openPopup(); }
+    };
+
+    // Charge un lot d'alertes.
+    window.setAlerts = function (list) {
+      Object.keys(markers).forEach(function (k) { map.removeLayer(markers[k]); });
+      markers = {};
+      (list || []).forEach(window.addAlert);
+    };
+
+    document.title = "SafeCity map ready";
+  </script>
+</body>
+</html>
