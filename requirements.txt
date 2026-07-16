@@ -1,14 +1,18 @@
 # ===== SafeCity - dépendances backend & bureau =====
 
 # --- Backend web / temps réel ---
-Flask==3.0.3
-Flask-Cors==4.0.1
-Flask-SocketIO==5.3.6
-python-socketio==5.11.2
-python-engineio==4.9.1
-eventlet==0.36.1
-SQLAlchemy==2.0.31
-Flask-SQLAlchemy==3.1.1
+# IMPORTANT : Flask-SocketIO récent exige python-socketio >= 5.12 (attribut
+# Server.reason). On fixe des bornes basses compatibles entre elles pour éviter
+# l'erreur "type object 'Server' has no attribute 'reason'".
+Flask>=3.0.3
+Flask-Cors>=4.0.1
+Flask-SocketIO>=5.4.0
+python-socketio>=5.12.0
+python-engineio>=4.11.0
+SQLAlchemy>=2.0.31
+Flask-SQLAlchemy>=3.1.1
+# Optionnel (vraies websockets) : décommenter pour un déploiement eventlet.
+# eventlet>=0.36.1
 
 # --- Base de données professionnelle (optionnel) ---
 # Décommenter pour PostgreSQL :

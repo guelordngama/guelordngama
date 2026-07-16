@@ -1,6 +1,8 @@
 # Dépendances du poste opérateur SafeCity (à installer sur la machine bureau).
-PySide6==6.7.2
-python-socketio[client]==5.11.2
-requests==2.32.3
+# NB : garder python-socketio >= 5.12 pour rester compatible avec le backend
+# (Flask-SocketIO récent). Utiliser la MÊME version côté client et serveur.
+PySide6>=6.7.0
+python-socketio[client]>=5.12.0
+requests>=2.32.0
 # Pour générer l'exécutable Windows :
-# pyinstaller==6.10.0
+# pyinstaller>=6.10.0
