@@ -45,7 +45,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from api_client import ApiClient
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-API_BASE = os.environ.get("SAFECITY_API", "http://localhost:5000")
+# 127.0.0.1 plutôt que "localhost" : sous Windows, "localhost" peut être résolu
+# en IPv6 (::1) et provoquer un "timed out" si le backend n'écoute qu'en IPv4.
+API_BASE = os.environ.get("SAFECITY_API", "http://127.0.0.1:5000")
 
 URGENCY_COLORS = {
     "critique": "#9d0208",

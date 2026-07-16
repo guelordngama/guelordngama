@@ -40,8 +40,12 @@ class ApiClient:
         except urllib.error.HTTPError as e:
             detail = e.read().decode("utf-8", "ignore")
             raise RuntimeError(f"{e.code}: {detail}") from e
-        except urllib.error.URLError as e:
-            raise RuntimeError(f"Connexion impossible : {e.reason}") from e
+        except (urllib.error.URLError, TimeoutError, OSError) as e:
+            reason = getattr(e, "reason", e)
+            raise RuntimeError(
+                f"Backend injoignable ({reason}). Le serveur est-il démarré "
+                f"(python -m backend.server) et accessible sur {self.base_url} ?"
+            ) from e
 
     def login(self, email, password):
         res = self._request("POST", "/api/auth/login",
