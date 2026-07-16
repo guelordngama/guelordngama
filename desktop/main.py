@@ -25,7 +25,6 @@ from PySide6.QtWidgets import (
     QDialog,
     QFormLayout,
     QFrame,
-    QGridLayout,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -39,16 +38,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-# Import robuste : fonctionne que le fichier soit lancé comme module
-# (`python -m desktop.main`) ou directement comme script (bouton Run de PyCharm).
-try:
-    from .api_client import ApiClient
-except ImportError:  # lancé directement : pas de package parent
-    import os
-    import sys
-
-    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    from api_client import ApiClient
+# Import robuste : on ajoute le dossier courant au chemin de recherche puis on
+# utilise un import ABSOLU. Fonctionne aussi bien lancé comme script (bouton Run
+# de PyCharm) que comme module (`python -m desktop.main`), sans import relatif.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from api_client import ApiClient
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 API_BASE = os.environ.get("SAFECITY_API", "http://localhost:5000")
