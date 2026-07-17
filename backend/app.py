@@ -22,6 +22,15 @@ from flask import (
 from flask_cors import CORS
 from flask_socketio import SocketIO, join_room
 
+# Permet de lancer ce fichier directement (bouton Run de PyCharm) EN PLUS de
+# `python -m backend.app`. Lancé comme script, __package__ est vide et les
+# imports relatifs ci-dessous échouent ; on rétablit le contexte de package.
+if __package__ in (None, ""):
+    import sys
+
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    __package__ = "backend"
+
 from .ai.classifier import get_classifier
 from .auth import generate_token, hash_password, require_auth, verify_password
 from .config import get_config
@@ -300,4 +309,14 @@ app = create_app()
 
 if __name__ == "__main__":
     # Serveur de développement avec support temps réel.
-    socketio.run(app, host="0.0.0.0", port=5000, debug=True, allow_unsafe_werkzeug=True)
+    # use_reloader=False : évite le double-démarrage sous PyCharm/Windows.
+    port = int(os.environ.get("SAFECITY_PORT", "5000"))
+    print(f"[SafeCity] Serveur de développement sur http://127.0.0.1:{port}")
+    socketio.run(
+        app,
+        host="0.0.0.0",
+        port=port,
+        debug=True,
+        use_reloader=False,
+        allow_unsafe_werkzeug=True,
+    )

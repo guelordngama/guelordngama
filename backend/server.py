@@ -13,6 +13,13 @@ Usage :
 """
 import os
 
+# Permet le lancement direct (bouton Run) en plus de `python -m backend.server`.
+if __package__ in (None, ""):
+    import sys
+
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    __package__ = "backend"
+
 from .app import app, socketio
 
 HOST = os.environ.get("SAFECITY_HOST", "0.0.0.0")
