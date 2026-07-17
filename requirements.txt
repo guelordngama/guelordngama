@@ -19,9 +19,12 @@ Flask-SQLAlchemy>=3.1.1
 # psycopg2-binary==2.9.9
 
 # --- Sécurité ---
-bcrypt==4.2.0
-PyJWT==2.9.0
-cryptography==43.0.1
+# ATTENTION : installer "PyJWT", PAS le paquet "jwt" (autre bibliothèque qui
+# n'a pas jwt.encode). En cas de conflit :
+#   pip uninstall -y jwt PyJWT && pip install PyJWT
+bcrypt>=4.2.0
+PyJWT>=2.9.0
+cryptography>=43.0.0
 
 # --- Intelligence artificielle (classification des incidents) ---
 scikit-learn==1.5.1

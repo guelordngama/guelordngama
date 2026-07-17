@@ -10,6 +10,16 @@ import bcrypt
 import jwt
 from flask import current_app, g, jsonify, request
 
+# Garde-fou : un autre paquet PyPI nommé "jwt" (différent de PyJWT) peut être
+# installé par erreur et masquer PyJWT ; il n'a pas de fonction module `encode`,
+# ce qui provoquerait une erreur 500 obscure à la connexion. On échoue tôt avec
+# un message clair.
+if not hasattr(jwt, "encode"):
+    raise ImportError(
+        "Le paquet 'jwt' importé n'est pas PyJWT (jwt.encode introuvable). "
+        "Corrigez avec :\n    pip uninstall -y jwt PyJWT && pip install PyJWT"
+    )
+
 
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
