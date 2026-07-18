@@ -84,3 +84,54 @@ def validate_team_id(data):
         return int(data.get("team_id"))
     except (TypeError, ValueError):
         raise ValidationError("Le champ 'team_id' (entier) est requis.")
+
+
+_STAFF_ROLES = {"agent", "operator", "supervisor", "admin"}
+
+
+def validate_agent_payload(data, partial=False):
+    """Valide la création/modification d'un personnel.
+
+    partial=True (modification) : les champs absents sont ignorés.
+    """
+    data = require_dict(data)
+    out = {}
+
+    name = clean_text(data.get("name"), 120)
+    if name:
+        out["name"] = name
+    elif not partial:
+        raise ValidationError("Le nom est requis.")
+
+    if "email" in data or not partial:
+        email = clean_text(data.get("email"), 160).lower()
+        if not email and not partial:
+            raise ValidationError("L'email est requis.")
+        if email and "@" not in email:
+            raise ValidationError("Email invalide.")
+        if email:
+            out["email"] = email
+
+    if "role" in data or not partial:
+        role = clean_text(data.get("role"), 20).lower()
+        if role and role not in _STAFF_ROLES:
+            raise ValidationError("Rôle invalide (agent, operator, supervisor, admin).")
+        if role:
+            out["role"] = role
+        elif not partial:
+            raise ValidationError("Le rôle est requis.")
+
+    if "phone" in data:
+        out["phone"] = clean_text(data.get("phone"), 40) or None
+    if "active" in data:
+        out["active"] = bool(data.get("active"))
+
+    password = data.get("password") or ""
+    if password:
+        if len(password) < 6:
+            raise ValidationError("Le mot de passe doit contenir au moins 6 caractères.")
+        out["password"] = password
+    elif not partial:
+        raise ValidationError("Le mot de passe est requis.")
+
+    return out

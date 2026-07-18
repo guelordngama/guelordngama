@@ -69,6 +69,15 @@ class ApiClient:
     def get_analytics(self, period="month"):
         return self._request("GET", f"/api/analytics?period={period}", auth=True)
 
+    def create_agent(self, data):
+        return self._request("POST", "/api/agents", data, auth=True)
+
+    def update_agent(self, agent_id, data):
+        return self._request("PATCH", f"/api/agents/{agent_id}", data, auth=True)
+
+    def delete_agent(self, agent_id):
+        return self._request("DELETE", f"/api/agents/{agent_id}", auth=True)
+
     def get_stats(self):
         return self._request("GET", "/api/stats")
 

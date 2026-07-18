@@ -247,6 +247,42 @@ def test_analytics_endpoint():
     assert "agents" in data and "global_resolution_rate" in data
 
 
+def test_agent_crud():
+    _, client = make_client()
+    token = client.post("/api/auth/login", json={
+        "email": "operateur@safecity.local", "password": "safecity123"}).get_json()["token"]
+    h = {"Authorization": "Bearer " + token}
+    # create
+    r = client.post("/api/agents", json={
+        "name": "Agent CRUD", "email": "crud@safecity.local",
+        "role": "agent", "password": "secret123"}, headers=h)
+    assert r.status_code == 201
+    aid = r.get_json()["id"]
+    # nouvel agent peut se connecter
+    assert client.post("/api/auth/login", json={
+        "email": "crud@safecity.local", "password": "secret123"}).status_code == 200
+    # update
+    up = client.patch(f"/api/agents/{aid}", json={"name": "Agent CRUD 2"}, headers=h)
+    assert up.get_json()["name"] == "Agent CRUD 2"
+    # email dupliqué rejeté
+    assert client.post("/api/agents", json={
+        "name": "x", "email": "crud@safecity.local", "role": "agent",
+        "password": "secret123"}, headers=h).status_code == 400
+    # delete
+    assert client.delete(f"/api/agents/{aid}", headers=h).status_code == 200
+
+
+def test_agent_crud_requires_password_and_role():
+    _, client = make_client()
+    token = client.post("/api/auth/login", json={
+        "email": "operateur@safecity.local", "password": "safecity123"}).get_json()["token"]
+    h = {"Authorization": "Bearer " + token}
+    assert client.post("/api/agents", json={"name": "z", "email": "z@x.fr", "role": "agent"},
+                       headers=h).status_code == 400  # mdp manquant
+    assert client.post("/api/agents", json={"name": "z", "email": "z@x.fr", "password": "secret123"},
+                       headers=h).status_code == 400  # rôle manquant
+
+
 def test_report_pdf():
     _, client = make_client()
     client.post("/api/alerts", json={"type": "vol", "lat": -4.3, "lng": 15.3})

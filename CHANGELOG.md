@@ -2,6 +2,19 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [2.4.0] — Gestion complète des agents
+
+### Ajouté
+- **CRUD des agents** depuis le poste opérateur (onglet « Gestion des agents ») :
+  **Ajouter**, **Modifier**, **Supprimer** un agent via un formulaire dédié
+  (nom, email, téléphone, rôle, mot de passe, actif). Endpoints
+  `POST/PATCH/DELETE /api/agents`.
+- **Localiser un agent** sur la carte : bouton « 📍 Localiser » qui centre la
+  carte sur la position terrain de l'agent.
+- Validations serveur (email unique, mot de passe ≥ 6, rôle valide) ; interdiction
+  de supprimer son propre compte ; détachement des alertes de l'agent supprimé ;
+  diffusion temps réel des créations/suppressions d'agents.
+
 ## [2.3.0] — Recherche avancée, portail agents & analyse de performance
 
 ### Ajouté

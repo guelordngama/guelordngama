@@ -51,7 +51,7 @@ from pages import (
     StatisticsPage,
 )
 from sound import AlarmPlayer
-from widgets import IncidentPopup, Toast
+from widgets import AgentDialog, IncidentPopup, Toast
 
 API_BASE = os.environ.get("SAFECITY_API", "http://127.0.0.1:5000")
 
@@ -65,6 +65,7 @@ class RealtimeBridge(QThread):
     connection_changed = Signal(bool)
     agents_count = Signal(int)
     agent_updated = Signal(dict)
+    agent_deleted = Signal(int)
 
     def __init__(self, api):
         super().__init__()
@@ -77,6 +78,7 @@ class RealtimeBridge(QThread):
         self.api.on("disconnect", lambda: self.connection_changed.emit(False))
         self.api.on("agents_count", lambda d: self.agents_count.emit(d.get("count", 0)))
         self.api.on("agent_updated", lambda d: self.agent_updated.emit(d))
+        self.api.on("agent_deleted", lambda d: self.agent_deleted.emit(d.get("id")))
         self.api.connect_realtime()
 
 
@@ -301,6 +303,10 @@ class MainWindow(QWidget):
         self.page_live.reset_search.connect(lambda: self.page_live.set_alerts(self._sorted_alerts()))
         self.page_reports.generate_pdf.connect(self._generate_report)
         self.page_analytics.period_changed.connect(self._load_analytics)
+        self.page_agents.request_add.connect(self._add_agent)
+        self.page_agents.request_edit.connect(self._edit_agent)
+        self.page_agents.request_delete.connect(self._delete_agent)
+        self.page_agents.request_locate.connect(self._locate_agent)
 
     def _tick_clock(self):
         from datetime import datetime
@@ -376,6 +382,8 @@ class MainWindow(QWidget):
         self.bridge.agent_updated.connect(self._on_agent_updated)
         self.bridge.start()
 
+        self.bridge.agent_deleted.connect(self._on_agent_deleted)
+
     def _on_agent_updated(self, agent):
         self.page_agents.update_agent(agent)
         # Rafraîchit les marqueurs agents sur la carte.
@@ -383,6 +391,56 @@ class MainWindow(QWidget):
             self.page_map.set_agents(list(self.page_agents.agents.values()))
         except Exception:
             pass
+
+    def _on_agent_deleted(self, agent_id):
+        self.page_agents.remove_agent(agent_id)
+        self.page_map.set_agents(list(self.page_agents.agents.values()))
+
+    # ---- Gestion des agents (CRUD) ----
+    def _add_agent(self):
+        dlg = AgentDialog(parent=self)
+        if dlg.exec() == QDialog.Accepted:
+            try:
+                self.api.create_agent(dlg.payload())
+                self._load_agents()
+                Toast(self, "Agent ajouté ➕", "#22c55e").show_for(2500)
+            except Exception as e:
+                QMessageBox.warning(self, "Ajout d'agent", str(e))
+
+    def _edit_agent(self, agent):
+        dlg = AgentDialog(agent=agent, parent=self)
+        if dlg.exec() == QDialog.Accepted:
+            try:
+                self.api.update_agent(agent["id"], dlg.payload())
+                self._load_agents()
+                Toast(self, "Agent modifié ✏️", theme.ACCENT).show_for(2500)
+            except Exception as e:
+                QMessageBox.warning(self, "Modification d'agent", str(e))
+
+    def _delete_agent(self, agent):
+        if QMessageBox.question(
+            self, "Supprimer l'agent",
+            f"Supprimer définitivement « {agent['name']} » ?",
+        ) != QMessageBox.Yes:
+            return
+        try:
+            self.api.delete_agent(agent["id"])
+            self.page_agents.remove_agent(agent["id"])
+            self.page_map.set_agents(list(self.page_agents.agents.values()))
+            Toast(self, "Agent supprimé 🗑️", "#ef4444").show_for(2500)
+        except Exception as e:
+            QMessageBox.warning(self, "Suppression d'agent", str(e))
+
+    def _locate_agent(self, agent):
+        if agent.get("lat") is None or agent.get("lng") is None:
+            QMessageBox.information(
+                self, "Localisation",
+                f"La position de « {agent['name']} » n'est pas encore disponible.\n"
+                "L'agent doit être connecté au portail (position GPS active).")
+            return
+        self._navigate(2)  # carte
+        self.page_map.set_agents(list(self.page_agents.agents.values()))
+        self.page_map.focus_agent(agent["lat"], agent["lng"])
 
     def _on_new_alert(self, alert):
         self.alerts[alert["id"]] = alert

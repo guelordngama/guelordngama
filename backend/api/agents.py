@@ -5,7 +5,7 @@ from ..errors import ValidationError
 from ..models import ROLES, User
 from ..security import require_auth
 from ..services import agents as agents_service
-from ..validation import coerce_float
+from ..validation import coerce_float, validate_agent_payload
 
 bp = Blueprint("agents", __name__, url_prefix="/api")
 
@@ -16,6 +16,28 @@ def list_agents():
     role = request.args.get("role")
     role = role if role in ROLES else None
     return jsonify(agents_service.list_agents(role=role, with_tracking=True))
+
+
+@bp.post("/agents")
+@require_auth(roles=["operator", "supervisor", "admin"])
+def create_agent():
+    data = validate_agent_payload(request.get_json(silent=True), partial=False)
+    return jsonify(agents_service.create_agent(data)), 201
+
+
+@bp.route("/agents/<int:agent_id>", methods=["PUT", "PATCH"])
+@require_auth(roles=["operator", "supervisor", "admin"])
+def update_agent(agent_id):
+    data = validate_agent_payload(request.get_json(silent=True), partial=True)
+    return jsonify(agents_service.update_agent(agent_id, data))
+
+
+@bp.delete("/agents/<int:agent_id>")
+@require_auth(roles=["operator", "supervisor", "admin"])
+def delete_agent(agent_id):
+    from flask import g
+
+    return jsonify(agents_service.delete_agent(agent_id, requester_id=g.user.get("uid")))
 
 
 @bp.get("/citizens")

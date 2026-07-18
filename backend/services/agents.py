@@ -26,6 +26,71 @@ def list_agents(role=None, with_tracking=True):
             for u in query.order_by(User.role.desc(), User.name).all()]
 
 
+def create_agent(data):
+    """Crée un personnel (agent/opérateur/superviseur/admin)."""
+    from ..errors import ValidationError
+    from ..security import hash_password
+
+    email = data["email"]
+    if User.query.filter(func.lower(User.email) == email.lower()).first():
+        raise ValidationError("Un compte avec cet email existe déjà.")
+    user = User(
+        name=data["name"], email=email, phone=data.get("phone"),
+        role=data["role"], active=data.get("active", True),
+        availability="offline",
+        password_hash=hash_password(data["password"]),
+    )
+    db.session.add(user)
+    db.session.commit()
+    log.info("Agent créé : %s (%s)", user.name, user.role)
+    payload = user.to_dict(with_tracking=True)
+    _emit("agent_updated", payload)
+    return payload
+
+
+def update_agent(agent_id, data):
+    from ..errors import NotFoundError, ValidationError
+    from ..security import hash_password
+
+    user = db.session.get(User, agent_id)
+    if not user or user.role == "citizen":
+        raise NotFoundError("Agent introuvable.")
+    if "email" in data and data["email"]:
+        existing = User.query.filter(func.lower(User.email) == data["email"].lower()).first()
+        if existing and existing.id != user.id:
+            raise ValidationError("Un autre compte utilise déjà cet email.")
+        user.email = data["email"]
+    for field in ("name", "phone", "role", "active"):
+        if field in data and data[field] is not None:
+            setattr(user, field, data[field])
+    if data.get("password"):
+        user.password_hash = hash_password(data["password"])
+    db.session.commit()
+    log.info("Agent modifié : %s", user.name)
+    payload = user.to_dict(with_tracking=True)
+    _emit("agent_updated", payload)
+    return payload
+
+
+def delete_agent(agent_id, requester_id=None):
+    from ..errors import ForbiddenError, NotFoundError
+
+    user = db.session.get(User, agent_id)
+    if not user or user.role == "citizen":
+        raise NotFoundError("Agent introuvable.")
+    if requester_id and user.id == requester_id:
+        raise ForbiddenError("Vous ne pouvez pas supprimer votre propre compte.")
+    # Détache les alertes prises en charge par cet agent.
+    for alert in Alert.query.filter(Alert.assigned_agent_id == user.id).all():
+        alert.assigned_agent_id = None
+    name = user.name
+    db.session.delete(user)
+    db.session.commit()
+    log.info("Agent supprimé : %s", name)
+    _emit("agent_deleted", {"id": agent_id})
+    return {"deleted": agent_id, "name": name}
+
+
 def update_location(agent_id, lat, lng):
     agent = db.session.get(User, agent_id)
     if not agent:

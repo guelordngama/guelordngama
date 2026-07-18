@@ -2,12 +2,16 @@
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
     QDialog,
+    QFormLayout,
     QFrame,
     QGraphicsDropShadowEffect,
     QGridLayout,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QPushButton,
     QSizePolicy,
     QVBoxLayout,
@@ -222,3 +226,93 @@ class IncidentPopup(QDialog):
 
         phone = self.alert.get("reporter_phone") or "non communiqué"
         QMessageBox.information(self, "Appel", f"Appel du citoyen : {phone}")
+
+
+class AgentDialog(QDialog):
+    """Formulaire de création / modification d'un agent."""
+
+    ROLES = [("Agent", "agent"), ("Opérateur", "operator"),
+             ("Superviseur", "supervisor"), ("Administrateur", "admin")]
+
+    def __init__(self, agent=None, parent=None):
+        super().__init__(parent)
+        self.agent = agent
+        self.setStyleSheet(theme.QSS)
+        self.setMinimumWidth(400)
+        self.setWindowTitle("Modifier l'agent" if agent else "Ajouter un agent")
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(22, 20, 22, 20)
+        root.setSpacing(6)
+        title = QLabel("✏️ Modifier l'agent" if agent else "➕ Nouvel agent")
+        title.setObjectName("pageTitle")
+        root.addWidget(title)
+
+        form = QFormLayout()
+        form.setSpacing(10)
+        self.name = QLineEdit(agent.get("name", "") if agent else "")
+        self.email = QLineEdit(agent.get("email", "") if agent else "")
+        self.phone = QLineEdit(agent.get("phone", "") if agent else "")
+        self.role = QComboBox()
+        for label, value in self.ROLES:
+            self.role.addItem(label, value)
+        if agent:
+            idx = self.role.findData(agent.get("role", "agent"))
+            self.role.setCurrentIndex(max(0, idx))
+        self.password = QLineEdit()
+        self.password.setEchoMode(QLineEdit.Password)
+        self.password.setPlaceholderText(
+            "Laisser vide pour ne pas changer" if agent else "Min. 6 caractères")
+        self.active = QCheckBox("Compte actif")
+        self.active.setChecked(agent.get("active", True) if agent else True)
+
+        form.addRow("Nom", self.name)
+        form.addRow("Email", self.email)
+        form.addRow("Téléphone", self.phone)
+        form.addRow("Rôle", self.role)
+        form.addRow("Mot de passe", self.password)
+        form.addRow("", self.active)
+        root.addLayout(form)
+
+        self.error = QLabel("")
+        self.error.setStyleSheet("color: #ff8181;")
+        self.error.setWordWrap(True)
+        root.addWidget(self.error)
+
+        btns = QHBoxLayout()
+        cancel = QPushButton("Annuler")
+        cancel.setObjectName("ghost")
+        cancel.clicked.connect(self.reject)
+        ok = QPushButton("Enregistrer")
+        ok.clicked.connect(self._validate)
+        btns.addStretch()
+        btns.addWidget(cancel)
+        btns.addWidget(ok)
+        root.addLayout(btns)
+
+    def _validate(self):
+        if not self.name.text().strip():
+            return self._err("Le nom est requis.")
+        if "@" not in self.email.text():
+            return self._err("Email invalide.")
+        pwd = self.password.text()
+        if not self.agent and len(pwd) < 6:
+            return self._err("Mot de passe requis (min. 6 caractères).")
+        if pwd and len(pwd) < 6:
+            return self._err("Mot de passe trop court (min. 6).")
+        self.accept()
+
+    def _err(self, msg):
+        self.error.setText(msg)
+
+    def payload(self):
+        data = {
+            "name": self.name.text().strip(),
+            "email": self.email.text().strip(),
+            "phone": self.phone.text().strip(),
+            "role": self.role.currentData(),
+            "active": self.active.isChecked(),
+        }
+        if self.password.text():
+            data["password"] = self.password.text()
+        return data

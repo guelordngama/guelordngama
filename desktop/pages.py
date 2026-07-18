@@ -325,11 +325,19 @@ class MapPage(QWidget):
             lbl.setAlignment(Qt.AlignCenter)
             root.addWidget(lbl)
         self._pending = None
+        self._pending_agents = None
+        self._pending_patrols = None
 
     def _on_loaded(self, ok):
         self.ready = ok
-        if ok and self._pending is not None:
+        if not ok:
+            return
+        if self._pending is not None:
             self.set_alerts(self._pending)
+        if self._pending_patrols is not None:
+            self.set_patrols(self._pending_patrols)
+        if self._pending_agents is not None:
+            self.set_agents(self._pending_agents)
 
     def _run(self, js):
         if self.view and self.ready:
@@ -346,12 +354,21 @@ class MapPage(QWidget):
     def set_patrols(self, teams):
         import json
 
+        if not self.ready:
+            self._pending_patrols = teams
+            return
         self._run(f"window.setPatrols({json.dumps(teams)});")
 
     def set_agents(self, agents):
         import json
 
+        if not self.ready:
+            self._pending_agents = agents
+            return
         self._run(f"window.setAgents({json.dumps(agents)});")
+
+    def focus_agent(self, lat, lng):
+        self._run(f"window.focusAgentAt({lat}, {lng});")
 
     def add_alert(self, alert):
         import json
@@ -442,7 +459,12 @@ class PeoplePage(QWidget):
 
 
 class AgentsPage(QWidget):
-    """Suivi opérationnel des agents en temps réel (superviseur)."""
+    """Gestion + suivi opérationnel des agents en temps réel."""
+
+    request_add = Signal()
+    request_edit = Signal(dict)
+    request_delete = Signal(dict)
+    request_locate = Signal(dict)
 
     def __init__(self):
         super().__init__()
@@ -459,12 +481,40 @@ class AgentsPage(QWidget):
             cards.addWidget(c)
         root.addLayout(cards)
 
-        title = QLabel("Agents actifs — position, disponibilité, progression")
+        # Barre d'outils de gestion
+        tools = QHBoxLayout()
+        title = QLabel("Agents — gestion & suivi terrain")
         title.setObjectName("sectionTitle")
-        root.addWidget(title)
-        self.table = _table(["Nom", "Rôle", "Disponibilité", "Position", "Intervention", "Vu à"])
+        tools.addWidget(title)
+        tools.addStretch()
+        b_add = QPushButton("➕ Ajouter"); b_add.setObjectName("success")
+        b_edit = QPushButton("✏️ Modifier"); b_edit.setObjectName("ghost")
+        b_del = QPushButton("🗑️ Supprimer"); b_del.setObjectName("danger")
+        b_loc = QPushButton("📍 Localiser"); b_loc.setObjectName("ghost")
+        for b in (b_loc, b_edit, b_del, b_add):
+            tools.addWidget(b)
+        root.addLayout(tools)
+
+        b_add.clicked.connect(self.request_add.emit)
+        b_edit.clicked.connect(lambda: self._with_selected(self.request_edit))
+        b_del.clicked.connect(lambda: self._with_selected(self.request_delete))
+        b_loc.clicked.connect(lambda: self._with_selected(self.request_locate))
+
+        self.table = _table(["Nom", "Rôle", "Disponibilité", "Téléphone", "Position", "Intervention", "Vu à"])
+        self.table.cellDoubleClicked.connect(lambda *_: self._with_selected(self.request_edit))
         root.addWidget(self.table, 1)
         self.agents = {}
+
+    def _selected_agent(self):
+        items = self.table.selectedItems()
+        if not items:
+            return None
+        return self.agents.get(items[0].data(Qt.UserRole))
+
+    def _with_selected(self, signal):
+        a = self._selected_agent()
+        if a:
+            signal.emit(a)
 
     def set_agents(self, agents):
         self.agents = {a["id"]: a for a in agents}
@@ -472,6 +522,10 @@ class AgentsPage(QWidget):
 
     def update_agent(self, agent):
         self.agents[agent["id"]] = agent
+        self._render()
+
+    def remove_agent(self, agent_id):
+        self.agents.pop(agent_id, None)
         self._render()
 
     def _render(self):
@@ -489,10 +543,13 @@ class AgentsPage(QWidget):
             cells = [
                 (a["name"], None), (a["role"].capitalize(), theme.ACCENT_2),
                 (avail_labels.get(av, av), avail_colors.get(av)),
+                (a.get("phone") or "—", None),
                 (pos, None), (interv, "#f97316" if interv != "—" else theme.MUTED), (seen, theme.MUTED),
             ]
             for j, (text, color) in enumerate(cells):
-                self.table.setItem(i, j, _item(text, color))
+                item = _item(text, color)
+                item.setData(Qt.UserRole, a["id"])
+                self.table.setItem(i, j, item)
         self.c_total.set_value(len(agents))
         self.c_avail.set_value(n_av); self.c_busy.set_value(n_bu); self.c_offline.set_value(n_of)
 

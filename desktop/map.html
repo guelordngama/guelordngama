@@ -82,6 +82,11 @@
       if (m) { map.setView(m.getLatLng(), 16); m.openPopup(); }
     };
 
+    // Centre la carte sur une position d'agent.
+    window.focusAgentAt = function (lat, lng) {
+      map.setView([lat, lng], 17);
+    };
+
     // Agents suivis en temps réel.
     var agentLayer = L.layerGroup().addTo(map);
     var AVAIL = { available: "#22c55e", busy: "#f97316", offline: "#6b7280" };
