@@ -1,129 +1,124 @@
-"""SafeCity — Application bureau du centre de surveillance (Mairie).
+"""SafeCity — Poste opérateur (centre de commandement).
 
-Interface PySide6 :
-  - Tableau de bord (alertes du jour, actives, zones dangereuses, dernière alerte)
-  - Alertes en direct (tableau : heure, type, quartier, distance)
-  - Carte interactive OpenStreetMap (Qt WebEngine + Leaflet)
-  - Graphiques (Qt Charts : répartition par type)
-  - Actions : voir sur la carte, affecter une équipe, clôturer
+Interface PySide6 moderne, thème sombre :
+  - Menu latéral (tableau de bord, alertes, carte, agents, citoyens, historique,
+    statistiques, rapports, paramètres, déconnexion)
+  - Tableau de bord (tuiles, graphiques, dernières alertes)
+  - Pop-up d'incident à l'arrivée d'une alerte (alarme sonore + actions)
+  - Carte interactive colorée par gravité + positions des patrouilles
 
 Lancement :
-    python -m desktop.main            (depuis la racine du dépôt)
+    python -m desktop.main
     python desktop/main.py
 """
-import json
 import os
 import sys
 
-from PySide6.QtCharts import QBarCategoryAxis, QBarSeries, QBarSet, QChart, QChartView, QValueAxis
-from PySide6.QtCore import Qt, QThread, QUrl, Signal
-from PySide6.QtGui import QColor, QFont, QPainter
-from PySide6.QtWebEngineWidgets import QWebEngineView
+# Import robuste : ajoute le dossier au chemin puis imports absolus.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from PySide6.QtCore import Qt, QThread, QTimer, Signal
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QApplication,
+    QButtonGroup,
     QComboBox,
     QDialog,
     QFormLayout,
     QFrame,
     QHBoxLayout,
-    QHeaderView,
     QLabel,
     QLineEdit,
     QMessageBox,
     QPushButton,
-    QSplitter,
-    QTableWidget,
-    QTableWidgetItem,
+    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
 
-# Import robuste : on ajoute le dossier courant au chemin de recherche puis on
-# utilise un import ABSOLU. Fonctionne aussi bien lancé comme script (bouton Run
-# de PyCharm) que comme module (`python -m desktop.main`), sans import relatif.
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import theme
 from api_client import ApiClient
+from pages import (
+    DashboardPage,
+    HistoryPage,
+    LiveAlertsPage,
+    MapPage,
+    PeoplePage,
+    ReportsPage,
+    SettingsPage,
+    StatisticsPage,
+)
+from sound import AlarmPlayer
+from widgets import IncidentPopup, Toast
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-# 127.0.0.1 plutôt que "localhost" : sous Windows, "localhost" peut être résolu
-# en IPv6 (::1) et provoquer un "timed out" si le backend n'écoute qu'en IPv4.
 API_BASE = os.environ.get("SAFECITY_API", "http://127.0.0.1:5000")
-
-URGENCY_COLORS = {
-    "critique": "#9d0208",
-    "haute": "#e76f51",
-    "moyenne": "#e9a100",
-    "faible": "#2a9d8f",
-}
 
 
 # --------------------------------------------------------------------------- #
-# Pont Socket.IO -> Qt : reçoit les événements réseau et émet des signaux Qt.
+# Pont temps réel Socket.IO -> signaux Qt
 # --------------------------------------------------------------------------- #
 class RealtimeBridge(QThread):
     new_alert = Signal(dict)
     alert_updated = Signal(dict)
     connection_changed = Signal(bool)
+    agents_count = Signal(int)
 
-    def __init__(self, api: ApiClient):
+    def __init__(self, api):
         super().__init__()
         self.api = api
 
     def run(self):
-        self.api.on("new_alert", lambda data: self.new_alert.emit(data))
-        self.api.on("alert_updated", lambda data: self.alert_updated.emit(data))
+        self.api.on("new_alert", lambda d: self.new_alert.emit(d))
+        self.api.on("alert_updated", lambda d: self.alert_updated.emit(d))
         self.api.on("connect", lambda: self.connection_changed.emit(True))
         self.api.on("disconnect", lambda: self.connection_changed.emit(False))
+        self.api.on("agents_count", lambda d: self.agents_count.emit(d.get("count", 0)))
         self.api.connect_realtime()
 
 
 # --------------------------------------------------------------------------- #
-# Carte de statistique (tuile du tableau de bord)
-# --------------------------------------------------------------------------- #
-class StatCard(QFrame):
-    def __init__(self, title, color="#c1121f"):
-        super().__init__()
-        self.setObjectName("statCard")
-        self.setStyleSheet(
-            f"#statCard {{ background:#fff; border-radius:14px; border-left:5px solid {color}; }}"
-        )
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 14, 16, 14)
-        self.value = QLabel("0")
-        self.value.setStyleSheet(f"color:{color};")
-        self.value.setFont(QFont("Segoe UI", 30, QFont.Bold))
-        title_lbl = QLabel(title)
-        title_lbl.setStyleSheet("color:#6b6b7b;")
-        title_lbl.setFont(QFont("Segoe UI", 10))
-        layout.addWidget(self.value)
-        layout.addWidget(title_lbl)
-
-    def set_value(self, v):
-        self.value.setText(str(v))
-
-
-# --------------------------------------------------------------------------- #
-# Dialogue de connexion opérateur
+# Connexion
 # --------------------------------------------------------------------------- #
 class LoginDialog(QDialog):
-    def __init__(self, api: ApiClient, parent=None):
-        super().__init__(parent)
+    def __init__(self, api):
+        super().__init__()
         self.api = api
         self.user = None
-        self.setWindowTitle("Connexion — Centre SafeCity")
-        self.setMinimumWidth(340)
-        form = QFormLayout(self)
+        self.setWindowTitle("SafeCity — Connexion")
+        self.setMinimumWidth(380)
+        self.setStyleSheet(theme.QSS + f"QDialog {{ background: {theme.BG}; }}")
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(28, 26, 28, 26)
+        root.setSpacing(6)
+
+        brand = QLabel("🛡️  SafeCity")
+        brand.setStyleSheet(f"font-size: 26px; font-weight: 800; color: {theme.TEXT};")
+        sub = QLabel("Centre de surveillance — Mairie")
+        sub.setObjectName("muted")
+        root.addWidget(brand)
+        root.addWidget(sub)
+        root.addSpacing(14)
+
+        form = QFormLayout()
+        form.setSpacing(10)
         self.email = QLineEdit("operateur@safecity.local")
         self.password = QLineEdit("safecity123")
         self.password.setEchoMode(QLineEdit.Password)
+        self.password.returnPressed.connect(self._try_login)
         form.addRow("Email", self.email)
         form.addRow("Mot de passe", self.password)
+        root.addLayout(form)
+
         btn = QPushButton("Se connecter")
         btn.clicked.connect(self._try_login)
-        form.addRow(btn)
+        root.addSpacing(6)
+        root.addWidget(btn)
+
         self.info = QLabel("Compte de démonstration pré-rempli.")
-        self.info.setStyleSheet("color:#6b6b7b; font-size:11px;")
-        form.addRow(self.info)
+        self.info.setObjectName("muted")
+        self.info.setWordWrap(True)
+        root.addWidget(self.info)
 
     def _try_login(self):
         try:
@@ -131,255 +126,308 @@ class LoginDialog(QDialog):
             self.accept()
         except Exception as e:
             self.info.setText("Échec : " + str(e))
-            self.info.setStyleSheet("color:#c1121f; font-size:11px;")
+            self.info.setStyleSheet("color: #ff8181;")
+
+
+# --------------------------------------------------------------------------- #
+# Menu latéral
+# --------------------------------------------------------------------------- #
+class Sidebar(QFrame):
+    navigate = Signal(int)
+    logout = Signal()
+
+    ITEMS = [
+        ("🏠", "Tableau de bord"),
+        ("🚨", "Alertes en direct"),
+        ("🗺️", "Carte interactive"),
+        ("👮", "Gestion des agents"),
+        ("👥", "Gestion des citoyens"),
+        ("📜", "Historique"),
+        ("📊", "Statistiques"),
+        ("📄", "Rapports"),
+        ("⚙️", "Paramètres"),
+    ]
+
+    def __init__(self):
+        super().__init__()
+        self.setObjectName("sidebar")
+        self.setFixedWidth(248)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(14, 18, 14, 14)
+        root.setSpacing(6)
+
+        brand = QLabel("🛡️ SafeCity")
+        brand.setObjectName("brand")
+        sub = QLabel("Centre de commandement")
+        sub.setObjectName("brandSub")
+        root.addWidget(brand)
+        root.addWidget(sub)
+        root.addSpacing(16)
+
+        self.group = QButtonGroup(self)
+        self.group.setExclusive(True)
+        for i, (icon, label) in enumerate(self.ITEMS):
+            b = QPushButton(f"  {icon}   {label}")
+            b.setObjectName("navBtn")
+            b.setCheckable(True)
+            b.setCursor(Qt.PointingHandCursor)
+            b.clicked.connect(lambda _=False, idx=i: self.navigate.emit(idx))
+            self.group.addButton(b, i)
+            root.addWidget(b)
+        self.group.button(0).setChecked(True)
+
+        root.addStretch()
+        self.badge = QLabel("● Hors ligne")
+        self.badge.setStyleSheet("color: #ff8181; font-weight: 700; padding: 6px 10px;")
+        root.addWidget(self.badge)
+
+        logout = QPushButton("  🔒   Déconnexion")
+        logout.setObjectName("logoutBtn")
+        logout.setCursor(Qt.PointingHandCursor)
+        logout.clicked.connect(self.logout.emit)
+        root.addWidget(logout)
+
+    def set_online(self, ok):
+        self.badge.setText("● En ligne" if ok else "● Hors ligne")
+        self.badge.setStyleSheet(
+            f"color: {'#22c55e' if ok else '#ff8181'}; font-weight: 700; padding: 6px 10px;"
+        )
+
+    def select(self, idx):
+        self.group.button(idx).setChecked(True)
 
 
 # --------------------------------------------------------------------------- #
 # Fenêtre principale
 # --------------------------------------------------------------------------- #
 class MainWindow(QWidget):
-    def __init__(self, api: ApiClient, operator):
+    def __init__(self, api, operator):
         super().__init__()
         self.api = api
         self.operator = operator
-        self.alerts = {}  # id -> dict
+        self.alerts = {}
         self.teams = []
+        self._open_popups = {}
 
-        self.setWindowTitle("SafeCity — Centre de surveillance (Mairie)")
-        self.resize(1280, 820)
-        self.setStyleSheet("QWidget { background:#f7f7fa; font-family:'Segoe UI'; }")
+        self.setObjectName("root")
+        self.setWindowTitle("SafeCity — Centre de commandement")
+        self.resize(1320, 860)
+        self.setStyleSheet(theme.QSS)
+        self.alarm = AlarmPlayer()
 
         self._build_ui()
-        self._load_initial_data()
+        self._load_initial()
         self._start_realtime()
 
-    # ---- Construction de l'interface ----
+        # Rafraîchissement périodique (filet de sécurité en plus du temps réel).
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._refresh_stats)
+        self._timer.start(15000)
+
+    # ---- Construction ----
     def _build_ui(self):
-        root = QVBoxLayout(self)
-        root.setContentsMargins(16, 16, 16, 16)
-        root.setSpacing(12)
+        root = QHBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
 
-        # En-tête
-        header = QHBoxLayout()
-        title = QLabel("🛡️  SafeCity — Centre de surveillance")
-        title.setFont(QFont("Segoe UI", 18, QFont.Bold))
-        title.setStyleSheet("color:#c1121f;")
-        self.conn_lbl = QLabel("● Hors ligne")
-        self.conn_lbl.setStyleSheet("color:#c1121f;")
-        header.addWidget(title)
-        header.addStretch()
-        header.addWidget(QLabel(f"Opérateur : {self.operator.get('name', '—')}"))
-        header.addWidget(self.conn_lbl)
-        root.addLayout(header)
+        self.sidebar = Sidebar()
+        self.sidebar.navigate.connect(self._navigate)
+        self.sidebar.logout.connect(self._logout)
+        root.addWidget(self.sidebar)
 
-        # Tuiles de statistiques
-        cards = QHBoxLayout()
-        self.card_today = StatCard("Alertes du jour", "#c1121f")
-        self.card_active = StatCard("Alertes actives", "#e76f51")
-        self.card_zones = StatCard("Zones dangereuses", "#e9a100")
-        self.card_last = StatCard("Total signalements", "#2a9d8f")
-        for c in (self.card_today, self.card_active, self.card_zones, self.card_last):
-            cards.addWidget(c)
-        root.addLayout(cards)
+        right = QVBoxLayout()
+        right.setContentsMargins(0, 0, 0, 0)
+        right.setSpacing(0)
 
-        # Zone centrale : (gauche) tableau alertes + graphique, (droite) carte
-        splitter = QSplitter(Qt.Horizontal)
+        # Barre supérieure
+        topbar = QFrame()
+        topbar.setObjectName("topbar")
+        topbar.setFixedHeight(64)
+        tl = QHBoxLayout(topbar)
+        tl.setContentsMargins(24, 0, 24, 0)
+        self.page_title = QLabel("Tableau de bord")
+        self.page_title.setObjectName("pageTitle")
+        tl.addWidget(self.page_title)
+        tl.addStretch()
+        self.clock = QLabel("")
+        self.clock.setObjectName("clock")
+        tl.addWidget(self.clock)
+        tl.addSpacing(16)
+        who = QLabel(f"👮 {self.operator.get('name', '—')}  ·  {self.operator.get('role', '')}")
+        who.setStyleSheet("font-weight: 700;")
+        tl.addWidget(who)
+        right.addWidget(topbar)
 
-        left = QWidget()
-        left_layout = QVBoxLayout(left)
-        left_layout.setContentsMargins(0, 0, 0, 0)
+        # Horloge
+        self._clock_timer = QTimer(self)
+        self._clock_timer.timeout.connect(self._tick_clock)
+        self._clock_timer.start(1000)
+        self._tick_clock()
 
-        lbl_live = QLabel("🔴 Alertes en direct")
-        lbl_live.setFont(QFont("Segoe UI", 13, QFont.Bold))
-        left_layout.addWidget(lbl_live)
-
-        self.table = QTableWidget(0, 6)
-        self.table.setHorizontalHeaderLabels(
-            ["Heure", "Type", "Quartier", "Distance", "Urgence", "Statut"]
-        )
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.table.itemSelectionChanged.connect(self._on_row_selected)
-        self.table.setStyleSheet("QTableWidget { background:#fff; border-radius:10px; }")
-        left_layout.addWidget(self.table, 3)
-
-        # Boutons d'action
-        actions = QHBoxLayout()
-        self.btn_map = QPushButton("📍 Voir sur la carte")
-        self.btn_assign = QPushButton("🚔 Affecter une équipe")
-        self.btn_close = QPushButton("✅ Clôturer")
-        for b, color in (
-            (self.btn_map, "#457b9d"),
-            (self.btn_assign, "#e9a100"),
-            (self.btn_close, "#2a9d8f"),
+        # Pages empilées
+        self.stack = QStackedWidget()
+        self.page_dashboard = DashboardPage()
+        self.page_live = LiveAlertsPage()
+        self.page_map = MapPage()
+        self.page_agents = PeoplePage(["Nom", "Rôle", "Email", "Statut"])
+        self.page_citizens = PeoplePage(["Nom", "Téléphone", "Email", "Inscrit le"])
+        self.page_history = HistoryPage()
+        self.page_stats = StatisticsPage()
+        self.page_reports = ReportsPage()
+        self.page_settings = SettingsPage(API_BASE, self.operator)
+        for p in (
+            self.page_dashboard, self.page_live, self.page_map, self.page_agents,
+            self.page_citizens, self.page_history, self.page_stats, self.page_reports,
+            self.page_settings,
         ):
-            b.setStyleSheet(
-                f"QPushButton {{ background:{color}; color:#fff; padding:10px; "
-                f"border:none; border-radius:8px; font-weight:bold; }}"
-                f"QPushButton:hover {{ opacity:0.9; }}"
-            )
-            actions.addWidget(b)
-        self.btn_map.clicked.connect(self._focus_selected_on_map)
-        self.btn_assign.clicked.connect(self._assign_selected)
-        self.btn_close.clicked.connect(self._close_selected)
-        left_layout.addLayout(actions)
+            self.stack.addWidget(p)
+        right.addWidget(self.stack, 1)
+        root.addLayout(right, 1)
 
-        # Graphique Qt Charts
-        self.chart_view = self._build_chart()
-        left_layout.addWidget(self.chart_view, 2)
+        # Connexions inter-pages
+        self.page_dashboard.go_to_map.connect(lambda: self._navigate(2))
+        self.page_dashboard.request_focus.connect(self._focus_on_map)
+        self.page_live.request_assign.connect(self._assign)
+        self.page_live.request_close.connect(self._close)
+        self.page_live.request_focus.connect(self._focus_on_map)
+        self.page_live.open_incident.connect(self._open_incident_by_id)
 
-        splitter.addWidget(left)
+    def _tick_clock(self):
+        from datetime import datetime
 
-        # Carte (Qt WebEngine)
-        self.map_view = QWebEngineView()
-        self.map_view.load(QUrl.fromLocalFile(os.path.join(BASE_DIR, "map.html")))
-        self.map_ready = False
-        self.map_view.loadFinished.connect(self._on_map_loaded)
-        splitter.addWidget(self.map_view)
-        splitter.setSizes([560, 700])
+        self.clock.setText(datetime.now().strftime("%A %d %B %Y · %H:%M:%S"))
 
-        root.addWidget(splitter, 1)
-
-    def _build_chart(self):
-        self.bar_set = QBarSet("Alertes")
-        self.chart = QChart()
-        self.chart.setTitle("Répartition des incidents par type")
-        self.chart.setAnimationOptions(QChart.SeriesAnimations)
-        series = QBarSeries()
-        series.append(self.bar_set)
-        self.chart.addSeries(series)
-        self.bar_series = series
-
-        self.axis_x = QBarCategoryAxis()
-        self.chart.addAxis(self.axis_x, Qt.AlignBottom)
-        series.attachAxis(self.axis_x)
-        self.axis_y = QValueAxis()
-        self.axis_y.setLabelFormat("%d")
-        self.chart.addAxis(self.axis_y, Qt.AlignLeft)
-        series.attachAxis(self.axis_y)
-
-        view = QChartView(self.chart)
-        view.setRenderHint(QPainter.Antialiasing)
-        view.setStyleSheet("background:#fff; border-radius:10px;")
-        view.setMinimumHeight(220)
-        return view
+    # ---- Navigation ----
+    def _navigate(self, idx):
+        self.stack.setCurrentIndex(idx)
+        self.sidebar.select(idx)
+        self.page_title.setText(Sidebar.ITEMS[idx][1])
+        if idx == 3:
+            self._load_agents()
+        elif idx == 4:
+            self._load_citizens()
 
     # ---- Chargement initial ----
-    def _load_initial_data(self):
+    def _load_initial(self):
         try:
             self.teams = self.api.get_teams()
             for a in self.api.get_alerts():
                 self.alerts[a["id"]] = a
-            self._refresh_table()
-            self._refresh_stats()
+            self._refresh_all()
+            self.page_map.set_patrols(self.teams)
         except Exception as e:
-            QMessageBox.warning(self, "Erreur réseau",
-                              f"Impossible de charger les données :\n{e}")
+            QMessageBox.warning(self, "Erreur réseau", f"Chargement impossible :\n{e}")
+
+    def _load_agents(self):
+        try:
+            rows = []
+            for u in self.api.get_agents():
+                status = "● Actif" if u.get("active") else "○ Inactif"
+                rows.append([
+                    (u["name"], None),
+                    (u["role"].capitalize(), theme.ACCENT_2),
+                    (u.get("email") or "—", None),
+                    (status, "#22c55e" if u.get("active") else theme.MUTED),
+                ])
+            self.page_agents.set_rows(rows)
+        except Exception as e:
+            QMessageBox.warning(self, "Agents", str(e))
+
+    def _load_citizens(self):
+        try:
+            rows = []
+            for u in self.api.get_citizens():
+                rows.append([
+                    (u["name"], None),
+                    (u.get("phone") or "—", None),
+                    (u.get("email") or "—", None),
+                    ((u.get("created_at") or "")[:10], theme.MUTED),
+                ])
+            self.page_citizens.set_rows(rows)
+        except Exception as e:
+            QMessageBox.warning(self, "Citoyens", str(e))
 
     # ---- Temps réel ----
     def _start_realtime(self):
         self.bridge = RealtimeBridge(self.api)
         self.bridge.new_alert.connect(self._on_new_alert)
         self.bridge.alert_updated.connect(self._on_alert_updated)
-        self.bridge.connection_changed.connect(self._on_conn_changed)
+        self.bridge.connection_changed.connect(self.sidebar.set_online)
         self.bridge.start()
-
-    def _on_conn_changed(self, ok):
-        self.conn_lbl.setText("● En ligne" if ok else "● Hors ligne")
-        self.conn_lbl.setStyleSheet(f"color:{'#2a9d8f' if ok else '#c1121f'};")
 
     def _on_new_alert(self, alert):
         self.alerts[alert["id"]] = alert
-        self._refresh_table()
-        self._refresh_stats()
-        self._push_alert_to_map(alert)
-        # Signalement sonore/visuel possible ici (notification).
+        self._refresh_all()
+        self.page_map.add_alert(alert)
+        # Notification sonore + visuelle + pop-up d'incident
+        self.alarm.play()
+        Toast(self, f"Nouvelle alerte : {alert['type'].capitalize()} ({theme.urgency_label(alert['urgency'])})",
+              theme.urgency_color(alert["urgency"])).show_for(5000)
+        self._open_incident(alert)
 
     def _on_alert_updated(self, alert):
         self.alerts[alert["id"]] = alert
-        self._refresh_table()
+        self._refresh_all()
+        self.page_map.add_alert(alert)
+
+    # ---- Rafraîchissement ----
+    def _sorted_alerts(self):
+        return sorted(self.alerts.values(), key=lambda a: a["created_at"], reverse=True)
+
+    def _refresh_all(self):
+        alerts = self._sorted_alerts()
+        self.page_dashboard.set_alerts(alerts)
+        self.page_live.set_alerts(alerts)
+        self.page_history.set_alerts(alerts)
+        self.page_map.set_alerts(alerts)
         self._refresh_stats()
-        self._push_alert_to_map(alert)
 
-    # ---- Tableau ----
-    def _refresh_table(self):
-        rows = sorted(self.alerts.values(), key=lambda a: a["created_at"], reverse=True)
-        self.table.setRowCount(len(rows))
-        for i, a in enumerate(rows):
-            values = [
-                a.get("time", "—"),
-                (a.get("type") or "").capitalize(),
-                a.get("neighborhood") or "—",
-                f"{round(a['distance_m'])} m" if a.get("distance_m") is not None else "—",
-                (a.get("urgency") or "").capitalize(),
-                (a.get("status") or "").capitalize(),
-            ]
-            for j, val in enumerate(values):
-                item = QTableWidgetItem(str(val))
-                if j == 4:  # colonne urgence -> couleur
-                    item.setForeground(QColor(URGENCY_COLORS.get(a.get("urgency"), "#000")))
-                item.setData(Qt.UserRole, a["id"])
-                self.table.setItem(i, j, item)
-
-    def _selected_alert_id(self):
-        items = self.table.selectedItems()
-        return items[0].data(Qt.UserRole) if items else None
-
-    def _on_row_selected(self):
-        pass  # espace réservé pour un panneau de détails futur
-
-    # ---- Statistiques + graphique ----
     def _refresh_stats(self):
         try:
             stats = self.api.get_stats()
         except Exception:
             return
-        self.card_today.set_value(stats["today_count"])
-        self.card_active.set_value(stats["active_count"])
-        self.card_zones.set_value(len(stats["dangerous_zones"]))
-        self.card_last.set_value(stats["total_count"])
+        self.page_dashboard.set_stats(stats)
+        self.page_stats.set_stats(stats)
+        self.page_reports.set_stats(stats)
 
-        by_type = stats.get("by_type", {})
-        categories = list(by_type.keys())
-        self.bar_set.remove(0, self.bar_set.count())
-        for cat in categories:
-            self.bar_set.append(by_type[cat])
-        self.axis_x.clear()
-        self.axis_x.append([c.capitalize() for c in categories])
-        max_val = max(by_type.values()) if by_type else 1
-        self.axis_y.setRange(0, max(1, max_val))
+    # ---- Incident pop-up ----
+    def _open_incident(self, alert):
+        if alert["id"] in self._open_popups:
+            return
+        popup = IncidentPopup(alert, self)
+        popup.setStyleSheet(theme.QSS)
+        popup.accept_incident.connect(lambda a: Toast(self, "Incident accepté", theme.ACCENT).show_for(2500))
+        popup.send_patrol.connect(self._assign_alert)
+        popup.open_on_map.connect(lambda a: (self._navigate(2), self._focus_on_map(a["id"])))
+        popup.close_incident.connect(lambda a: self._close(a["id"]))
+        popup.finished.connect(lambda _=0, aid=alert["id"]: self._open_popups.pop(aid, None))
+        self._open_popups[alert["id"]] = popup
+        popup.show()
+        popup.raise_()
+        popup.activateWindow()
 
-    # ---- Carte ----
-    def _on_map_loaded(self, ok):
-        self.map_ready = ok
-        if ok:
-            self._push_all_to_map()
-
-    def _push_all_to_map(self):
-        data = json.dumps(list(self.alerts.values()))
-        self.map_view.page().runJavaScript(f"window.setAlerts({data});")
-
-    def _push_alert_to_map(self, alert):
-        if self.map_ready:
-            self.map_view.page().runJavaScript(f"window.addAlert({json.dumps(alert)});")
-
-    def _focus_selected_on_map(self):
-        aid = self._selected_alert_id()
-        if aid and self.map_ready:
-            self.map_view.page().runJavaScript(f"window.focusAlert({aid});")
+    def _open_incident_by_id(self, alert_id):
+        alert = self.alerts.get(alert_id)
+        if alert:
+            self._open_incident(alert)
 
     # ---- Actions opérateur ----
-    def _assign_selected(self):
-        aid = self._selected_alert_id()
-        if not aid:
-            QMessageBox.information(self, "Info", "Sélectionnez d'abord une alerte.")
-            return
+    def _focus_on_map(self, alert_id):
+        self._navigate(2)
+        self.page_map.focus(alert_id)
+
+    def _assign(self, alert_id):
+        alert = self.alerts.get(alert_id)
+        if alert:
+            self._assign_alert(alert)
+
+    def _assign_alert(self, alert):
         if not self.teams:
-            QMessageBox.warning(self, "Info", "Aucune équipe disponible.")
+            QMessageBox.information(self, "Info", "Aucune équipe disponible.")
             return
-        # Petit dialogue de choix d'équipe.
         dlg = QDialog(self)
+        dlg.setStyleSheet(theme.QSS)
         dlg.setWindowTitle("Affecter une équipe")
         lay = QVBoxLayout(dlg)
         lay.addWidget(QLabel("Choisir l'équipe d'intervention :"))
@@ -392,35 +440,41 @@ class MainWindow(QWidget):
         lay.addWidget(ok)
         if dlg.exec() == QDialog.Accepted:
             try:
-                updated = self.api.assign_team(aid, combo.currentData())
+                updated = self.api.assign_team(alert["id"], combo.currentData())
                 self._on_alert_updated(updated)
                 self.teams = self.api.get_teams()
+                self.page_map.set_patrols(self.teams)
+                Toast(self, "Équipe affectée 🚔", "#eab308").show_for(2500)
             except Exception as e:
                 QMessageBox.warning(self, "Erreur", str(e))
 
-    def _close_selected(self):
-        aid = self._selected_alert_id()
-        if not aid:
-            QMessageBox.information(self, "Info", "Sélectionnez d'abord une alerte.")
+    def _close(self, alert_id):
+        if QMessageBox.question(self, "Clôturer", "Clôturer cette alerte ?") != QMessageBox.Yes:
             return
-        if QMessageBox.question(self, "Clôturer", "Clôturer cette alerte ?") == QMessageBox.Yes:
-            try:
-                updated = self.api.close_alert(aid)
-                self._on_alert_updated(updated)
-                self.teams = self.api.get_teams()
-            except Exception as e:
-                QMessageBox.warning(self, "Erreur", str(e))
+        try:
+            updated = self.api.close_alert(alert_id)
+            self._on_alert_updated(updated)
+            self.teams = self.api.get_teams()
+            self.page_map.set_patrols(self.teams)
+            Toast(self, "Incident clôturé ✅", "#22c55e").show_for(2500)
+        except Exception as e:
+            QMessageBox.warning(self, "Erreur", str(e))
+
+    def _logout(self):
+        if QMessageBox.question(self, "Déconnexion", "Se déconnecter ?") == QMessageBox.Yes:
+            self.close()
 
 
 def main():
     app = QApplication(sys.argv)
+    app.setStyleSheet(theme.QSS)
     api = ApiClient(API_BASE)
 
     login = LoginDialog(api)
     if login.exec() != QDialog.Accepted:
         sys.exit(0)
 
-    window = MainWindow(api, login.user or {"name": "Opérateur"})
+    window = MainWindow(api, login.user or {"name": "Opérateur", "role": "operator"})
     window.show()
     sys.exit(app.exec())
 

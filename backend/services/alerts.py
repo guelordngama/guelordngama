@@ -47,6 +47,8 @@ def create_alert(data):
         lng=data["lng"],
         address=address,
         neighborhood=neighborhood,
+        reporter_name=data.get("reporter_name"),
+        reporter_phone=data.get("reporter_phone"),
         photo_path=photo_path,
         audio_path=audio_path,
         urgency=ai["urgency"],

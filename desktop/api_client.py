@@ -63,6 +63,12 @@ class ApiClient:
     def get_teams(self):
         return self._request("GET", "/api/teams")
 
+    def get_agents(self):
+        return self._request("GET", "/api/agents", auth=True)
+
+    def get_citizens(self):
+        return self._request("GET", "/api/citizens", auth=True)
+
     def assign_team(self, alert_id, team_id):
         return self._request("POST", f"/api/alerts/{alert_id}/assign",
                             {"team_id": team_id}, auth=True)

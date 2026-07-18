@@ -18,8 +18,17 @@ DANGER_TYPES = ["vol", "braquage", "incendie", "accident", "violence", "autre"]
 # Cycle de vie d'une alerte.
 ALERT_STATUSES = ["active", "assignee", "cloturee"]
 
-# Rôles utilisateurs.
-ROLES = ["citizen", "operator", "admin"]
+# Rôles utilisateurs (du moins au plus privilégié).
+ROLES = ["citizen", "agent", "operator", "supervisor", "admin"]
+
+# Permissions par rôle (utilisées côté UI et contrôle d'accès).
+ROLE_PERMISSIONS = {
+    "admin": ["view", "assign", "close", "manage_agents", "manage_users", "settings", "reports"],
+    "supervisor": ["view", "assign", "close", "manage_agents", "reports"],
+    "operator": ["view", "assign", "close", "reports"],
+    "agent": ["view"],
+    "citizen": [],
+}
 
 
 class TimestampMixin:
@@ -35,8 +44,13 @@ class User(TimestampMixin, db.Model):
     email = db.Column(db.String(160), unique=True, index=True)
     password_hash = db.Column(db.String(200))
     role = db.Column(db.String(20), default="citizen", nullable=False, index=True)
+    active = db.Column(db.Boolean, default=True, nullable=False)
 
     alerts = db.relationship("Alert", backref="reporter", lazy=True)
+
+    @property
+    def permissions(self):
+        return ROLE_PERMISSIONS.get(self.role, [])
 
     def to_dict(self):
         return {
@@ -45,6 +59,8 @@ class User(TimestampMixin, db.Model):
             "phone": self.phone,
             "email": self.email,
             "role": self.role,
+            "active": self.active,
+            "permissions": self.permissions,
             "created_at": _iso(self.created_at),
         }
 
@@ -83,7 +99,11 @@ class Alert(TimestampMixin, db.Model):
     lat = db.Column(db.Float, nullable=False)
     lng = db.Column(db.Float, nullable=False)
     address = db.Column(db.String(255))
-    neighborhood = db.Column(db.String(120), index=True)  # quartier
+    neighborhood = db.Column(db.String(120), index=True)  # quartier / commune
+
+    # Informations sur le citoyen déclarant (optionnelles)
+    reporter_name = db.Column(db.String(120))
+    reporter_phone = db.Column(db.String(40))
 
     # Pièces jointes (chemins relatifs dans /uploads)
     photo_path = db.Column(db.String(255))
@@ -115,6 +135,8 @@ class Alert(TimestampMixin, db.Model):
             "lng": self.lng,
             "address": self.address,
             "neighborhood": self.neighborhood,
+            "reporter_name": self.reporter_name or "Citoyen anonyme",
+            "reporter_phone": self.reporter_phone,
             "photo_url": f"/uploads/{self.photo_path}" if self.photo_path else None,
             "audio_url": f"/uploads/{self.audio_path}" if self.audio_path else None,
             "urgency": self.urgency,

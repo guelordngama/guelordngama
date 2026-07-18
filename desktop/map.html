@@ -7,60 +7,93 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
-    html, body, #map { height: 100%; margin: 0; }
-    .alert-popup b { color: #c1121f; }
+    html, body, #map { height: 100%; margin: 0; background: #0b1220; }
+    .leaflet-container { background: #0b1220; }
+    .alert-popup b { color: #ef4444; }
+    .legend {
+      background: rgba(16,26,46,0.92); color: #e6ecf5; padding: 10px 12px;
+      border-radius: 10px; font: 12px 'Segoe UI', sans-serif; line-height: 1.7;
+      border: 1px solid #233250;
+    }
+    .legend i { display:inline-block; width:12px; height:12px; border-radius:50%;
+      margin-right:6px; vertical-align:middle; }
   </style>
 </head>
 <body>
   <div id="map"></div>
   <script>
-    // Carte centrée par défaut sur la zone de surveillance.
-    var map = L.map("map").setView([-4.325, 15.3222], 13);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "© OpenStreetMap", maxZoom: 19,
+    var map = L.map("map", { zoomControl: true }).setView([-4.325, 15.3222], 13);
+    // Fond de carte sombre (CARTO dark) avec repli OSM.
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+      attribution: "© OpenStreetMap © CARTO", maxZoom: 19, subdomains: "abcd",
     }).addTo(map);
 
-    var markers = {}; // id -> marker
+    var URGENCY = { faible: "#22c55e", moyenne: "#eab308", haute: "#f97316", critique: "#ef4444" };
+    var markers = {};     // id -> marker
+    var patrolLayer = L.layerGroup().addTo(map);
 
-    // Icône rouge personnalisée pour les alertes actives.
     function alertIcon(urgency) {
-      var colors = { critique: "#9d0208", haute: "#e76f51", moyenne: "#e9a100", faible: "#2a9d8f" };
-      var c = colors[urgency] || "#c1121f";
+      var c = URGENCY[urgency] || "#ef4444";
       return L.divIcon({
         className: "",
-        html: '<div style="width:18px;height:18px;border-radius:50%;background:' + c +
-              ';border:3px solid #fff;box-shadow:0 0 0 2px ' + c + '"></div>',
-        iconSize: [18, 18], iconAnchor: [9, 9],
+        html: '<div style="width:16px;height:16px;border-radius:50%;background:' + c +
+              ';border:3px solid #0b1220;box-shadow:0 0 0 2px ' + c + ',0 0 12px ' + c + '"></div>',
+        iconSize: [16, 16], iconAnchor: [8, 8],
       });
     }
 
-    // API appelée depuis Python (via runJavaScript).
     window.addAlert = function (a) {
-      if (markers[a.id]) { map.removeLayer(markers[a.id]); }
-      if (a.status === "cloturee") { delete markers[a.id]; return; }
+      if (markers[a.id]) { map.removeLayer(markers[a.id]); delete markers[a.id]; }
+      if (a.status === "cloturee") { return; }
       var m = L.marker([a.lat, a.lng], { icon: alertIcon(a.urgency) }).addTo(map);
       m.bindPopup(
         '<div class="alert-popup"><b>' + (a.type || "").toUpperCase() + "</b><br/>" +
+        "Citoyen : " + (a.reporter_name || "Anonyme") + "<br/>" +
         "Quartier : " + (a.neighborhood || "—") + "<br/>" +
-        "Lat/Lng : " + a.lat.toFixed(5) + ", " + a.lng.toFixed(5) + "<br/>" +
         "Heure : " + (a.time || "—") + "<br/>" +
         "Distance : " + (a.distance_m != null ? Math.round(a.distance_m) + " m" : "—") + "</div>"
       );
       markers[a.id] = m;
     };
 
-    // Centre la carte sur une alerte donnée.
-    window.focusAlert = function (id) {
-      var m = markers[id];
-      if (m) { map.setView(m.getLatLng(), 16); m.openPopup(); }
-    };
-
-    // Charge un lot d'alertes.
     window.setAlerts = function (list) {
       Object.keys(markers).forEach(function (k) { map.removeLayer(markers[k]); });
       markers = {};
       (list || []).forEach(window.addAlert);
     };
+
+    window.setPatrols = function (teams) {
+      patrolLayer.clearLayers();
+      (teams || []).forEach(function (t) {
+        if (t.patrol_lat == null || t.patrol_lng == null) return;
+        var icon = L.divIcon({
+          className: "",
+          html: '<div style="font-size:18px;filter:drop-shadow(0 0 3px #000)">🚓</div>',
+          iconSize: [20, 20], iconAnchor: [10, 10],
+        });
+        L.marker([t.patrol_lat, t.patrol_lng], { icon: icon })
+          .bindPopup("<b>" + t.name + "</b><br/>Statut : " + t.status)
+          .addTo(patrolLayer);
+      });
+    };
+
+    window.focusAlert = function (id) {
+      var m = markers[id];
+      if (m) { map.setView(m.getLatLng(), 16); m.openPopup(); }
+    };
+
+    // Légende de gravité
+    var legend = L.control({ position: "bottomright" });
+    legend.onAdd = function () {
+      var div = L.DomUtil.create("div", "legend");
+      div.innerHTML =
+        '<i style="background:#22c55e"></i>Faible<br/>' +
+        '<i style="background:#eab308"></i>Moyen<br/>' +
+        '<i style="background:#f97316"></i>Élevé<br/>' +
+        '<i style="background:#ef4444"></i>Critique';
+      return div;
+    };
+    legend.addTo(map);
 
     document.title = "SafeCity map ready";
   </script>

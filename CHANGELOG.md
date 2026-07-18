@@ -2,6 +2,29 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [2.1.0] — Poste opérateur « centre de commandement »
+
+### Ajouté
+- **Interface bureau repensée** (PySide6, thème sombre) inspirée des centres de
+  commandement : menu latéral (tableau de bord, alertes en direct, carte,
+  agents, citoyens, historique, statistiques, rapports, paramètres,
+  déconnexion), coins arrondis, ombres, badges colorés.
+- **Tableau de bord** : tuiles (alertes du jour, en cours, résolues, agents
+  connectés), graphiques (répartition par type, zones à risque), dernières
+  alertes.
+- **Pop-up d'incident automatique** à l'arrivée d'une alerte : **alarme sonore**
+  (synthétisée), notification visuelle (toast), informations (citoyen,
+  téléphone, heure, GPS, urgence, média) et actions **Accepter / Envoyer une
+  patrouille / Appeler / Ouvrir la carte / Clôturer**.
+- **Carte interactive** sombre, marqueurs colorés par gravité (🟢🟡🟠🔴),
+  positions des patrouilles, légende.
+- **Statistiques** : temps de réponse moyen, incidents par commune, types
+  fréquents, résolues du jour.
+- **Rôles et permissions** : admin, superviseur, opérateur, agent, citoyen.
+- Backend : endpoints `/api/agents` et `/api/citizens`, statistiques enrichies
+  (résolues, temps de réponse, agents connectés, par commune), infos citoyen
+  (nom/téléphone) sur les alertes, suivi du nombre d'agents connectés en direct.
+
 ## [2.0.0] — Version professionnelle
 
 ### Ajouté

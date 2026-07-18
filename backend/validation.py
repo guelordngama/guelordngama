@@ -61,6 +61,8 @@ def validate_alert_payload(data):
         "lng": lng,
         "address": clean_text(data.get("address"), 255) or None,
         "neighborhood": clean_text(data.get("neighborhood"), 120) or None,
+        "reporter_name": clean_text(data.get("reporter_name"), 120) or None,
+        "reporter_phone": clean_text(data.get("reporter_phone"), 40) or None,
         "photo": data.get("photo"),
         "audio": data.get("audio"),
         "reporter_id": data.get("reporter_id"),
