@@ -69,6 +69,35 @@ class ApiClient:
     def get_analytics(self, period="month"):
         return self._request("GET", f"/api/analytics?period={period}", auth=True)
 
+    def get_messages(self, limit=50):
+        return self._request("GET", f"/api/messages?limit={limit}", auth=True)
+
+    def send_message(self, text, alert_id=None):
+        body = {"text": text}
+        if alert_id:
+            body["alert_id"] = alert_id
+        return self._request("POST", "/api/messages", body, auth=True)
+
+    def download_export(self, fmt, dest_path, filters=None):
+        import urllib.parse
+
+        path = f"/api/export/alerts.{fmt}"
+        if filters:
+            qs = urllib.parse.urlencode({k: v for k, v in filters.items() if v})
+            if qs:
+                path += "?" + qs
+        url = self.base_url + path
+        headers = {"Authorization": "Bearer " + self.token} if self.token else {}
+        req = urllib.request.Request(url, headers=headers, method="GET")
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                data = resp.read()
+        except urllib.error.HTTPError as e:
+            raise RuntimeError(f"{e.code}: {e.read().decode('utf-8', 'ignore')}") from e
+        with open(dest_path, "wb") as fh:
+            fh.write(data)
+        return dest_path
+
     def create_agent(self, data):
         return self._request("POST", "/api/agents", data, auth=True)
 

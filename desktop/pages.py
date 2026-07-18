@@ -642,19 +642,99 @@ class AnalyticsPage(QWidget):
 
 
 class HistoryPage(QWidget):
+    export_csv = Signal()
+    export_xlsx = Signal()
+
     def __init__(self):
         super().__init__()
         root = QVBoxLayout(self)
         root.setContentsMargins(24, 20, 24, 24)
+        top = QHBoxLayout()
         title = QLabel("Historique des alertes clôturées")
         title.setObjectName("sectionTitle")
-        root.addWidget(title)
+        top.addWidget(title)
+        top.addStretch()
+        b_csv = QPushButton("⬇️ Exporter CSV"); b_csv.setObjectName("ghost")
+        b_xlsx = QPushButton("⬇️ Exporter Excel"); b_xlsx.setObjectName("success")
+        b_csv.clicked.connect(self.export_csv.emit)
+        b_xlsx.clicked.connect(self.export_xlsx.emit)
+        top.addWidget(b_csv); top.addWidget(b_xlsx)
+        root.addLayout(top)
         self.table = _table(["Heure", "Type", "Citoyen", "Quartier", "Urgence", "Statut"])
         root.addWidget(self.table)
 
     def set_alerts(self, alerts):
         closed = [a for a in alerts if a.get("status") == "cloturee"]
         _fill_alert_table(self.table, closed, with_citizen=True, hide_distance=True)
+
+
+class ChatPage(QWidget):
+    """Messagerie temps réel entre opérateurs et agents."""
+
+    send = Signal(str)
+
+    def __init__(self, operator):
+        super().__init__()
+        from PySide6.QtWidgets import QLineEdit, QTextEdit
+
+        self.me_id = operator.get("id")
+        root = QVBoxLayout(self)
+        root.setContentsMargins(24, 20, 24, 24)
+        root.setSpacing(12)
+
+        title = QLabel("💬 Messagerie opérateurs ↔ agents")
+        title.setObjectName("sectionTitle")
+        root.addWidget(title)
+
+        self.view = QTextEdit()
+        self.view.setReadOnly(True)
+        self.view.setObjectName("card")
+        self.view.setStyleSheet(
+            f"QTextEdit#card {{ background: {theme.PANEL}; border: 1px solid {theme.BORDER};"
+            f"border-radius: 14px; padding: 12px; }}"
+        )
+        root.addWidget(self.view, 1)
+
+        row = QHBoxLayout()
+        self.input = QLineEdit()
+        self.input.setPlaceholderText("Écrire un message aux agents…")
+        self.input.returnPressed.connect(self._send)
+        btn = QPushButton("Envoyer")
+        btn.clicked.connect(self._send)
+        row.addWidget(self.input, 1)
+        row.addWidget(btn)
+        root.addLayout(row)
+
+    def _send(self):
+        text = self.input.text().strip()
+        if text:
+            self.send.emit(text)
+            self.input.clear()
+
+    def set_messages(self, msgs):
+        self.view.clear()
+        for m in msgs:
+            self._append(m)
+
+    def add_message(self, m):
+        self._append(m)
+
+    def _append(self, m):
+        mine = m.get("sender_id") == self.me_id
+        role = (m.get("sender_role") or "").capitalize()
+        color = theme.ACCENT if mine else theme.ACCENT_2
+        name = "Moi" if mine else f"{m.get('sender_name')} · {role}"
+        text = (m.get("text") or "").replace("<", "&lt;").replace(">", "&gt;")
+        html = (
+            f'<table width="100%" cellspacing="0" cellpadding="0"><tr><td '
+            f'style="border-left:3px solid {color}; padding:5px 12px; background:{color}18;">'
+            f'<span style="color:{color}; font-size:11px; font-weight:bold;">{name}</span>'
+            f'<span style="color:{theme.MUTED}; font-size:11px;"> · {m.get("time","")}</span><br>'
+            f'<span style="color:{theme.TEXT};">{text}</span></td></tr></table>'
+        )
+        self.view.append(html)
+        sb = self.view.verticalScrollBar()
+        sb.setValue(sb.maximum())
 
 
 # --------------------------------------------------------------------------- #

@@ -41,6 +41,7 @@ from api_client import ApiClient
 from pages import (
     AgentsPage,
     AnalyticsPage,
+    ChatPage,
     DashboardPage,
     HistoryPage,
     LiveAlertsPage,
@@ -66,6 +67,7 @@ class RealtimeBridge(QThread):
     agents_count = Signal(int)
     agent_updated = Signal(dict)
     agent_deleted = Signal(int)
+    chat_message = Signal(dict)
 
     def __init__(self, api):
         super().__init__()
@@ -79,6 +81,7 @@ class RealtimeBridge(QThread):
         self.api.on("agents_count", lambda d: self.agents_count.emit(d.get("count", 0)))
         self.api.on("agent_updated", lambda d: self.agent_updated.emit(d))
         self.api.on("agent_deleted", lambda d: self.agent_deleted.emit(d.get("id")))
+        self.api.on("chat_message", lambda d: self.chat_message.emit(d))
         self.api.connect_realtime()
 
 
@@ -152,6 +155,7 @@ class Sidebar(QFrame):
         ("📊", "Statistiques"),
         ("📈", "Performances"),
         ("📄", "Rapports"),
+        ("💬", "Messagerie"),
         ("⚙️", "Paramètres"),
     ]
 
@@ -282,11 +286,12 @@ class MainWindow(QWidget):
         self.page_stats = StatisticsPage()
         self.page_analytics = AnalyticsPage()
         self.page_reports = ReportsPage()
+        self.page_chat = ChatPage(self.operator)
         self.page_settings = SettingsPage(API_BASE, self.operator)
         for p in (
             self.page_dashboard, self.page_live, self.page_map, self.page_agents,
             self.page_citizens, self.page_history, self.page_stats, self.page_analytics,
-            self.page_reports, self.page_settings,
+            self.page_reports, self.page_chat, self.page_settings,
         ):
             self.stack.addWidget(p)
         right.addWidget(self.stack, 1)
@@ -308,6 +313,9 @@ class MainWindow(QWidget):
         self.page_agents.request_delete.connect(self._delete_agent)
         self.page_agents.request_locate.connect(self._locate_agent)
         self.page_agents.request_route.connect(self._route_agent)
+        self.page_chat.send.connect(self._send_message)
+        self.page_history.export_csv.connect(lambda: self._export_history("csv"))
+        self.page_history.export_xlsx.connect(lambda: self._export_history("xlsx"))
 
     def _tick_clock(self):
         from datetime import datetime
@@ -325,6 +333,8 @@ class MainWindow(QWidget):
             self._load_citizens()
         elif idx == 7:
             self._load_analytics(self.page_analytics.period.currentData())
+        elif idx == 9:
+            self._load_messages()
 
     # ---- Chargement initial ----
     def _load_initial(self):
@@ -384,6 +394,7 @@ class MainWindow(QWidget):
         self.bridge.start()
 
         self.bridge.agent_deleted.connect(self._on_agent_deleted)
+        self.bridge.chat_message.connect(self._on_chat_message)
 
     def _on_agent_updated(self, agent):
         self.page_agents.update_agent(agent)
@@ -396,6 +407,44 @@ class MainWindow(QWidget):
     def _on_agent_deleted(self, agent_id):
         self.page_agents.remove_agent(agent_id)
         self.page_map.set_agents(list(self.page_agents.agents.values()))
+
+    # ---- Messagerie ----
+    def _load_messages(self):
+        try:
+            self.page_chat.set_messages(self.api.get_messages(50))
+        except Exception as e:
+            QMessageBox.warning(self, "Messagerie", str(e))
+
+    def _send_message(self, text):
+        try:
+            self.api.send_message(text)  # l'affichage se fait via l'événement temps réel
+        except Exception as e:
+            QMessageBox.warning(self, "Messagerie", str(e))
+
+    def _on_chat_message(self, msg):
+        self.page_chat.add_message(msg)
+        # Notification discrète si on n'est pas sur la page Messagerie.
+        if self.stack.currentWidget() is not self.page_chat and msg.get("sender_id") != self.operator.get("id"):
+            Toast(self, f"💬 {msg.get('sender_name')}: {msg.get('text', '')[:40]}", theme.ACCENT_2).show_for(3500)
+
+    # ---- Export de l'historique ----
+    def _export_history(self, fmt):
+        from PySide6.QtGui import QDesktopServices
+        from PySide6.QtCore import QUrl as _QUrl
+        from PySide6.QtWidgets import QFileDialog
+
+        ext = "xlsx" if fmt == "xlsx" else "csv"
+        default = os.path.join(os.path.expanduser("~"), f"safecity_alertes.{ext}")
+        path, _ = QFileDialog.getSaveFileName(self, "Exporter l'historique", default,
+                                              f"{ext.upper()} (*.{ext})")
+        if not path:
+            return
+        try:
+            self.api.download_export(ext, path)
+            QDesktopServices.openUrl(_QUrl.fromLocalFile(path))
+            Toast(self, f"Historique exporté ({ext.upper()}) ⬇️", "#22c55e").show_for(3000)
+        except Exception as e:
+            QMessageBox.warning(self, "Export", str(e))
 
     # ---- Gestion des agents (CRUD) ----
     def _add_agent(self):

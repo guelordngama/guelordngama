@@ -180,5 +180,30 @@ class Alert(TimestampMixin, db.Model):
         }
 
 
+class Message(TimestampMixin, db.Model):
+    """Message de la messagerie temps réel (opérateurs ↔ agents)."""
+
+    __tablename__ = "messages"
+
+    id = db.Column(db.Integer, primary_key=True)
+    sender_id = db.Column(db.Integer, db.ForeignKey("users.id"))
+    sender_name = db.Column(db.String(120))
+    sender_role = db.Column(db.String(20))
+    text = db.Column(db.Text, nullable=False)
+    alert_id = db.Column(db.Integer)  # rattachement optionnel à une alerte
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "sender_id": self.sender_id,
+            "sender_name": self.sender_name,
+            "sender_role": self.sender_role,
+            "text": self.text,
+            "alert_id": self.alert_id,
+            "created_at": _iso(self.created_at),
+            "time": self.created_at.strftime("%H:%M") if self.created_at else None,
+        }
+
+
 def _iso(dt):
     return dt.isoformat() if dt else None

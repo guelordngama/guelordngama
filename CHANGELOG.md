@@ -2,6 +2,18 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [2.6.0] — Messagerie temps réel & export Excel/CSV
+
+### Ajouté
+- **Messagerie temps réel** opérateurs ↔ agents : nouvel onglet « Messagerie »
+  (poste opérateur) et panneau de discussion dans le portail agents, diffusion
+  instantanée via Socket.IO, historique persistant. Endpoints
+  `GET/POST /api/messages`.
+- **Export Excel / CSV** des historiques d'alertes (respecte les filtres) :
+  boutons « Exporter CSV » et « Exporter Excel » sur la page Historique.
+  Endpoints `GET /api/export/alerts.csv` et `/api/export/alerts.xlsx`
+  (openpyxl ; CSV avec BOM pour Excel).
+
 ## [2.5.0] — Itinéraire le plus rapide & notifications push
 
 ### Ajouté

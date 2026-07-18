@@ -22,8 +22,9 @@ bcrypt>=4.2.0
 PyJWT>=2.9.0
 cryptography>=43.0.0
 
-# --- Rapports PDF ---
+# --- Rapports PDF & export Excel ---
 reportlab>=4.0.0
+openpyxl>=3.1.0
 
 # --- Intelligence artificielle (classification des incidents) ---
 scikit-learn>=1.5.1

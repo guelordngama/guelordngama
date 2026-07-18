@@ -5,7 +5,9 @@ def register_blueprints(app):
     from .agents import bp as agents_bp
     from .alerts import bp as alerts_bp
     from .auth import bp as auth_bp
+    from .export import bp as export_bp
     from .health import bp as health_bp
+    from .messages import bp as messages_bp
     from .reports import bp as reports_bp
     from .stats import bp as stats_bp
     from .teams import bp as teams_bp
@@ -18,4 +20,6 @@ def register_blueprints(app):
     app.register_blueprint(stats_bp)
     app.register_blueprint(agents_bp)
     app.register_blueprint(reports_bp)
+    app.register_blueprint(messages_bp)
+    app.register_blueprint(export_bp)
     app.register_blueprint(uploads_bp)

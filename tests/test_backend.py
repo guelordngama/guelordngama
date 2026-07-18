@@ -283,6 +283,40 @@ def test_agent_crud_requires_password_and_role():
                        headers=h).status_code == 400  # rôle manquant
 
 
+def test_messaging():
+    _, client = make_client()
+    op = client.post("/api/auth/login", json={
+        "email": "operateur@safecity.local", "password": "safecity123"}).get_json()["token"]
+    ag = client.post("/api/auth/login", json={
+        "email": "agent1@safecity.local", "password": "safecity123"}).get_json()["token"]
+    ho = {"Authorization": "Bearer " + op}
+    ha = {"Authorization": "Bearer " + ag}
+    assert client.post("/api/messages", json={"text": "Intervenez Zone 5"}, headers=ho).status_code == 201
+    assert client.post("/api/messages", json={"text": "Bien reçu"}, headers=ha).status_code == 201
+    # message vide rejeté
+    assert client.post("/api/messages", json={"text": "  "}, headers=ho).status_code == 400
+    # auth requise
+    assert client.get("/api/messages").status_code == 401
+    msgs = client.get("/api/messages", headers=ho).get_json()
+    assert len(msgs) == 2 and msgs[0]["text"] == "Intervenez Zone 5"  # ordre chronologique
+
+
+def test_export_csv_and_xlsx():
+    _, client = make_client()
+    client.post("/api/alerts", json={"type": "braquage", "lat": -4.3, "lng": 15.3, "reporter_name": "X"})
+    token = client.post("/api/auth/login", json={
+        "email": "operateur@safecity.local", "password": "safecity123"}).get_json()["token"]
+    h = {"Authorization": "Bearer " + token}
+    csv = client.get("/api/export/alerts.csv", headers=h)
+    assert csv.status_code == 200 and "csv" in csv.headers["Content-Type"]
+    assert b"Type" in csv.data and b"braquage" in csv.data
+    xlsx = client.get("/api/export/alerts.xlsx", headers=h)
+    assert xlsx.status_code in (200, 501)
+    if xlsx.status_code == 200:
+        assert xlsx.data[:2] == b"PK"
+    assert client.get("/api/export/alerts.csv").status_code == 401
+
+
 def test_notification_message_builders():
     from backend.services.notifications import _body_text, _sms_text, _subject
     alert = {

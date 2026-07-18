@@ -62,6 +62,36 @@
     $("availability").addEventListener("change", async (e) => {
       try { await api("POST", "/api/agents/me/status", { availability: e.target.value }); } catch (err) {}
     });
+
+    // Messagerie
+    loadMessages();
+    $("chat-send").addEventListener("click", sendMessage);
+    $("chat-text").addEventListener("keydown", (e) => { if (e.key === "Enter") sendMessage(); });
+    if (state.socket) state.socket.on("chat_message", addMessage);
+  }
+
+  async function loadMessages() {
+    try { (await api("GET", "/api/messages?limit=40")).forEach(addMessage); } catch (e) {}
+  }
+  async function sendMessage() {
+    const t = $("chat-text").value.trim();
+    if (!t) return;
+    $("chat-text").value = "";
+    try { await api("POST", "/api/messages", { text: t }); } catch (e) { alert("Échec : " + e.message); }
+  }
+  function addMessage(m) {
+    const box = $("chat-messages");
+    const mine = state.agent && m.sender_id === state.agent.id;
+    const div = document.createElement("div");
+    div.className = "chat-msg " + (mine ? "mine" : "other");
+    const who = document.createElement("span");
+    who.className = "who";
+    who.textContent = (mine ? "Moi" : (m.sender_name || "Centre")) + " · " + (m.time || "");
+    const txt = document.createElement("span");
+    txt.textContent = m.text;
+    div.appendChild(who); div.appendChild(txt);
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
   }
 
   function initMap() {
