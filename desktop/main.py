@@ -291,6 +291,7 @@ class MainWindow(QWidget):
         self.page_live.request_close.connect(self._close)
         self.page_live.request_focus.connect(self._focus_on_map)
         self.page_live.open_incident.connect(self._open_incident_by_id)
+        self.page_reports.generate_pdf.connect(self._generate_report)
 
     def _tick_clock(self):
         from datetime import datetime
@@ -459,6 +460,24 @@ class MainWindow(QWidget):
             Toast(self, "Incident clôturé ✅", "#22c55e").show_for(2500)
         except Exception as e:
             QMessageBox.warning(self, "Erreur", str(e))
+
+    def _generate_report(self, period):
+        from PySide6.QtGui import QDesktopServices
+        from PySide6.QtCore import QUrl as _QUrl
+        from PySide6.QtWidgets import QFileDialog
+
+        default = os.path.join(os.path.expanduser("~"), f"safecity_rapport_{period}.pdf")
+        path, _ = QFileDialog.getSaveFileName(self, "Enregistrer le rapport", default, "PDF (*.pdf)")
+        if not path:
+            return
+        try:
+            self.api.download_report(period, path)
+            self.page_reports.set_status(f"Rapport enregistré : {path}", ok=True)
+            QDesktopServices.openUrl(_QUrl.fromLocalFile(path))  # ouvre le PDF
+            Toast(self, "Rapport PDF généré 📄", "#22c55e").show_for(3000)
+        except Exception as e:
+            self.page_reports.set_status(f"Échec : {e}", ok=False)
+            QMessageBox.warning(self, "Rapport", str(e))
 
     def _logout(self):
         if QMessageBox.question(self, "Déconnexion", "Se déconnecter ?") == QMessageBox.Yes:

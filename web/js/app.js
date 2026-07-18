@@ -192,6 +192,8 @@
     const payload = {
       type: state.type || "autre",
       description: $("description").value,
+      reporter_name: $("citizen-name").value,
+      reporter_phone: $("citizen-phone").value,
       lat: lat,
       lng: lng,
       photo: state.photo,
@@ -256,6 +258,8 @@
     state.photo = null;
     state.audio = null;
     $("description").value = "";
+    $("citizen-name").value = "";
+    $("citizen-phone").value = "";
     $("attach-preview").innerHTML = "";
     document.querySelectorAll(".danger-chip").forEach((c) => c.classList.remove("selected"));
     show("alert");

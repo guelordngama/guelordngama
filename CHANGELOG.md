@@ -2,6 +2,18 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [2.2.0] — Rapports PDF & application citoyenne modernisée
+
+### Ajouté
+- **Génération de rapports PDF** (reportlab) : endpoint `GET /api/reports/pdf`
+  (périodes aujourd'hui/mois/année/tout), synthèse (KPIs, incidents par type et
+  par commune, détail des alertes). Bouton « Générer le PDF » dans le poste
+  opérateur (choix de la période, enregistrement + ouverture automatique).
+- **Application citoyenne modernisée** : thème sombre, dégradés et lueurs,
+  effet verre (glassmorphism), bouton d'alerte animé, champs **nom** et
+  **téléphone** du citoyen (transmis à l'opérateur et affichés dans le pop-up
+  d'incident).
+
 ## [2.1.0] — Poste opérateur « centre de commandement »
 
 ### Ajouté

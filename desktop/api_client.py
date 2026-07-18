@@ -69,6 +69,20 @@ class ApiClient:
     def get_citizens(self):
         return self._request("GET", "/api/citizens", auth=True)
 
+    def download_report(self, period, dest_path):
+        """Télécharge le rapport PDF de la période vers dest_path."""
+        url = f"{self.base_url}/api/reports/pdf?period={period}"
+        headers = {"Authorization": "Bearer " + self.token} if self.token else {}
+        req = urllib.request.Request(url, headers=headers, method="GET")
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                data = resp.read()
+        except urllib.error.HTTPError as e:
+            raise RuntimeError(f"{e.code}: {e.read().decode('utf-8', 'ignore')}") from e
+        with open(dest_path, "wb") as fh:
+            fh.write(data)
+        return dest_path
+
     def assign_team(self, alert_id, team_id):
         return self._request("POST", f"/api/alerts/{alert_id}/assign",
                             {"team_id": team_id}, auth=True)

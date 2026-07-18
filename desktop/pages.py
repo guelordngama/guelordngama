@@ -361,21 +361,42 @@ class HistoryPage(QWidget):
 # Rapports & paramètres (informatif)
 # --------------------------------------------------------------------------- #
 class ReportsPage(QWidget):
+    """Synthèse + génération/téléchargement de rapports PDF."""
+
+    generate_pdf = Signal(str)  # émet la période choisie
+
     def __init__(self):
         super().__init__()
         root = QVBoxLayout(self)
         root.setContentsMargins(24, 20, 24, 24)
         root.setSpacing(16)
+
         self.summary = Card("Rapport de synthèse")
         self.lines = QLabel("—")
         self.lines.setStyleSheet("font-size: 14px; line-height: 1.8;")
         self.summary.add(self.lines)
         root.addWidget(self.summary)
-        note = QLabel("Astuce : les rapports détaillés (PDF mensuel/annuel) peuvent être "
-                      "générés côté backend et téléchargés ici dans une prochaine version.")
-        note.setObjectName("muted")
-        note.setWordWrap(True)
-        root.addWidget(note)
+
+        gen = Card("Générer un rapport PDF")
+        row = QHBoxLayout()
+        row.setSpacing(10)
+        from PySide6.QtWidgets import QComboBox
+
+        self.period = QComboBox()
+        for label, value in [("Aujourd'hui", "today"), ("Ce mois-ci", "month"),
+                             ("Cette année", "year"), ("Tout", "all")]:
+            self.period.addItem(label, value)
+        self.period.setCurrentIndex(3)
+        btn = QPushButton("📄 Générer le PDF")
+        btn.clicked.connect(lambda: self.generate_pdf.emit(self.period.currentData()))
+        row.addWidget(QLabel("Période :"))
+        row.addWidget(self.period, 1)
+        row.addWidget(btn)
+        gen.v.addLayout(row)
+        self.status = QLabel("")
+        self.status.setObjectName("muted")
+        gen.add(self.status)
+        root.addWidget(gen)
         root.addStretch()
 
     def set_stats(self, stats):
@@ -387,6 +408,10 @@ class ReportsPage(QWidget):
             f"• Temps de réponse moyen : <b>{rt if rt is not None else '—'} min</b><br>"
             f"• Agents connectés : <b>{stats.get('agents_connected', 0)}</b>"
         )
+
+    def set_status(self, text, ok=True):
+        self.status.setText(text)
+        self.status.setStyleSheet(f"color: {'#22c55e' if ok else '#ff8181'};")
 
 
 class SettingsPage(QWidget):

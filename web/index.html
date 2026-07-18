@@ -3,12 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
-  <meta name="theme-color" content="#c1121f" />
+  <meta name="theme-color" content="#0b1220" />
   <title>SafeCity — Alerte citoyenne</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
+  <div class="app-bg"></div>
+
   <header class="app-header">
     <div class="brand">
       <span class="brand-mark">🛡️</span>
@@ -23,19 +25,22 @@
   <main class="app-main">
     <!-- ÉCRAN 1 : bouton d'alerte -->
     <section id="screen-alert" class="screen active">
-      <p class="intro">En cas de danger, appuyez sur le bouton. Votre position
-        GPS sera transmise immédiatement au centre de surveillance.</p>
+      <p class="intro">En cas de danger, appuyez sur le bouton.<br>
+        Votre position GPS sera transmise immédiatement au centre de surveillance.</p>
 
-      <button id="btn-alert" class="alert-button" aria-label="Déclencher une alerte">
-        <span class="alert-button-inner">
-          <span class="alert-icon">🚨</span>
-          <span class="alert-label">ALERTE</span>
-        </span>
-      </button>
+      <div class="alert-wrap">
+        <button id="btn-alert" class="alert-button" aria-label="Déclencher une alerte">
+          <span class="alert-ring"></span>
+          <span class="alert-button-inner">
+            <span class="alert-icon">🚨</span>
+            <span class="alert-label">ALERTE</span>
+          </span>
+        </button>
+      </div>
 
-      <div id="gps-box" class="gps-box">
+      <div id="gps-box" class="glass gps-box">
         <span class="gps-icon">📍</span>
-        <span id="gps-text">Position GPS non encore acquise…</span>
+        <span id="gps-text">Acquisition de la position…</span>
       </div>
     </section>
 
@@ -53,21 +58,32 @@
         <button class="danger-chip" data-type="autre">❓ Autre</button>
       </div>
 
+      <div class="two-cols">
+        <div>
+          <label class="field-label" for="citizen-name">👤 Votre nom (optionnel)</label>
+          <input id="citizen-name" type="text" placeholder="Nom / prénom" />
+        </div>
+        <div>
+          <label class="field-label" for="citizen-phone">📞 Téléphone (optionnel)</label>
+          <input id="citizen-phone" type="tel" placeholder="+243 …" />
+        </div>
+      </div>
+
       <label class="field-label" for="description">📝 Description (optionnel)</label>
       <textarea id="description" rows="3" placeholder="Décrivez brièvement la situation…"></textarea>
 
       <div class="attach-row">
-        <label class="attach-btn">
+        <label class="attach-btn glass">
           📷 Photo
           <input id="photo-input" type="file" accept="image/*" capture="environment" hidden />
         </label>
-        <button id="btn-record" class="attach-btn" type="button">🎤 Message vocal</button>
+        <button id="btn-record" class="attach-btn glass" type="button">🎤 Message vocal</button>
       </div>
       <div id="attach-preview" class="attach-preview"></div>
 
-      <div class="location-summary">
+      <div class="glass location-summary">
         <div><span class="ls-label">Quartier</span><span id="ls-neighborhood">—</span></div>
-        <div><span class="ls-label">Adresse</span><span id="ls-address">—</span></div>
+        <div><span class="ls-label">Position</span><span id="ls-address">—</span></div>
       </div>
 
       <div class="actions">
@@ -82,7 +98,7 @@
       <h2>Alerte envoyée</h2>
       <p class="confirm-sub">Le centre de surveillance a bien reçu votre signalement.</p>
 
-      <div class="confirm-card">
+      <div class="glass confirm-card">
         <div class="cc-row"><span>Type</span><strong id="cf-type">—</strong></div>
         <div class="cc-row"><span>Urgence (IA)</span><strong id="cf-urgency">—</strong></div>
         <div class="cc-row"><span>Quartier</span><strong id="cf-neighborhood">—</strong></div>
@@ -96,7 +112,7 @@
     </section>
   </main>
 
-  <footer class="app-footer">SafeCity · Prototype — pour urgences réelles, contactez toujours les secours officiels.</footer>
+  <footer class="app-footer">SafeCity · Prototype — pour une urgence réelle, contactez toujours les secours officiels.</footer>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
