@@ -81,6 +81,8 @@ class ApiClient:
     def connect_realtime(self):
         if not SOCKETIO_AVAILABLE:
             return False
+        # reconnection=True gère les coupures APRÈS une première connexion
+        # réussie ; la boucle de _connect_thread gère l'échec initial.
         self.sio = socketio.Client(reconnection=True, logger=False)
 
         @self.sio.event
@@ -110,7 +112,17 @@ class ApiClient:
         return True
 
     def _connect_thread(self):
-        try:
-            self.sio.connect(self.base_url, transports=["polling", "websocket"])
-        except Exception as e:  # pragma: no cover
-            print("[SafeCity] Échec connexion temps réel :", e)
+        # Transport "polling" uniquement : le backend par défaut tourne sous
+        # Waitress (WSGI), qui ne gère PAS les websockets. Tenter une montée en
+        # websocket ferait échouer/tomber la connexion (indicateur "Hors ligne").
+        # Boucle de reconnexion pour survivre à un démarrage plus lent du backend.
+        import time
+
+        for attempt in range(1, 61):  # ~3 min de tentatives (thread daemon)
+            try:
+                self.sio.connect(self.base_url, transports=["polling"])
+                return  # connecté : l'événement "connect" passe l'UI en ligne
+            except Exception as e:  # pragma: no cover
+                if attempt == 1 or attempt % 5 == 0:
+                    print(f"[SafeCity] Connexion temps réel (essai {attempt}) : {e}")
+                time.sleep(3)
