@@ -370,6 +370,12 @@ class MapPage(QWidget):
     def focus_agent(self, lat, lng):
         self._run(f"window.focusAgentAt({lat}, {lng});")
 
+    def show_route(self, a_lat, a_lng, b_lat, b_lng):
+        self._run(f"window.showRoute([{a_lat}, {a_lng}], [{b_lat}, {b_lng}]);")
+
+    def clear_route(self):
+        self._run("window.clearRoute();")
+
     def add_alert(self, alert):
         import json
 
@@ -465,6 +471,7 @@ class AgentsPage(QWidget):
     request_edit = Signal(dict)
     request_delete = Signal(dict)
     request_locate = Signal(dict)
+    request_route = Signal(dict)
 
     def __init__(self):
         super().__init__()
@@ -491,7 +498,8 @@ class AgentsPage(QWidget):
         b_edit = QPushButton("✏️ Modifier"); b_edit.setObjectName("ghost")
         b_del = QPushButton("🗑️ Supprimer"); b_del.setObjectName("danger")
         b_loc = QPushButton("📍 Localiser"); b_loc.setObjectName("ghost")
-        for b in (b_loc, b_edit, b_del, b_add):
+        b_route = QPushButton("🧭 Itinéraire"); b_route.setObjectName("ghost")
+        for b in (b_route, b_loc, b_edit, b_del, b_add):
             tools.addWidget(b)
         root.addLayout(tools)
 
@@ -499,6 +507,7 @@ class AgentsPage(QWidget):
         b_edit.clicked.connect(lambda: self._with_selected(self.request_edit))
         b_del.clicked.connect(lambda: self._with_selected(self.request_delete))
         b_loc.clicked.connect(lambda: self._with_selected(self.request_locate))
+        b_route.clicked.connect(lambda: self._with_selected(self.request_route))
 
         self.table = _table(["Nom", "Rôle", "Disponibilité", "Téléphone", "Position", "Intervention", "Vu à"])
         self.table.cellDoubleClicked.connect(lambda *_: self._with_selected(self.request_edit))

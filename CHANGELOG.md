@@ -2,6 +2,17 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [2.5.0] — Itinéraire le plus rapide & notifications push
+
+### Ajouté
+- **Itinéraire le plus rapide** tracé sur la carte entre un agent et l'incident
+  qu'il traite (routage réel via OSRM, repli sur trajet direct) avec distance et
+  durée estimées. Bouton « 🧭 Itinéraire » (poste opérateur) ; tracé automatique
+  dans le portail agents à la prise en charge d'une alerte.
+- **Notifications push** à l'arrivée d'une alerte (par défaut urgences Élevé /
+  Critique) : **e-mail** (SMTP) et **SMS** (Twilio), envoi non bloquant en
+  arrière-plan, activés uniquement si configurés (voir `.env.example`).
+
 ## [2.4.0] — Gestion complète des agents
 
 ### Ajouté

@@ -283,6 +283,29 @@ def test_agent_crud_requires_password_and_role():
                        headers=h).status_code == 400  # rôle manquant
 
 
+def test_notification_message_builders():
+    from backend.services.notifications import _body_text, _sms_text, _subject
+    alert = {
+        "id": 1, "type": "braquage", "urgency": "critique", "neighborhood": "Gombe",
+        "lat": -4.33, "lng": 15.31, "reporter_name": "Paul", "reporter_phone": "+243",
+        "time": "16h45", "distance_m": 420, "description": "un homme armé",
+    }
+    assert "SafeCity" in _subject(alert) and "Braquage" in _subject(alert)
+    body = _body_text(alert)
+    assert "Braquage" in body and "Gombe" in body and "Paul" in body
+    assert "openstreetmap.org" in body
+    sms = _sms_text(alert)
+    assert "Braquage" in sms and len(sms) <= 300
+
+
+def test_low_urgency_alert_creation_still_works():
+    # La création d'alerte ne doit jamais échouer même si les notifications
+    # sont configurées (canaux non configurés en test => no-op).
+    _, client = make_client()
+    r = client.post("/api/alerts", json={"type": "autre", "lat": -4.3, "lng": 15.3})
+    assert r.status_code == 201
+
+
 def test_report_pdf():
     _, client = make_client()
     client.post("/api/alerts", json={"type": "vol", "lat": -4.3, "lng": 15.3})

@@ -165,7 +165,31 @@
       const updated = await api("POST", "/api/alerts/" + id + "/accept");
       addAlert(updated, false);
       $("availability").value = "busy";
+      // Trace l'itinéraire le plus rapide depuis ma position vers l'incident.
+      if (state.selfPos) showRoute(state.selfPos, [updated.lat, updated.lng]);
     } catch (e) { alert("Échec : " + e.message); }
+  }
+
+  // ---- Itinéraire (OSRM + repli ligne droite) ----
+  let routeLine = null;
+  function showRoute(a, b) {
+    if (!state.map || typeof L === "undefined") return;
+    if (routeLine) { state.map.removeLayer(routeLine); routeLine = null; }
+    const url = "https://router.project-osrm.org/route/v1/driving/" +
+      a[1] + "," + a[0] + ";" + b[1] + "," + b[0] + "?overview=full&geometries=geojson";
+    fetch(url).then((r) => r.json()).then((d) => {
+      if (d.routes && d.routes.length) {
+        const coords = d.routes[0].geometry.coordinates.map((c) => [c[1], c[0]]);
+        routeLine = L.polyline(coords, { color: "#3d8bff", weight: 6, opacity: 0.85 }).addTo(state.map);
+        const km = (d.routes[0].distance / 1000).toFixed(2), min = Math.round(d.routes[0].duration / 60);
+        routeLine.bindPopup("🧭 " + km + " km · ~" + min + " min").openPopup();
+        state.map.fitBounds(routeLine.getBounds(), { padding: [40, 40] });
+      } else { straight(a, b); }
+    }).catch(() => straight(a, b));
+    function straight(a, b) {
+      routeLine = L.polyline([a, b], { color: "#3d8bff", weight: 4, dashArray: "8,8" }).addTo(state.map);
+      state.map.fitBounds(routeLine.getBounds(), { padding: [40, 40] });
+    }
   }
 
   // ---- Notification sonore + visuelle ----
@@ -189,6 +213,7 @@
     if (!navigator.geolocation) return;
     navigator.geolocation.watchPosition(async (pos) => {
       const { latitude, longitude } = pos.coords;
+      state.selfPos = [latitude, longitude];
       try { await api("POST", "/api/agents/me/location", { lat: latitude, lng: longitude }); } catch (e) {}
       if (!state.map || typeof L === "undefined") return;
       if (!state.self) {

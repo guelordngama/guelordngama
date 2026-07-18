@@ -77,6 +77,25 @@ class Config:
     # --- Journalisation ---
     LOG_LEVEL = os.environ.get("SAFECITY_LOG_LEVEL", "INFO").upper()
 
+    # --- Notifications push (e-mail / SMS) ---
+    # Niveaux d'urgence qui déclenchent une notification.
+    NOTIFY_URGENCY_LEVELS = {
+        s.strip() for s in os.environ.get("SAFECITY_NOTIFY_LEVELS", "haute,critique").split(",") if s.strip()
+    }
+    # E-mail (SMTP) — actif si SAFECITY_SMTP_HOST est défini.
+    SMTP_HOST = os.environ.get("SAFECITY_SMTP_HOST")
+    SMTP_PORT = int(os.environ.get("SAFECITY_SMTP_PORT", "587"))
+    SMTP_USER = os.environ.get("SAFECITY_SMTP_USER")
+    SMTP_PASSWORD = os.environ.get("SAFECITY_SMTP_PASSWORD")
+    SMTP_FROM = os.environ.get("SAFECITY_SMTP_FROM", "alertes@safecity.local")
+    SMTP_TLS = _env_bool("SAFECITY_SMTP_TLS", True)
+    SMTP_TO = [e.strip() for e in os.environ.get("SAFECITY_SMTP_TO", "").split(",") if e.strip()]
+    # SMS (Twilio) — actif si SAFECITY_TWILIO_SID est défini.
+    TWILIO_SID = os.environ.get("SAFECITY_TWILIO_SID")
+    TWILIO_TOKEN = os.environ.get("SAFECITY_TWILIO_TOKEN")
+    TWILIO_FROM = os.environ.get("SAFECITY_TWILIO_FROM")
+    TWILIO_TO = [n.strip() for n in os.environ.get("SAFECITY_TWILIO_TO", "").split(",") if n.strip()]
+
     @property
     def cors_origins_list(self):
         if self.CORS_ORIGINS.strip() == "*":

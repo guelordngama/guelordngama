@@ -87,6 +87,33 @@
       map.setView([lat, lng], 17);
     };
 
+    // Itinéraire le plus rapide entre un agent (a) et une alerte (b).
+    // Utilise OSRM (routage réel) avec repli sur une ligne droite si indisponible.
+    var routeLine = null;
+    function drawStraight(a, b, note) {
+      routeLine = L.polyline([a, b], { color: "#3d8bff", weight: 4, dashArray: "8,8", opacity: 0.9 }).addTo(map);
+      routeLine.bindPopup(note || "Trajet direct").openPopup();
+      map.fitBounds(routeLine.getBounds(), { padding: [50, 50] });
+    }
+    window.showRoute = function (a, b) {
+      window.clearRoute();
+      var url = "https://router.project-osrm.org/route/v1/driving/" +
+                a[1] + "," + a[0] + ";" + b[1] + "," + b[0] + "?overview=full&geometries=geojson";
+      fetch(url).then(function (r) { return r.json(); }).then(function (d) {
+        if (d.routes && d.routes.length) {
+          var coords = d.routes[0].geometry.coordinates.map(function (c) { return [c[1], c[0]]; });
+          routeLine = L.polyline(coords, { color: "#3d8bff", weight: 6, opacity: 0.85 }).addTo(map);
+          var km = (d.routes[0].distance / 1000).toFixed(2);
+          var min = Math.round(d.routes[0].duration / 60);
+          routeLine.bindPopup("🧭 Itinéraire le plus rapide<br>" + km + " km · ~" + min + " min").openPopup();
+          map.fitBounds(routeLine.getBounds(), { padding: [50, 50] });
+        } else { drawStraight(a, b); }
+      }).catch(function () { drawStraight(a, b, "Trajet direct (routage indisponible)"); });
+    };
+    window.clearRoute = function () {
+      if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
+    };
+
     // Agents suivis en temps réel.
     var agentLayer = L.layerGroup().addTo(map);
     var AVAIL = { available: "#22c55e", busy: "#f97316", offline: "#6b7280" };

@@ -307,6 +307,7 @@ class MainWindow(QWidget):
         self.page_agents.request_edit.connect(self._edit_agent)
         self.page_agents.request_delete.connect(self._delete_agent)
         self.page_agents.request_locate.connect(self._locate_agent)
+        self.page_agents.request_route.connect(self._route_agent)
 
     def _tick_clock(self):
         from datetime import datetime
@@ -441,6 +442,25 @@ class MainWindow(QWidget):
         self._navigate(2)  # carte
         self.page_map.set_agents(list(self.page_agents.agents.values()))
         self.page_map.focus_agent(agent["lat"], agent["lng"])
+
+    def _route_agent(self, agent):
+        """Trace l'itinéraire le plus rapide entre l'agent et son intervention."""
+        if agent.get("lat") is None or agent.get("lng") is None:
+            QMessageBox.information(self, "Itinéraire",
+                                    f"Position de « {agent['name']} » indisponible.")
+            return
+        alert_id = agent.get("current_alert_id")
+        alert = self.alerts.get(alert_id) if alert_id else None
+        if not alert:
+            QMessageBox.information(
+                self, "Itinéraire",
+                f"« {agent['name']} » n'a pas d'intervention en cours.\n"
+                "L'itinéraire est tracé entre un agent et l'incident qu'il traite.")
+            return
+        self._navigate(2)
+        self.page_map.set_agents(list(self.page_agents.agents.values()))
+        self.page_map.show_route(agent["lat"], agent["lng"], alert["lat"], alert["lng"])
+        Toast(self, "Itinéraire le plus rapide tracé 🧭", theme.ACCENT).show_for(2500)
 
     def _on_new_alert(self, alert):
         self.alerts[alert["id"]] = alert

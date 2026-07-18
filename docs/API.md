@@ -101,3 +101,24 @@ Transport : **polling** (le backend Waitress ne gère pas les websockets).
 | `new_alert` | serveur → clients | alerte complète |
 | `alert_updated` | serveur → clients | alerte mise à jour |
 | `connected` | serveur → client | message de bienvenue |
+
+### `POST /api/agents` · `PATCH /api/agents/<id>` · `DELETE /api/agents/<id>` 🔒
+CRUD des personnels (operator/supervisor/admin). Corps : name, email, phone,
+role, password, active. Diffuse `agent_updated` / `agent_deleted`.
+
+### `POST /api/agents/me/location` · `POST /api/agents/me/status` 🔒
+Un agent envoie sa position GPS / sa disponibilité (available|busy|offline).
+
+### `POST /api/alerts/<id>/accept` 🔒
+Un agent prend en charge une intervention (statut `assignee`, distance recalculée).
+
+### `GET /api/analytics?period=week|month|year` 🔒
+Performance par agent : interventions, taux de résolution, temps de réponse,
+distance parcourue.
+
+### `GET /api/reports/pdf?period=today|month|year|all` 🔒
+Rapport PDF de synthèse.
+
+## Notifications
+À l'arrivée d'une alerte (urgences configurées), envoi optionnel d'**e-mail**
+(SMTP) et **SMS** (Twilio) si les variables correspondantes sont définies.

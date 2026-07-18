@@ -66,6 +66,12 @@ def create_alert(data):
 
     payload = alert.to_dict()
     _emit("new_alert", payload)
+    # Notifications push (e-mail / SMS) — non bloquant, jamais fatal.
+    try:
+        from . import notifications
+        notifications.dispatch_alert_notifications(payload)
+    except Exception as e:  # pragma: no cover
+        log.warning("Notifications non envoyées pour l'alerte #%s : %s", alert.id, e)
     return payload
 
 
