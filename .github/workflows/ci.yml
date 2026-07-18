@@ -1,0 +1,40 @@
+name: CI SafeCity
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurer Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Installer les dépendances
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Vérifier l'absence de conflit PyJWT
+        run: python -c "import jwt; assert hasattr(jwt, 'encode'), 'PyJWT manquant'"
+
+      - name: Lancer les tests
+        env:
+          SAFECITY_ENV: testing
+        run: pytest -q
+
+  docker-build:
+    runs-on: ubuntu-latest
+    needs: tests
+    steps:
+      - uses: actions/checkout@v4
+      - name: Construire l'image Docker
+        run: docker build -t safecity-backend:ci .

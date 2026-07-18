@@ -1,0 +1,37 @@
+# ===== SafeCity — orchestration de production (backend + PostgreSQL) =====
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: safecity
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-safecity}
+      POSTGRES_DB: safecity
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U safecity"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  backend:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SAFECITY_ENV: production
+      SAFECITY_SECRET_KEY: ${SAFECITY_SECRET_KEY:?Définir SAFECITY_SECRET_KEY}
+      SAFECITY_CORS_ORIGINS: ${SAFECITY_CORS_ORIGINS:?Définir les origines CORS}
+      SAFECITY_SEED_DEMO: "false"
+      DATABASE_URL: postgresql+psycopg2://safecity:${POSTGRES_PASSWORD:-safecity}@db:5432/safecity
+    ports:
+      - "5000:5000"
+    volumes:
+      - uploads:/app/backend/uploads
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  uploads:

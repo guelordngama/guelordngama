@@ -3,18 +3,15 @@
 ## Vue d'ensemble
 
 ```
-┌──────────────────────┐        HTTPS / REST        ┌───────────────────────────┐
-│  📱 App citoyenne     │  ───────────────────────►  │   🌐 Backend Flask         │
-│  (HTML/CSS/JS,        │        Socket.IO           │   - REST API               │
-│   Leaflet)            │  ◄───────────────────────  │   - Flask-SocketIO         │
-│  GPS · photo · voix   │                            │   - SQLAlchemy (BDD)       │
-└──────────────────────┘                            │   - IA (scikit-learn)      │
-                                                     │   - Auth bcrypt + JWT      │
-┌──────────────────────┐        Socket.IO           │                            │
-│  🖥️ Poste opérateur   │  ◄───────────────────────  │                            │
-│  (PySide6 + WebEngine │        REST                │                            │
-│   + Qt Charts)        │  ───────────────────────►  │                            │
-│  tableau · carte      │                            └───────────────────────────┘
+┌──────────────────────┐        REST / Socket.IO     ┌───────────────────────────┐
+│  📱 App citoyenne     │  ───────────────────────►   │   🌐 Backend Flask (modulaire) │
+│  (HTML/CSS/JS,        │                             │   factory + blueprints     │
+│   Leaflet)            │  ◄───────────────────────   │   services · IA · sécurité │
+└──────────────────────┘                             │                            │
+┌──────────────────────┐                             │                            │
+│  🖥️ Poste opérateur   │  ◄───────────────────────   │                            │
+│  (PySide6 + WebEngine │        REST                 │                            │
+│   + Qt Charts)        │  ───────────────────────►   └───────────────────────────┘
 └──────────────────────┘                                        │
                                                                  ▼
                                                      ┌───────────────────────────┐
@@ -22,71 +19,66 @@
                                                      └───────────────────────────┘
 ```
 
+## Structure modulaire du backend
+
+```
+backend/
+  __init__.py          Fabrique create_app() + en-têtes de sécurité
+  config.py            Configurations (dev/prod/test) + validation
+  extensions.py        Instances partagées : db, socketio, cors
+  logging_config.py    Journalisation
+  errors.py            Exceptions API + gestionnaires d'erreurs JSON
+  validation.py        Validation/normalisation des entrées
+  security.py          bcrypt, JWT, contrôle d'accès, rate-limit, uploads
+  models.py            User, Team, Alert (+ index)
+  geo.py               Distance Haversine, ETA, quartier/adresse
+  ai/classifier.py     Classification IA (scikit-learn + repli mots-clés)
+  seed.py              Données initiales (équipes, compte démo)
+  realtime.py          Événements Socket.IO
+  services/
+    alerts.py          Logique métier des alertes (création, affectation…)
+    stats.py           Agrégats du tableau de bord (SQL + cache)
+  api/                 Blueprints HTTP (couche fine)
+    health.py  auth.py  alerts.py  teams.py  stats.py  uploads.py
+  app.py               Instance `app` + serveur de développement
+  server.py            Point d'entrée production (Waitress/eventlet)
+```
+
+### Principes
+- **Application factory** : `create_app(config)` construit une app isolée
+  (facilite les tests et le multi-environnement).
+- **Blueprints** : chaque domaine (auth, alerts, teams, stats) est un module HTTP
+  mince qui délègue à la **couche services**.
+- **Services** : toute la logique métier, testable sans HTTP, émet le temps réel.
+- **Extensions centralisées** : évite les imports circulaires.
+- **Erreurs typées** : `ApiError` → réponses JSON homogènes ; les 500 masquent
+  les détails internes.
+
 ## Cycle de vie d'une alerte
 
-1. **Citoyen** ouvre l'app → appuie sur 🚨 ALERTE.
-2. Le navigateur récupère la **position GPS**.
-3. Choix du **type de danger** (+ description, photo, audio optionnels).
-4. `POST /api/alerts` → le backend :
-   - classe l'incident via l'**IA** (catégorie + urgence) ;
-   - résout **quartier / adresse** ;
-   - calcule **distance & ETA** depuis la patrouille ;
-   - enregistre en base ;
-   - **diffuse** `new_alert` à la salle `surveillance` via Socket.IO.
-5. Le **poste opérateur** reçoit l'événement, met à jour le tableau, la carte et les stats.
-6. L'opérateur **affecte une équipe** (`/assign`) → recalcul de distance depuis la position de l'équipe, statut `assignee`, événement `alert_updated`.
-7. L'opérateur **clôture** (`/close`) → statut `cloturee`, équipe libérée.
+1. Le citoyen appuie sur 🚨 → GPS récupéré → `POST /api/alerts`.
+2. Validation → **IA** (catégorie + urgence) → quartier/adresse → distance/ETA
+   → enregistrement → événement `new_alert` diffusé.
+3. Le poste opérateur reçoit l'événement, met à jour tableau, carte et stats.
+4. `POST /assign` → recalcul distance depuis l'équipe, statut `assignee`.
+5. `POST /close` → statut `cloturee`, équipe libérée.
 
 ## Modèle de données
 
-| Table | Champs principaux |
-|-------|-------------------|
-| `users` | name, email, password_hash (bcrypt), role (`citizen`/`operator`/`admin`) |
-| `teams` | name, patrol_lat, patrol_lng, status (`available`/`busy`) |
-| `alerts` | type, description, lat, lng, address, neighborhood, photo/audio, **urgency**, **ai_category**, ai_score, status, assigned_team, distance_m, eta_moto/walk, timestamps |
-
-## API REST
-
-| Méthode | Endpoint | Auth | Rôle |
-|---------|----------|------|------|
-| GET | `/api/health` | — | Sonde de vie |
-| GET | `/api/meta` | — | Types de danger / statuts |
-| POST | `/api/auth/login` | — | Connexion opérateur → JWT |
-| POST | `/api/alerts` | — | Créer une alerte (citoyen) |
-| GET | `/api/alerts` | — | Lister (filtre `?status=`) |
-| GET | `/api/alerts/<id>` | — | Détail |
-| GET | `/api/stats` | — | Statistiques tableau de bord |
-| GET | `/api/teams` | — | Équipes |
-| POST | `/api/alerts/<id>/assign` | JWT | Affecter une équipe |
-| POST | `/api/alerts/<id>/close` | JWT | Clôturer |
-
-## Événements Socket.IO (salle `surveillance`)
-
-| Événement | Sens | Charge utile |
-|-----------|------|--------------|
-| `new_alert` | serveur → opérateurs | alerte complète |
-| `alert_updated` | serveur → opérateurs | alerte mise à jour |
-| `connected` | serveur → client | message de bienvenue |
+| Table | Champs clés | Index |
+|-------|-------------|-------|
+| `users` | email (unique), password_hash (bcrypt), role | email, role, created_at |
+| `teams` | name, patrol_lat/lng, status | — |
+| `alerts` | type, lat/lng, urgency, ai_category, status, distance_m… | (status, created_at), (type, created_at), neighborhood |
 
 ## Intelligence artificielle
 
-`backend/ai/classifier.py` :
-- **TF-IDF + Naive Bayes** (scikit-learn) entraîné au démarrage sur un jeu
-  amorce en français → catégorie de l'incident.
-- **Score d'urgence** combinant la catégorie et des mots-clés de gravité
-  (armé, feu, blessé…) → `faible` / `moyenne` / `haute` / `critique`.
-- **Repli automatique** par mots-clés si scikit-learn est absent : le backend
-  reste fonctionnel en toute circonstance.
-- La clé/API IA (le cas échéant) reste **côté serveur**, jamais dans le client.
+`ai/classifier.py` — **TF-IDF + Naive Bayes** (scikit-learn) entraîné au
+démarrage sur un jeu amorce français → catégorie ; score d'urgence combinant
+catégorie et mots-clés de gravité. **Repli par mots-clés** si scikit-learn
+absent : le backend reste fonctionnel.
 
-## Calcul de distance & temps d'intervention
-
-`backend/geo.py` — formule de **Haversine** entre la patrouille et l'alerte,
-puis ETA selon des vitesses moyennes (moto 25 km/h, marche 5 km/h). Exemple :
-
-```
-Patrouille : Avenue Lumumba
-Alerte     : Quartier Kenya
-Distance   : 850 m
-Temps est. : ~2 min en moto · ~5 min à pied
-```
+## Voir aussi
+- [API.md](API.md) — référence des endpoints
+- [SECURITY.md](SECURITY.md) — sécurité et durcissement
+- [DEPLOYMENT.md](DEPLOYMENT.md) — mise en production

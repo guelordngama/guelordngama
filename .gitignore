@@ -6,6 +6,9 @@ __pycache__/
 venv/
 env/
 
+# Secrets / configuration locale
+.env
+
 # Base de données & uploads (données locales)
 backend/safecity.db
 backend/uploads/*

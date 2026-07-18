@@ -1,14 +1,13 @@
 """Point d'entrée de production SafeCity.
 
-Deux modes :
-  - Waitress (par défaut) : robuste sous Windows, compatible PyInstaller.
-    Le transport Socket.IO utilise le "long-polling" (fonctionne partout).
-  - socketio.run : à privilégier si eventlet/gevent est installé pour de
-    vraies websockets (SAFECITY_ASYNC_MODE=eventlet).
+Modes disponibles (variable SAFECITY_SERVER) :
+  - waitress (défaut) : robuste, compatible Windows/PyInstaller. Socket.IO en
+    long-polling.
+  - socketio          : serveur intégré (eventlet/gevent requis pour de vraies
+    websockets ; définir SAFECITY_ASYNC_MODE=eventlet).
 
 Usage :
     python -m backend.server
-    # ou
     SAFECITY_SERVER=socketio python -m backend.server
 """
 import os
@@ -20,7 +19,9 @@ if __package__ in (None, ""):
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     __package__ = "backend"
 
-from .app import app, socketio
+from . import create_app, socketio  # noqa: E402
+
+app = create_app()
 
 HOST = os.environ.get("SAFECITY_HOST", "0.0.0.0")
 PORT = int(os.environ.get("SAFECITY_PORT", "5000"))
@@ -34,7 +35,7 @@ def main():
         from waitress import serve
 
         print(f"[SafeCity] Waitress en écoute sur http://{HOST}:{PORT}")
-        serve(app, host=HOST, port=PORT, threads=8)
+        serve(app, host=HOST, port=PORT, threads=int(os.environ.get("SAFECITY_THREADS", "12")))
 
 
 if __name__ == "__main__":
