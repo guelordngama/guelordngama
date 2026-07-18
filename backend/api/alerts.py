@@ -1,6 +1,6 @@
 """Endpoints des alertes : création (citoyen), consultation, affectation,
 clôture (opérateur)."""
-from flask import Blueprint, current_app, jsonify, request
+from flask import Blueprint, current_app, g, jsonify, request
 
 from ..security import require_auth
 from ..services import alerts as alerts_service
@@ -18,17 +18,28 @@ def create():
     return jsonify(payload), 201
 
 
+FILTER_KEYS = ("status", "type", "urgency", "neighborhood", "agent_id", "q",
+               "date_from", "date_to")
+
+
 @bp.get("")
 def list_():
-    status = request.args.get("status")
+    filters = {k: request.args.get(k) for k in FILTER_KEYS if request.args.get(k)}
+    if "agent_id" in filters:
+        try:
+            filters["agent_id"] = int(filters["agent_id"])
+        except ValueError:
+            filters.pop("agent_id")
     page = max(1, request.args.get("page", 1, type=int))
     page_size = min(
         current_app.config["ALERTS_MAX_PAGE_SIZE"],
         request.args.get("page_size", current_app.config["ALERTS_PAGE_SIZE"], type=int),
     )
-    result = alerts_service.list_alerts(status=status, page=page, page_size=page_size)
-    # Compatibilité : renvoie une liste simple si aucun paramètre de pagination.
-    if "page" not in request.args and "page_size" not in request.args:
+    result = alerts_service.list_alerts(filters=filters, page=page, page_size=page_size)
+    # Compatibilité : liste simple si ni pagination ni filtre de recherche.
+    search_keys = {"page", "page_size", "q", "type", "urgency", "neighborhood",
+                   "agent_id", "date_from", "date_to"}
+    if not (search_keys & set(request.args.keys())):
         return jsonify(result["items"])
     return jsonify(result)
 
@@ -48,8 +59,17 @@ def assign(alert_id):
 
 
 @bp.post("/<int:alert_id>/close")
-@require_auth(roles=["operator", "admin"])
+@require_auth(roles=["operator", "supervisor", "admin"])
 def close(alert_id):
     payload = alerts_service.close_alert(alert_id)
+    stats_service.invalidate_cache()
+    return jsonify(payload)
+
+
+@bp.post("/<int:alert_id>/accept")
+@require_auth(roles=["agent", "operator", "supervisor", "admin"])
+def accept(alert_id):
+    """Prise en charge d'une intervention par l'agent connecté."""
+    payload = alerts_service.accept_intervention(alert_id, g.user)
     stats_service.invalidate_cache()
     return jsonify(payload)

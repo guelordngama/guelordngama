@@ -1,0 +1,71 @@
+:root {
+  --bg: #0b1220; --panel: rgba(22,34,60,0.72); --ink: #e6ecf5; --muted: #8595b4;
+  --line: rgba(88,110,150,0.25); --accent: #3d8bff; --green: #22c55e; --red: #ef4444;
+}
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; font-family: system-ui,"Segoe UI",Roboto,sans-serif;
+  background: var(--bg); color: var(--ink); }
+.app-bg { position: fixed; inset: 0; z-index: -1;
+  background:
+    radial-gradient(60% 40% at 80% 0%, rgba(61,139,255,0.16), transparent 60%),
+    radial-gradient(50% 40% at 10% 100%, rgba(239,68,68,0.14), transparent 60%),
+    linear-gradient(180deg,#0b1220,#0a0f1c); }
+.glass { background: var(--panel); border: 1px solid var(--line);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+.hidden { display: none !important; }
+.brand-mark { font-size: 26px; }
+.tagline { margin: 0; font-size: 12px; color: var(--muted); }
+.field-label { display: block; font-weight: 700; margin: 14px 0 6px; font-size: 13px; color: var(--muted); }
+input, select { width: 100%; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px;
+  font-size: 15px; background: rgba(11,18,32,0.6); color: var(--ink); }
+input:focus, select:focus { outline: none; border-color: var(--accent); }
+
+/* --- Connexion --- */
+.login-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.login-card { width: 100%; max-width: 380px; border-radius: 20px; padding: 28px; }
+.login-brand { text-align: center; margin-bottom: 10px; }
+.login-brand h1 { margin: 8px 0 2px; font-size: 26px; font-weight: 800; }
+.btn-primary { width: 100%; margin-top: 20px; padding: 14px; border: none; border-radius: 12px;
+  background: linear-gradient(135deg,#529bff,#2b6fd6); color: #fff; font-weight: 800; font-size: 16px; cursor: pointer; }
+.btn-primary:hover { filter: brightness(1.08); }
+.login-error { color: #ff8181; font-size: 13px; min-height: 18px; margin-top: 10px; text-align: center; }
+
+/* --- App --- */
+.app-header { display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 18px; position: sticky; top: 0; z-index: 20; border-radius: 0; border-bottom: 1px solid var(--line); }
+.brand { display: flex; align-items: center; gap: 10px; }
+.app-header h1 { margin: 0; font-size: 18px; font-weight: 800; }
+.header-right { display: flex; align-items: center; gap: 12px; }
+.conn-status { font-size: 15px; }
+.conn-status.online { color: #4ade80; } .conn-status.offline { color: #f87171; }
+.avail-select { width: auto; padding: 8px 10px; }
+.btn-ghost { background: rgba(88,110,150,0.18); color: var(--ink); border: 1px solid var(--line);
+  border-radius: 10px; padding: 9px 14px; font-weight: 700; cursor: pointer; }
+
+.app-body { display: grid; grid-template-columns: 380px 1fr; height: calc(100vh - 62px); }
+.alerts-panel { padding: 16px; overflow-y: auto; border-right: 1px solid var(--line); }
+.alerts-panel h2 { font-size: 16px; margin: 4px 0 14px; display: flex; align-items: center; gap: 8px; }
+.count { background: var(--red); color: #fff; border-radius: 10px; padding: 1px 9px; font-size: 13px; }
+.alerts-list { display: flex; flex-direction: column; gap: 12px; }
+.empty { color: var(--muted); text-align: center; padding: 30px 0; }
+
+.alert-card { border-radius: 14px; padding: 14px; border-left: 4px solid var(--accent); animation: slidein 0.3s ease; }
+@keyframes slidein { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: none; } }
+.alert-card-head { display: flex; justify-content: space-between; align-items: center; }
+.alert-type { font-weight: 800; font-size: 16px; }
+.alert-badge { border-radius: 10px; padding: 2px 10px; font-size: 12px; font-weight: 700; }
+.alert-meta { color: var(--muted); font-size: 13px; margin: 8px 0; line-height: 1.6; }
+.alert-actions { display: flex; gap: 8px; }
+.alert-actions button { flex: 1; border: none; border-radius: 10px; padding: 9px; font-weight: 700; cursor: pointer; }
+.btn-accept { background: var(--green); color: #05230f; }
+.btn-locate { background: rgba(88,110,150,0.2); color: var(--ink); }
+.alert-card.accepted { border-left-color: var(--green); opacity: 0.75; }
+
+.map-panel { position: relative; }
+#map { width: 100%; height: 100%; background: #0b1220; }
+.leaflet-container { background: #0b1220; }
+
+@media (max-width: 820px) {
+  .app-body { grid-template-columns: 1fr; grid-template-rows: 45% 55%; height: calc(100vh - 62px); }
+  .alerts-panel { border-right: none; border-bottom: 1px solid var(--line); }
+}

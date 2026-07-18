@@ -53,9 +53,21 @@ class ApiClient:
         self.token = res.get("token")
         return res.get("user")
 
-    def get_alerts(self, status=None):
-        path = "/api/alerts" + (f"?status={status}" if status else "")
+    def get_alerts(self, status=None, filters=None):
+        import urllib.parse
+
+        params = {}
+        if status:
+            params["status"] = status
+        if filters:
+            params.update({k: v for k, v in filters.items() if v})
+        path = "/api/alerts"
+        if params:
+            path += "?" + urllib.parse.urlencode(params)
         return self._request("GET", path)
+
+    def get_analytics(self, period="month"):
+        return self._request("GET", f"/api/analytics?period={period}", auth=True)
 
     def get_stats(self):
         return self._request("GET", "/api/stats")

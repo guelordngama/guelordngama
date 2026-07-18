@@ -69,10 +69,47 @@ def create_alert(data):
     return payload
 
 
-def list_alerts(status=None, page=1, page_size=50):
+def list_alerts(filters=None, page=1, page_size=50):
+    """Liste filtrée + paginée des alertes.
+
+    filters accepte : status, type, urgency, neighborhood, agent_id, q
+    (recherche texte sur citoyen/quartier/description/téléphone), date_from,
+    date_to (ISO 'YYYY-MM-DD').
+    """
+    from datetime import datetime
+
+    from sqlalchemy import or_
+
+    f = filters or {}
     query = Alert.query
-    if status:
-        query = query.filter_by(status=status)
+
+    if f.get("status"):
+        query = query.filter(Alert.status == f["status"])
+    if f.get("type"):
+        query = query.filter(Alert.type == f["type"])
+    if f.get("urgency"):
+        query = query.filter(Alert.urgency == f["urgency"])
+    if f.get("neighborhood"):
+        query = query.filter(Alert.neighborhood.ilike(f"%{f['neighborhood']}%"))
+    if f.get("agent_id"):
+        query = query.filter(Alert.assigned_agent_id == f["agent_id"])
+    if f.get("q"):
+        like = f"%{f['q']}%"
+        query = query.filter(or_(
+            Alert.reporter_name.ilike(like),
+            Alert.reporter_phone.ilike(like),
+            Alert.neighborhood.ilike(like),
+            Alert.description.ilike(like),
+            Alert.address.ilike(like),
+        ))
+    for key, op in (("date_from", ">="), ("date_to", "<=")):
+        if f.get(key):
+            try:
+                d = datetime.fromisoformat(f[key])
+                query = query.filter(Alert.created_at >= d if op == ">=" else Alert.created_at <= d)
+            except ValueError:
+                pass
+
     query = query.order_by(Alert.created_at.desc())
     pagination = query.paginate(page=page, per_page=page_size, error_out=False)
     return {
@@ -118,8 +155,39 @@ def close_alert(alert_id):
     alert.closed_at = datetime.utcnow()
     if alert.assigned_team:
         alert.assigned_team.status = "available"
+    if alert.assigned_agent:
+        alert.assigned_agent.availability = "available"
+        alert.assigned_agent.current_alert_id = None
     db.session.commit()
     log.info("Alerte #%s clôturée", alert.id)
+
+    payload = alert.to_dict()
+    _emit("alert_updated", payload)
+    return payload
+
+
+def accept_intervention(alert_id, agent):
+    """Un agent prend en charge une alerte."""
+    from ..models import User
+
+    alert = get_alert(alert_id)
+    agent_obj = db.session.get(User, agent["uid"] if isinstance(agent, dict) else agent)
+    if not agent_obj:
+        raise NotFoundError("Agent introuvable.")
+
+    alert.assigned_agent_id = agent_obj.id
+    if alert.status == "active":
+        alert.status = "assignee"
+    if not alert.accepted_at:
+        alert.accepted_at = datetime.utcnow()
+    # Distance depuis la position connue de l'agent (si disponible).
+    if agent_obj.lat is not None and agent_obj.lng is not None:
+        dist, moto, walk = compute_intervention(agent_obj.lat, agent_obj.lng, alert.lat, alert.lng)
+        alert.distance_m, alert.eta_moto_min, alert.eta_walk_min = dist, moto, walk
+    agent_obj.availability = "busy"
+    agent_obj.current_alert_id = alert.id
+    db.session.commit()
+    log.info("Alerte #%s prise en charge par l'agent '%s'", alert.id, agent_obj.name)
 
     payload = alert.to_dict()
     _emit("alert_updated", payload)

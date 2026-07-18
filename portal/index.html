@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0b1220" />
+  <title>SafeCity — Portail Agents</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="app-bg"></div>
+
+  <!-- ÉCRAN CONNEXION -->
+  <section id="login" class="login-screen">
+    <div class="glass login-card">
+      <div class="login-brand">
+        <span class="brand-mark">🛡️</span>
+        <h1>SafeCity</h1>
+        <p class="tagline">Portail des agents d'intervention</p>
+      </div>
+      <label class="field-label" for="email">Email</label>
+      <input id="email" type="email" value="agent1@safecity.local" />
+      <label class="field-label" for="password">Mot de passe</label>
+      <input id="password" type="password" value="safecity123" />
+      <button id="btn-login" class="btn-primary">Se connecter</button>
+      <p id="login-error" class="login-error"></p>
+    </div>
+  </section>
+
+  <!-- APPLICATION -->
+  <section id="app" class="app hidden">
+    <header class="app-header glass">
+      <div class="brand">
+        <span class="brand-mark">🛡️</span>
+        <div><h1>SafeCity Agents</h1><p class="tagline" id="agent-name">—</p></div>
+      </div>
+      <div class="header-right">
+        <span id="conn-status" class="conn-status offline" title="Connexion">●</span>
+        <select id="availability" class="avail-select">
+          <option value="available">🟢 Disponible</option>
+          <option value="busy">🟠 En intervention</option>
+          <option value="offline">⚫ Hors service</option>
+        </select>
+        <button id="btn-logout" class="btn-ghost">Quitter</button>
+      </div>
+    </header>
+
+    <div class="app-body">
+      <aside class="alerts-panel">
+        <h2>🚨 Alertes en direct <span id="alert-count" class="count">0</span></h2>
+        <div id="alerts-list" class="alerts-list"></div>
+      </aside>
+      <main class="map-panel">
+        <div id="map"></div>
+      </main>
+    </div>
+  </section>
+
+  <!-- Modèle de carte d'alerte -->
+  <template id="alert-card-tpl">
+    <div class="glass alert-card">
+      <div class="alert-card-head">
+        <span class="alert-type"></span>
+        <span class="alert-badge"></span>
+      </div>
+      <div class="alert-meta"></div>
+      <div class="alert-actions">
+        <button class="btn-accept">✅ Accepter</button>
+        <button class="btn-locate">📍 Localiser</button>
+      </div>
+    </div>
+  </template>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

@@ -2,6 +2,25 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [2.3.0] — Recherche avancée, portail agents & analyse de performance
+
+### Ajouté
+- **Recherche avancée** (poste opérateur) : filtres par catégorie, urgence,
+  statut, localisation, dates, et recherche texte (citoyen, téléphone, quartier,
+  description). Endpoint `GET /api/alerts` étendu.
+- **Portail web sécurisé des agents** (`portal/`) : connexion JWT, alertes en
+  direct (Socket.IO), carte, prise en charge d'intervention, envoi automatique
+  de la position GPS, bascule de disponibilité, notification sonore + vibration.
+- **Suivi opérationnel des agents** (superviseur) : page « Gestion des agents »
+  avec disponibilité, position GPS, intervention en cours et dernière activité,
+  mise à jour en temps réel ; marqueurs agents sur la carte.
+- **Module d'analyse de performance** (« Performances ») : indicateurs hebdo/
+  mensuel/annuel — interventions, taux de résolution, temps de réponse moyen,
+  distance parcourue, classement par agent. Endpoint `GET /api/analytics`.
+- Backend : prise en charge d'intervention (`POST /api/alerts/<id>/accept`),
+  suivi agent (`/api/agents/me/location`, `/api/agents/me/status`), champs de
+  suivi (position, disponibilité, distance cumulée) et affectation d'agent.
+
 ## [2.2.0] — Rapports PDF & application citoyenne modernisée
 
 ### Ajouté

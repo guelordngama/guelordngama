@@ -7,13 +7,13 @@ from .security import hash_password
 
 log = logging.getLogger("safecity")
 
-# Personnels de démonstration (un par rôle + quelques agents).
+# Personnels de démonstration (nom, email, rôle, lat, lng, disponibilité).
 _DEMO_STAFF = [
-    ("Administrateur Central", "admin@safecity.local", "admin"),
-    ("Superviseur Nord", "superviseur@safecity.local", "supervisor"),
-    ("Agent Kalala", "agent1@safecity.local", "agent"),
-    ("Agent Mbayo", "agent2@safecity.local", "agent"),
-    ("Agent Tshibanda", "agent3@safecity.local", "agent"),
+    ("Administrateur Central", "admin@safecity.local", "admin", None, None, "offline"),
+    ("Superviseur Nord", "superviseur@safecity.local", "supervisor", None, None, "offline"),
+    ("Agent Kalala", "agent1@safecity.local", "agent", -4.3210, 15.3120, "available"),
+    ("Agent Mbayo", "agent2@safecity.local", "agent", -4.3320, 15.3280, "available"),
+    ("Agent Tshibanda", "agent3@safecity.local", "agent", -4.3080, 15.3050, "available"),
 ]
 
 
@@ -39,11 +39,15 @@ def seed_defaults(config):
             )
         )
         # Personnels de démonstration (même mot de passe pour la démo).
-        for name, email, role in _DEMO_STAFF:
+        from datetime import datetime
+
+        for name, email, role, lat, lng, avail in _DEMO_STAFF:
             if not User.query.filter_by(email=email).first():
-                db.session.add(
-                    User(name=name, email=email, role=role, password_hash=pwd)
-                )
+                db.session.add(User(
+                    name=name, email=email, role=role, password_hash=pwd,
+                    lat=lat, lng=lng, availability=avail,
+                    last_seen=datetime.utcnow() if avail != "offline" else None,
+                ))
         log.info("Comptes de démonstration créés (opérateur + personnels).")
 
     db.session.commit()

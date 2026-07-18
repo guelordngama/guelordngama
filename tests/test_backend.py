@@ -208,6 +208,59 @@ def test_unknown_route_returns_json_404():
 
 
 # --------------------------------------------------------------------------- #
+# Recherche avancée / agents / analytics
+# --------------------------------------------------------------------------- #
+def test_search_filters():
+    _, client = make_client()
+    client.post("/api/alerts", json={"type": "incendie", "lat": -4.3, "lng": 15.3,
+                                     "neighborhood": "Gombe", "reporter_name": "Alice"})
+    client.post("/api/alerts", json={"type": "vol", "lat": -4.3, "lng": 15.3,
+                                     "neighborhood": "Limete", "reporter_name": "Bob"})
+    assert client.get("/api/alerts?type=incendie").get_json()["total"] == 1
+    assert client.get("/api/alerts?q=Alice").get_json()["total"] == 1
+    assert client.get("/api/alerts?neighborhood=Limete").get_json()["total"] == 1
+    assert client.get("/api/alerts?urgency=critique").get_json()["total"] == 1
+
+
+def test_agent_accept_and_tracking():
+    _, client = make_client()
+    client.post("/api/alerts", json={"type": "braquage", "lat": -4.3, "lng": 15.3})
+    token = client.post("/api/auth/login", json={
+        "email": "agent1@safecity.local", "password": "safecity123"}).get_json()["token"]
+    h = {"Authorization": "Bearer " + token}
+    # position
+    assert client.post("/api/agents/me/location", json={"lat": -4.31, "lng": 15.31}, headers=h).status_code == 200
+    # accept
+    r = client.post("/api/alerts/1/accept", headers=h)
+    assert r.status_code == 200
+    assert r.get_json()["assigned_agent"]["name"] == "Agent Kalala"
+    assert r.get_json()["status"] == "assignee"
+
+
+def test_analytics_endpoint():
+    _, client = make_client()
+    client.post("/api/alerts", json={"type": "vol", "lat": -4.3, "lng": 15.3})
+    token = client.post("/api/auth/login", json={
+        "email": "operateur@safecity.local", "password": "safecity123"}).get_json()["token"]
+    h = {"Authorization": "Bearer " + token}
+    data = client.get("/api/analytics?period=month", headers=h).get_json()
+    assert "agents" in data and "global_resolution_rate" in data
+
+
+def test_report_pdf():
+    _, client = make_client()
+    client.post("/api/alerts", json={"type": "vol", "lat": -4.3, "lng": 15.3})
+    token = client.post("/api/auth/login", json={
+        "email": "operateur@safecity.local", "password": "safecity123"}).get_json()["token"]
+    h = {"Authorization": "Bearer " + token}
+    r = client.get("/api/reports/pdf?period=all", headers=h)
+    # 200 avec reportlab, 501 sinon — les deux sont acceptables.
+    assert r.status_code in (200, 501)
+    if r.status_code == 200:
+        assert r.data[:5] == b"%PDF-"
+
+
+# --------------------------------------------------------------------------- #
 # Exécution directe (sans pytest)
 # --------------------------------------------------------------------------- #
 if __name__ == "__main__":

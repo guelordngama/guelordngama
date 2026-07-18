@@ -39,6 +39,8 @@ from PySide6.QtWidgets import (
 import theme
 from api_client import ApiClient
 from pages import (
+    AgentsPage,
+    AnalyticsPage,
     DashboardPage,
     HistoryPage,
     LiveAlertsPage,
@@ -62,6 +64,7 @@ class RealtimeBridge(QThread):
     alert_updated = Signal(dict)
     connection_changed = Signal(bool)
     agents_count = Signal(int)
+    agent_updated = Signal(dict)
 
     def __init__(self, api):
         super().__init__()
@@ -73,6 +76,7 @@ class RealtimeBridge(QThread):
         self.api.on("connect", lambda: self.connection_changed.emit(True))
         self.api.on("disconnect", lambda: self.connection_changed.emit(False))
         self.api.on("agents_count", lambda d: self.agents_count.emit(d.get("count", 0)))
+        self.api.on("agent_updated", lambda d: self.agent_updated.emit(d))
         self.api.connect_realtime()
 
 
@@ -144,6 +148,7 @@ class Sidebar(QFrame):
         ("👥", "Gestion des citoyens"),
         ("📜", "Historique"),
         ("📊", "Statistiques"),
+        ("📈", "Performances"),
         ("📄", "Rapports"),
         ("⚙️", "Paramètres"),
     ]
@@ -269,16 +274,17 @@ class MainWindow(QWidget):
         self.page_dashboard = DashboardPage()
         self.page_live = LiveAlertsPage()
         self.page_map = MapPage()
-        self.page_agents = PeoplePage(["Nom", "Rôle", "Email", "Statut"])
+        self.page_agents = AgentsPage()
         self.page_citizens = PeoplePage(["Nom", "Téléphone", "Email", "Inscrit le"])
         self.page_history = HistoryPage()
         self.page_stats = StatisticsPage()
+        self.page_analytics = AnalyticsPage()
         self.page_reports = ReportsPage()
         self.page_settings = SettingsPage(API_BASE, self.operator)
         for p in (
             self.page_dashboard, self.page_live, self.page_map, self.page_agents,
-            self.page_citizens, self.page_history, self.page_stats, self.page_reports,
-            self.page_settings,
+            self.page_citizens, self.page_history, self.page_stats, self.page_analytics,
+            self.page_reports, self.page_settings,
         ):
             self.stack.addWidget(p)
         right.addWidget(self.stack, 1)
@@ -291,7 +297,10 @@ class MainWindow(QWidget):
         self.page_live.request_close.connect(self._close)
         self.page_live.request_focus.connect(self._focus_on_map)
         self.page_live.open_incident.connect(self._open_incident_by_id)
+        self.page_live.search.connect(self._search_alerts)
+        self.page_live.reset_search.connect(lambda: self.page_live.set_alerts(self._sorted_alerts()))
         self.page_reports.generate_pdf.connect(self._generate_report)
+        self.page_analytics.period_changed.connect(self._load_analytics)
 
     def _tick_clock(self):
         from datetime import datetime
@@ -307,6 +316,8 @@ class MainWindow(QWidget):
             self._load_agents()
         elif idx == 4:
             self._load_citizens()
+        elif idx == 7:
+            self._load_analytics(self.page_analytics.period.currentData())
 
     # ---- Chargement initial ----
     def _load_initial(self):
@@ -316,23 +327,31 @@ class MainWindow(QWidget):
                 self.alerts[a["id"]] = a
             self._refresh_all()
             self.page_map.set_patrols(self.teams)
+            self._load_agents()  # agents + marqueurs carte
         except Exception as e:
             QMessageBox.warning(self, "Erreur réseau", f"Chargement impossible :\n{e}")
 
     def _load_agents(self):
         try:
-            rows = []
-            for u in self.api.get_agents():
-                status = "● Actif" if u.get("active") else "○ Inactif"
-                rows.append([
-                    (u["name"], None),
-                    (u["role"].capitalize(), theme.ACCENT_2),
-                    (u.get("email") or "—", None),
-                    (status, "#22c55e" if u.get("active") else theme.MUTED),
-                ])
-            self.page_agents.set_rows(rows)
+            agents = self.api.get_agents()
+            self.page_agents.set_agents(agents)
+            self.page_map.set_agents(agents)
         except Exception as e:
             QMessageBox.warning(self, "Agents", str(e))
+
+    def _load_analytics(self, period):
+        try:
+            self.page_analytics.set_data(self.api.get_analytics(period))
+        except Exception as e:
+            QMessageBox.warning(self, "Performances", str(e))
+
+    def _search_alerts(self, filters):
+        try:
+            result = self.api.get_alerts(filters=filters)
+            items = result.get("items", result) if isinstance(result, dict) else result
+            self.page_live.set_alerts(items, searching=True)
+        except Exception as e:
+            QMessageBox.warning(self, "Recherche", str(e))
 
     def _load_citizens(self):
         try:
@@ -354,7 +373,16 @@ class MainWindow(QWidget):
         self.bridge.new_alert.connect(self._on_new_alert)
         self.bridge.alert_updated.connect(self._on_alert_updated)
         self.bridge.connection_changed.connect(self.sidebar.set_online)
+        self.bridge.agent_updated.connect(self._on_agent_updated)
         self.bridge.start()
+
+    def _on_agent_updated(self, agent):
+        self.page_agents.update_agent(agent)
+        # Rafraîchit les marqueurs agents sur la carte.
+        try:
+            self.page_map.set_agents(list(self.page_agents.agents.values()))
+        except Exception:
+            pass
 
     def _on_new_alert(self, alert):
         self.alerts[alert["id"]] = alert

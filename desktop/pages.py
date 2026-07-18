@@ -5,6 +5,7 @@ from PySide6.QtCore import Qt, QUrl, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QFrame,
     QGridLayout,
     QHBoxLayout,
     QHeaderView,
@@ -153,17 +154,107 @@ class DashboardPage(QWidget):
 # --------------------------------------------------------------------------- #
 # Alertes en direct
 # --------------------------------------------------------------------------- #
+class SearchBar(QFrame):
+    """Barre de recherche avancée : texte, type, urgence, statut, dates."""
+
+    search = Signal(dict)
+    reset = Signal()
+
+    def __init__(self):
+        super().__init__()
+        from PySide6.QtWidgets import QComboBox, QDateEdit, QLineEdit
+        from PySide6.QtCore import QDate
+
+        self.setObjectName("card")
+        lay = QGridLayout(self)
+        lay.setContentsMargins(14, 12, 14, 12)
+        lay.setHorizontalSpacing(10)
+        lay.setVerticalSpacing(8)
+
+        self.q = QLineEdit()
+        self.q.setPlaceholderText("🔎 Rechercher (citoyen, téléphone, quartier, description…)")
+        self.q.returnPressed.connect(self._emit)
+        lay.addWidget(self.q, 0, 0, 1, 4)
+
+        self.f_type = QComboBox(); self.f_type.addItem("Tous types", "")
+        for t in ["vol", "braquage", "incendie", "accident", "violence", "autre"]:
+            self.f_type.addItem(t.capitalize(), t)
+        self.f_urg = QComboBox(); self.f_urg.addItem("Toutes urgences", "")
+        for u, lbl in [("faible", "Faible"), ("moyenne", "Moyen"), ("haute", "Élevé"), ("critique", "Critique")]:
+            self.f_urg.addItem(lbl, u)
+        self.f_status = QComboBox(); self.f_status.addItem("Tous statuts", "")
+        for s, lbl in [("active", "En cours"), ("assignee", "Affectée"), ("cloturee", "Résolue")]:
+            self.f_status.addItem(lbl, s)
+        self.loc = QLineEdit(); self.loc.setPlaceholderText("📍 Localisation")
+
+        self.d_from = QDateEdit(); self.d_from.setCalendarPopup(True)
+        self.d_from.setDisplayFormat("dd/MM/yyyy"); self.d_from.setDate(QDate.currentDate().addMonths(-1))
+        self.use_from = self._checkbox("Du")
+        self.d_to = QDateEdit(); self.d_to.setCalendarPopup(True)
+        self.d_to.setDisplayFormat("dd/MM/yyyy"); self.d_to.setDate(QDate.currentDate())
+        self.use_to = self._checkbox("Au")
+
+        lay.addWidget(self.f_type, 1, 0)
+        lay.addWidget(self.f_urg, 1, 1)
+        lay.addWidget(self.f_status, 1, 2)
+        lay.addWidget(self.loc, 1, 3)
+
+        drow = QHBoxLayout(); drow.setSpacing(8)
+        drow.addWidget(self.use_from); drow.addWidget(self.d_from)
+        drow.addWidget(self.use_to); drow.addWidget(self.d_to)
+        drow.addStretch()
+        btn = QPushButton("Rechercher"); btn.clicked.connect(self._emit)
+        rst = QPushButton("Réinitialiser"); rst.setObjectName("ghost"); rst.clicked.connect(self._reset)
+        drow.addWidget(rst); drow.addWidget(btn)
+        lay.addLayout(drow, 2, 0, 1, 4)
+
+    def _checkbox(self, text):
+        from PySide6.QtWidgets import QCheckBox
+        return QCheckBox(text)
+
+    def _emit(self):
+        f = {
+            "q": self.q.text().strip(),
+            "type": self.f_type.currentData(),
+            "urgency": self.f_urg.currentData(),
+            "status": self.f_status.currentData(),
+            "neighborhood": self.loc.text().strip(),
+        }
+        if self.use_from.isChecked():
+            f["date_from"] = self.d_from.date().toString("yyyy-MM-dd")
+        if self.use_to.isChecked():
+            f["date_to"] = self.d_to.date().toString("yyyy-MM-dd")
+        self.search.emit({k: v for k, v in f.items() if v})
+
+    def _reset(self):
+        self.q.clear(); self.loc.clear()
+        self.f_type.setCurrentIndex(0); self.f_urg.setCurrentIndex(0); self.f_status.setCurrentIndex(0)
+        self.use_from.setChecked(False); self.use_to.setChecked(False)
+        self.reset.emit()
+
+
 class LiveAlertsPage(QWidget):
     request_assign = Signal(int)
     request_close = Signal(int)
     request_focus = Signal(int)
     open_incident = Signal(int)
+    search = Signal(dict)
+    reset_search = Signal()
 
     def __init__(self):
         super().__init__()
         root = QVBoxLayout(self)
         root.setContentsMargins(24, 20, 24, 24)
         root.setSpacing(14)
+
+        self.search_bar = SearchBar()
+        self.search_bar.search.connect(self.search.emit)
+        self.search_bar.reset.connect(self.reset_search.emit)
+        root.addWidget(self.search_bar)
+
+        self.result_label = QLabel("")
+        self.result_label.setObjectName("muted")
+        root.addWidget(self.result_label)
 
         self.table = _table(
             ["Heure", "Type", "Citoyen", "Quartier", "Distance", "Urgence", "Statut"]
@@ -191,8 +282,12 @@ class LiveAlertsPage(QWidget):
         b_assign.clicked.connect(lambda: self._emit(self.request_assign))
         b_close.clicked.connect(lambda: self._emit(self.request_close))
 
-    def set_alerts(self, alerts):
+    def set_alerts(self, alerts, searching=False):
         _fill_alert_table(self.table, alerts, with_citizen=True)
+        if searching:
+            self.result_label.setText(f"🔎 {len(alerts)} résultat(s) pour la recherche")
+        else:
+            self.result_label.setText("")
 
     def _selected_id(self):
         items = self.table.selectedItems()
@@ -252,6 +347,11 @@ class MapPage(QWidget):
         import json
 
         self._run(f"window.setPatrols({json.dumps(teams)});")
+
+    def set_agents(self, agents):
+        import json
+
+        self._run(f"window.setAgents({json.dumps(agents)});")
 
     def add_alert(self, alert):
         import json
@@ -337,6 +437,140 @@ class PeoplePage(QWidget):
     def set_rows(self, rows):
         self.table.setRowCount(len(rows))
         for i, cells in enumerate(rows):
+            for j, (text, color) in enumerate(cells):
+                self.table.setItem(i, j, _item(text, color))
+
+
+class AgentsPage(QWidget):
+    """Suivi opérationnel des agents en temps réel (superviseur)."""
+
+    def __init__(self):
+        super().__init__()
+        root = QVBoxLayout(self)
+        root.setContentsMargins(24, 20, 24, 24)
+        root.setSpacing(14)
+
+        cards = QHBoxLayout(); cards.setSpacing(16)
+        self.c_total = StatCard("👮", "Agents", theme.ACCENT)
+        self.c_avail = StatCard("🟢", "Disponibles", "#22c55e")
+        self.c_busy = StatCard("🟠", "En intervention", "#f97316")
+        self.c_offline = StatCard("⚫", "Hors service", theme.MUTED)
+        for c in (self.c_total, self.c_avail, self.c_busy, self.c_offline):
+            cards.addWidget(c)
+        root.addLayout(cards)
+
+        title = QLabel("Agents actifs — position, disponibilité, progression")
+        title.setObjectName("sectionTitle")
+        root.addWidget(title)
+        self.table = _table(["Nom", "Rôle", "Disponibilité", "Position", "Intervention", "Vu à"])
+        root.addWidget(self.table, 1)
+        self.agents = {}
+
+    def set_agents(self, agents):
+        self.agents = {a["id"]: a for a in agents}
+        self._render()
+
+    def update_agent(self, agent):
+        self.agents[agent["id"]] = agent
+        self._render()
+
+    def _render(self):
+        agents = sorted(self.agents.values(), key=lambda a: (a.get("availability") != "busy", a["name"]))
+        avail_colors = {"available": "#22c55e", "busy": "#f97316", "offline": theme.MUTED}
+        avail_labels = {"available": "🟢 Disponible", "busy": "🟠 En intervention", "offline": "⚫ Hors service"}
+        self.table.setRowCount(len(agents))
+        n_av = n_bu = n_of = 0
+        for i, a in enumerate(agents):
+            av = a.get("availability", "offline")
+            n_av += av == "available"; n_bu += av == "busy"; n_of += av == "offline"
+            pos = f"{a['lat']:.4f}, {a['lng']:.4f}" if a.get("lat") is not None else "—"
+            interv = f"#{a['current_alert_id']}" if a.get("current_alert_id") else "—"
+            seen = (a.get("last_seen") or "—")[11:19] if a.get("last_seen") else "—"
+            cells = [
+                (a["name"], None), (a["role"].capitalize(), theme.ACCENT_2),
+                (avail_labels.get(av, av), avail_colors.get(av)),
+                (pos, None), (interv, "#f97316" if interv != "—" else theme.MUTED), (seen, theme.MUTED),
+            ]
+            for j, (text, color) in enumerate(cells):
+                self.table.setItem(i, j, _item(text, color))
+        self.c_total.set_value(len(agents))
+        self.c_avail.set_value(n_av); self.c_busy.set_value(n_bu); self.c_offline.set_value(n_of)
+
+
+class AnalyticsPage(QWidget):
+    """Analyse de performance des agents (hebdo / mensuel / annuel)."""
+
+    period_changed = Signal(str)
+
+    def __init__(self):
+        super().__init__()
+        scroll = QScrollArea(self); scroll.setWidgetResizable(True); scroll.setFrameShape(QScrollArea.NoFrame)
+        outer = QVBoxLayout(self); outer.setContentsMargins(0, 0, 0, 0); outer.addWidget(scroll)
+        content = QWidget(); scroll.setWidget(content)
+        root = QVBoxLayout(content)
+        root.setContentsMargins(24, 20, 24, 24); root.setSpacing(16)
+
+        from PySide6.QtWidgets import QComboBox
+        top = QHBoxLayout()
+        top.addStretch()
+        top.addWidget(QLabel("Période :"))
+        self.period = QComboBox()
+        for lbl, val in [("Hebdomadaire", "week"), ("Mensuel", "month"), ("Annuel", "year")]:
+            self.period.addItem(lbl, val)
+        self.period.setCurrentIndex(1)
+        self.period.currentIndexChanged.connect(lambda: self.period_changed.emit(self.period.currentData()))
+        top.addWidget(self.period)
+        root.addLayout(top)
+
+        cards = QHBoxLayout(); cards.setSpacing(16)
+        self.k_int = StatCard("🎯", "Interventions", theme.ACCENT)
+        self.k_res = StatCard("✅", "Résolues", "#22c55e")
+        self.k_rate = StatCard("📊", "Taux de résolution", "#a78bfa")
+        self.k_resp = StatCard("⏱️", "Réponse moyenne", "#f97316")
+        for c in (self.k_int, self.k_res, self.k_rate, self.k_resp):
+            cards.addWidget(c)
+        root.addLayout(cards)
+
+        self.card_chart = Card("Interventions par agent")
+        self._chart_holder = QVBoxLayout()
+        self.card_chart.v.addLayout(self._chart_holder)
+        root.addWidget(self.card_chart)
+
+        title = QLabel("Détail par agent")
+        title.setObjectName("sectionTitle")
+        root.addWidget(title)
+        self.table = _table(
+            ["Agent", "Rôle", "Interventions", "Résolues", "Taux", "Réponse moy.", "Distance"]
+        )
+        root.addWidget(self.table)
+
+    def set_data(self, data):
+        self.k_int.set_value(data.get("total_interventions", 0))
+        self.k_res.set_value(data.get("total_resolved", 0))
+        self.k_rate.set_value(f"{data.get('global_resolution_rate', 0)}%")
+        gr = data.get("global_avg_response_min")
+        self.k_resp.set_value(f"{gr} min" if gr is not None else "—")
+
+        rows = data.get("agents", [])
+        _clear(self._chart_holder)
+        chart_data = {r["name"].replace("Agent ", ""): r["interventions"] for r in rows if r["role"] == "agent"}
+        if chart_data and sum(chart_data.values()) > 0:
+            self._chart_holder.addWidget(charts.bar_chart(chart_data, theme.ACCENT, 220))
+        else:
+            lbl = QLabel("Pas encore de données d'intervention pour cette période.")
+            lbl.setObjectName("muted")
+            self._chart_holder.addWidget(lbl)
+
+        self.table.setRowCount(len(rows))
+        for i, r in enumerate(rows):
+            rt = r.get("avg_response_min")
+            cells = [
+                (r["name"], None), (r["role"].capitalize(), theme.ACCENT_2),
+                (str(r["interventions"]), None), (str(r["resolved"]), "#22c55e"),
+                (f"{r['resolution_rate']}%", "#a78bfa"),
+                (f"{rt} min" if rt is not None else "—", "#f97316"),
+                (f"{round(r['distance_m']/1000, 2)} km" if r.get("distance_m") else "0 km", theme.MUTED),
+            ]
             for j, (text, color) in enumerate(cells):
                 self.table.setItem(i, j, _item(text, color))
 

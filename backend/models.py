@@ -46,14 +46,23 @@ class User(TimestampMixin, db.Model):
     role = db.Column(db.String(20), default="citizen", nullable=False, index=True)
     active = db.Column(db.Boolean, default=True, nullable=False)
 
-    alerts = db.relationship("Alert", backref="reporter", lazy=True)
+    # --- Suivi opérationnel des agents d'intervention ---
+    availability = db.Column(db.String(20), default="offline")  # available|busy|offline
+    lat = db.Column(db.Float)
+    lng = db.Column(db.Float)
+    last_seen = db.Column(db.DateTime)
+    distance_total_m = db.Column(db.Float, default=0.0)  # distance cumulée (analytics)
+    current_alert_id = db.Column(db.Integer)
+
+    alerts = db.relationship("Alert", backref="reporter", lazy=True,
+                             foreign_keys="Alert.reporter_id")
 
     @property
     def permissions(self):
         return ROLE_PERMISSIONS.get(self.role, [])
 
-    def to_dict(self):
-        return {
+    def to_dict(self, with_tracking=False):
+        d = {
             "id": self.id,
             "name": self.name,
             "phone": self.phone,
@@ -63,6 +72,16 @@ class User(TimestampMixin, db.Model):
             "permissions": self.permissions,
             "created_at": _iso(self.created_at),
         }
+        if with_tracking:
+            d.update({
+                "availability": self.availability,
+                "lat": self.lat,
+                "lng": self.lng,
+                "last_seen": _iso(self.last_seen),
+                "current_alert_id": self.current_alert_id,
+                "distance_total_m": round(self.distance_total_m or 0.0, 1),
+            })
+        return d
 
 
 class Team(TimestampMixin, db.Model):
@@ -117,6 +136,8 @@ class Alert(TimestampMixin, db.Model):
     # Suivi opérationnel
     status = db.Column(db.String(20), default="active", nullable=False, index=True)
     assigned_team_id = db.Column(db.Integer, db.ForeignKey("teams.id"))
+    assigned_agent_id = db.Column(db.Integer, db.ForeignKey("users.id"), index=True)
+    accepted_at = db.Column(db.DateTime)   # prise en charge par un agent
     distance_m = db.Column(db.Float)
     eta_moto_min = db.Column(db.Float)
     eta_walk_min = db.Column(db.Float)
@@ -125,6 +146,7 @@ class Alert(TimestampMixin, db.Model):
     closed_at = db.Column(db.DateTime)
 
     assigned_team = db.relationship("Team")
+    assigned_agent = db.relationship("User", foreign_keys=[assigned_agent_id])
 
     def to_dict(self):
         return {
@@ -144,10 +166,15 @@ class Alert(TimestampMixin, db.Model):
             "ai_category": self.ai_category,
             "status": self.status,
             "assigned_team": self.assigned_team.to_dict() if self.assigned_team else None,
+            "assigned_agent": (
+                {"id": self.assigned_agent.id, "name": self.assigned_agent.name}
+                if self.assigned_agent else None
+            ),
             "distance_m": round(self.distance_m, 1) if self.distance_m is not None else None,
             "eta_moto_min": self.eta_moto_min,
             "eta_walk_min": self.eta_walk_min,
             "created_at": _iso(self.created_at),
+            "accepted_at": _iso(self.accepted_at),
             "closed_at": _iso(self.closed_at),
             "time": self.created_at.strftime("%Hh%M") if self.created_at else None,
         }

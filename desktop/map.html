@@ -82,6 +82,26 @@
       if (m) { map.setView(m.getLatLng(), 16); m.openPopup(); }
     };
 
+    // Agents suivis en temps réel.
+    var agentLayer = L.layerGroup().addTo(map);
+    var AVAIL = { available: "#22c55e", busy: "#f97316", offline: "#6b7280" };
+    window.setAgents = function (agents) {
+      agentLayer.clearLayers();
+      (agents || []).forEach(function (a) {
+        if (a.lat == null || a.lng == null) return;
+        var c = AVAIL[a.availability] || "#6b7280";
+        var icon = L.divIcon({ className: "",
+          html: '<div style="position:relative;font-size:18px;filter:drop-shadow(0 0 3px #000)">👮' +
+                '<span style="position:absolute;right:-2px;bottom:-2px;width:9px;height:9px;border-radius:50%;background:' +
+                c + ';border:2px solid #0b1220"></span></div>',
+          iconSize: [22, 22], iconAnchor: [11, 11] });
+        L.marker([a.lat, a.lng], { icon: icon })
+          .bindPopup("<b>" + a.name + "</b><br/>Disponibilité : " + a.availability +
+                     (a.current_alert_id ? "<br/>Intervention #" + a.current_alert_id : ""))
+          .addTo(agentLayer);
+      });
+    };
+
     // Légende de gravité
     var legend = L.control({ position: "bottomright" });
     legend.onAdd = function () {

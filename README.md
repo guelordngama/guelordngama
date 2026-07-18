@@ -47,6 +47,9 @@ cd web && python -m http.server 8080
 # 3. Poste opérateur (dans un autre terminal)
 pip install PySide6 "python-socketio[client]>=5.12"
 python -m desktop.main
+
+# 4. Portail web des agents d'intervention
+cd portal && python -m http.server 8090   # connexion : agent1@safecity.local / safecity123
 ```
 Compte opérateur de démo : `operateur@safecity.local` / `safecity123`
 
@@ -75,6 +78,7 @@ python tests/test_backend.py   # sans pytest
 ```
 backend/    API modulaire (factory, blueprints, services, IA, sécurité)
 web/        application citoyenne (HTML/CSS/JS + Leaflet)
+portal/     portail web des agents d'intervention (temps réel + carte)
 desktop/    poste opérateur (PySide6 + Qt WebEngine + Qt Charts)
 scripts/    outils (simulation d'alertes)
 tests/      tests du backend
