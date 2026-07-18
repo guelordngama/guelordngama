@@ -68,10 +68,14 @@ input:focus, select:focus { outline: none; border-color: var(--accent); }
 .chat-msg .who { font-size: 10px; color: var(--muted); display: block; margin-bottom: 2px; }
 .chat-msg.mine { align-self: flex-end; background: rgba(61,139,255,0.18); border: 1px solid rgba(61,139,255,0.4); }
 .chat-msg.other { align-self: flex-start; background: rgba(94,234,212,0.12); border: 1px solid rgba(94,234,212,0.3); }
-.chat-input { display: flex; gap: 8px; }
-.chat-input input { flex: 1; padding: 10px 12px; }
+.chat-input { display: flex; gap: 8px; align-items: center; }
+.chat-input input[type=text] { flex: 1; padding: 10px 12px; }
+.chat-attach { cursor: pointer; font-size: 18px; padding: 8px 10px; border: 1px solid var(--line);
+  border-radius: 10px; background: rgba(11,18,32,0.5); }
+.chat-attach.armed { border-color: var(--green); }
 .chat-input button { border: none; border-radius: 10px; background: var(--accent); color: #fff;
   font-size: 16px; font-weight: 800; padding: 0 16px; cursor: pointer; }
+.chat-msg img { max-width: 180px; border-radius: 8px; margin-top: 6px; display: block; cursor: pointer; }
 
 .map-panel { position: relative; }
 #map { width: 100%; height: 100%; background: #0b1220; }

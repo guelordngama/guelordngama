@@ -1,4 +1,16 @@
-# ===== SafeCity — orchestration de production (backend + PostgreSQL) =====
+# ===== SafeCity — pile complète en une commande : docker compose up =====
+# Démarre : PostgreSQL + backend (API/temps réel) + app citoyenne + portail agents.
+#
+#   docker compose up --build
+#
+# Puis ouvrir :
+#   - App citoyenne : http://localhost:8080
+#   - Portail agents : http://localhost:8090   (agent1@safecity.local / safecity123)
+#   - API backend    : http://localhost:5000/api/health
+#   - Poste opérateur (bureau) : SAFECITY_API=http://localhost:5000 python -m desktop.main
+#
+# ⚠️ Pile de DÉMONSTRATION (compte démo activé, CORS ouvert). Pour un durcissement
+#    production, voir docs/SECURITY.md (SAFECITY_ENV=production + variables sûres).
 services:
   db:
     image: postgres:16-alpine
@@ -21,15 +33,32 @@ services:
       db:
         condition: service_healthy
     environment:
-      SAFECITY_ENV: production
-      SAFECITY_SECRET_KEY: ${SAFECITY_SECRET_KEY:?Définir SAFECITY_SECRET_KEY}
-      SAFECITY_CORS_ORIGINS: ${SAFECITY_CORS_ORIGINS:?Définir les origines CORS}
-      SAFECITY_SEED_DEMO: "false"
+      SAFECITY_ENV: development        # démo : seed opérateur + CORS ouvert
+      SAFECITY_SERVER: waitress
+      SAFECITY_CORS_ORIGINS: "*"
       DATABASE_URL: postgresql+psycopg2://safecity:${POSTGRES_PASSWORD:-safecity}@db:5432/safecity
     ports:
       - "5000:5000"
     volumes:
       - uploads:/app/backend/uploads
+    restart: unless-stopped
+
+  web:
+    image: nginx:alpine
+    depends_on: [backend]
+    volumes:
+      - ./web:/usr/share/nginx/html:ro
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
+  portal:
+    image: nginx:alpine
+    depends_on: [backend]
+    volumes:
+      - ./portal:/usr/share/nginx/html:ro
+    ports:
+      - "8090:80"
     restart: unless-stopped
 
 volumes:

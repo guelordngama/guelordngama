@@ -64,6 +64,7 @@
     });
 
     // Messagerie
+    initChatFile();
     loadMessages();
     $("chat-send").addEventListener("click", sendMessage);
     $("chat-text").addEventListener("keydown", (e) => { if (e.key === "Enter") sendMessage(); });
@@ -73,11 +74,29 @@
   async function loadMessages() {
     try { (await api("GET", "/api/messages?limit=40")).forEach(addMessage); } catch (e) {}
   }
+  let chatAttachment = null;
+  function initChatFile() {
+    const f = $("chat-file");
+    if (!f) return;
+    f.addEventListener("change", () => {
+      const file = f.files[0];
+      if (!file) { chatAttachment = null; return; }
+      const reader = new FileReader();
+      reader.onload = () => { chatAttachment = reader.result;
+        document.querySelector(".chat-attach").classList.add("armed"); };
+      reader.readAsDataURL(file);
+    });
+  }
   async function sendMessage() {
     const t = $("chat-text").value.trim();
-    if (!t) return;
+    if (!t && !chatAttachment) return;
+    const body = { text: t };
+    if (chatAttachment) body.attachment = chatAttachment;
     $("chat-text").value = "";
-    try { await api("POST", "/api/messages", { text: t }); } catch (e) { alert("Échec : " + e.message); }
+    chatAttachment = null;
+    $("chat-file").value = "";
+    document.querySelector(".chat-attach").classList.remove("armed");
+    try { await api("POST", "/api/messages", body); } catch (e) { alert("Échec : " + e.message); }
   }
   function addMessage(m) {
     const box = $("chat-messages");
@@ -87,9 +106,14 @@
     const who = document.createElement("span");
     who.className = "who";
     who.textContent = (mine ? "Moi" : (m.sender_name || "Centre")) + " · " + (m.time || "");
-    const txt = document.createElement("span");
-    txt.textContent = m.text;
-    div.appendChild(who); div.appendChild(txt);
+    div.appendChild(who);
+    if (m.text) { const txt = document.createElement("span"); txt.textContent = m.text; div.appendChild(txt); }
+    if (m.attachment_url) {
+      const img = document.createElement("img");
+      img.src = API + m.attachment_url;
+      img.addEventListener("click", () => window.open(API + m.attachment_url, "_blank"));
+      div.appendChild(img);
+    }
     box.appendChild(div);
     box.scrollTop = box.scrollHeight;
   }

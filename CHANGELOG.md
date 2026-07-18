@@ -2,6 +2,23 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [2.7.0] — Pièces jointes, mode hors-ligne & déploiement Docker complet
+
+### Ajouté
+- **Pièces jointes dans la messagerie** : envoi et affichage d'images (poste
+  opérateur via 📎 + lien ; portail agents via 📎 + miniature cliquable).
+  Endpoint `POST /api/messages` accepte `attachment` (image base64).
+- **Mode hors-ligne de l'app citoyenne** : si le réseau est absent, l'alerte
+  est **enregistrée localement** et **renvoyée automatiquement** au retour de la
+  connexion (file d'attente locale + verrou anti-doublon + bandeau « en
+  attente »). Service worker + manifest pour un chargement hors-ligne (PWA).
+- **Déploiement Docker complet en une commande** (`docker compose up`) :
+  PostgreSQL + backend + **app citoyenne** (8080) + **portail agents** (8090).
+
+### Corrigé
+- Envoi en double des alertes en attente lorsqu'un `online` et l'intervalle de
+  renvoi se déclenchaient simultanément (verrou de vidage de file).
+
 ## [2.6.0] — Messagerie temps réel & export Excel/CSV
 
 ### Ajouté

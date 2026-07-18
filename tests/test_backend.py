@@ -301,6 +301,19 @@ def test_messaging():
     assert len(msgs) == 2 and msgs[0]["text"] == "Intervenez Zone 5"  # ordre chronologique
 
 
+def test_message_with_attachment():
+    _, client = make_client()
+    token = client.post("/api/auth/login", json={
+        "email": "operateur@safecity.local", "password": "safecity123"}).get_json()["token"]
+    h = {"Authorization": "Bearer " + token}
+    png = ("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwC"
+           "AAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC")
+    r = client.post("/api/messages", json={"text": "photo", "attachment": png}, headers=h)
+    assert r.status_code == 201 and r.get_json()["attachment_url"]
+    # pièce jointe seule (sans texte) acceptée
+    assert client.post("/api/messages", json={"attachment": png}, headers=h).status_code == 201
+
+
 def test_export_csv_and_xlsx():
     _, client = make_client()
     client.post("/api/alerts", json={"type": "braquage", "lat": -4.3, "lng": 15.3, "reporter_name": "X"})

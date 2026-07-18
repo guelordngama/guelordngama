@@ -24,6 +24,9 @@ def list_messages():
 def post_message():
     data = request.get_json(silent=True) or {}
     text = clean_text(data.get("text"), 1000)
-    if not text:
+    attachment = data.get("attachment")
+    if not text and not attachment:
         raise ValidationError("Le message ne peut pas être vide.")
-    return jsonify(messages_service.create_message(g.user, text, data.get("alert_id"))), 201
+    result = messages_service.create_message(
+        g.user, text, data.get("alert_id"), attachment=attachment)
+    return jsonify(result), 201

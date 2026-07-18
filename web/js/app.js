@@ -201,16 +201,13 @@
     };
 
     try {
-      const res = await fetch(API + "/api/alerts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) throw new Error("HTTP " + res.status);
-      const alert = await res.json();
+      if (!navigator.onLine) throw new Error("offline");
+      const alert = await postAlert(payload);
       showConfirmation(alert);
     } catch (err) {
-      alert("Échec de l'envoi : " + err.message + "\nVérifiez la connexion au serveur.");
+      // Mode hors-ligne : on met l'alerte en file d'attente pour envoi différé.
+      queueAlert(payload);
+      showQueued();
     } finally {
       btn.disabled = false;
       btn.textContent = "Envoyer l'alerte 🚀";
@@ -218,10 +215,104 @@
   });
 
   // ---------------------------------------------------------------------- //
+  // Mode hors-ligne : file d'attente locale + renvoi automatique
+  // ---------------------------------------------------------------------- //
+  const QUEUE_KEY = "safecity_pending";
+
+  async function postAlert(payload) {
+    const res = await fetch(API + "/api/alerts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    return res.json();
+  }
+
+  function getQueue() {
+    try { return JSON.parse(localStorage.getItem(QUEUE_KEY)) || []; } catch (e) { return []; }
+  }
+  function setQueue(q) { localStorage.setItem(QUEUE_KEY, JSON.stringify(q)); }
+  function queueAlert(payload) {
+    const q = getQueue();
+    q.push({ payload: payload, at: Date.now() });
+    setQueue(q);
+    updatePendingBadge();
+  }
+
+  let flushing = false;
+  async function flushQueue() {
+    // Verrou : évite l'envoi en double si deux flush se lancent en même temps
+    // (événement "online" + intervalle périodique).
+    if (flushing || !navigator.onLine) return;
+    const q = getQueue();
+    if (!q.length) return;
+    flushing = true;
+    try {
+      const remaining = [];
+      for (const item of q) {
+        try { await postAlert(item.payload); } catch (e) { remaining.push(item); }
+      }
+      setQueue(remaining);
+      updatePendingBadge();
+      if (q.length && !remaining.length) {
+        toast("✅ " + q.length + " alerte(s) en attente envoyée(s).");
+      }
+    } finally {
+      flushing = false;
+    }
+  }
+
+  function updatePendingBadge() {
+    const n = getQueue().length;
+    let el = document.getElementById("pending-badge");
+    if (n > 0) {
+      if (!el) {
+        el = document.createElement("div");
+        el.id = "pending-badge";
+        el.className = "pending-badge";
+        el.addEventListener("click", flushQueue);
+        document.body.appendChild(el);
+      }
+      el.textContent = "📴 " + n + " alerte(s) en attente d'envoi";
+    } else if (el) {
+      el.remove();
+    }
+  }
+
+  function showQueued() {
+    $("cf-type").textContent = capitalize(state.type || "autre");
+    $("cf-urgency").textContent = "En attente";
+    $("cf-urgency").className = "";
+    $("cf-neighborhood").textContent = state.neighborhood || "—";
+    $("cf-distance").textContent = "—";
+    $("cf-eta").textContent = "—";
+    $("cf-type").closest("#screen-confirm").querySelector(".confirm-sub").textContent =
+      "📴 Pas de réseau : votre alerte est enregistrée et sera envoyée automatiquement au retour de la connexion.";
+    show("confirm");
+  }
+
+  function toast(msg) {
+    const t = document.createElement("div");
+    t.className = "pending-badge";
+    t.style.background = "#22c55e";
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 4000);
+  }
+
+  window.addEventListener("online", flushQueue);
+  setInterval(flushQueue, 20000);
+  flushQueue();
+  updatePendingBadge();
+
+  // ---------------------------------------------------------------------- //
   // Écran de confirmation + mini-carte
   // ---------------------------------------------------------------------- //
   let miniMap = null;
   function showConfirmation(alert) {
+    const sub = document.querySelector("#screen-confirm .confirm-sub");
+    if (sub) sub.textContent = "Le centre de surveillance a bien reçu votre signalement.";
     $("cf-type").textContent = capitalize(alert.type);
     const urg = $("cf-urgency");
     urg.textContent = capitalize(alert.urgency);

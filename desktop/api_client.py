@@ -72,10 +72,12 @@ class ApiClient:
     def get_messages(self, limit=50):
         return self._request("GET", f"/api/messages?limit={limit}", auth=True)
 
-    def send_message(self, text, alert_id=None):
+    def send_message(self, text, alert_id=None, attachment=None):
         body = {"text": text}
         if alert_id:
             body["alert_id"] = alert_id
+        if attachment:
+            body["attachment"] = attachment
         return self._request("POST", "/api/messages", body, auth=True)
 
     def download_export(self, fmt, dest_path, filters=None):

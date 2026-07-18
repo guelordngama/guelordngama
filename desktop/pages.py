@@ -669,15 +669,17 @@ class HistoryPage(QWidget):
 
 
 class ChatPage(QWidget):
-    """Messagerie temps réel entre opérateurs et agents."""
+    """Messagerie temps réel entre opérateurs et agents (avec pièces jointes)."""
 
-    send = Signal(str)
+    send = Signal(str, str)  # (texte, pièce jointe data-URL ou "")
 
-    def __init__(self, operator):
+    def __init__(self, operator, api_base=""):
         super().__init__()
-        from PySide6.QtWidgets import QLineEdit, QTextEdit
+        from PySide6.QtWidgets import QLineEdit, QTextBrowser
 
         self.me_id = operator.get("id")
+        self.api_base = api_base.rstrip("/")
+        self._attachment = None
         root = QVBoxLayout(self)
         root.setContentsMargins(24, 20, 24, 24)
         root.setSpacing(12)
@@ -686,30 +688,57 @@ class ChatPage(QWidget):
         title.setObjectName("sectionTitle")
         root.addWidget(title)
 
-        self.view = QTextEdit()
-        self.view.setReadOnly(True)
+        self.view = QTextBrowser()
+        self.view.setOpenExternalLinks(True)
         self.view.setObjectName("card")
         self.view.setStyleSheet(
-            f"QTextEdit#card {{ background: {theme.PANEL}; border: 1px solid {theme.BORDER};"
+            f"QTextBrowser#card {{ background: {theme.PANEL}; border: 1px solid {theme.BORDER};"
             f"border-radius: 14px; padding: 12px; }}"
         )
         root.addWidget(self.view, 1)
 
+        self.attach_label = QLabel("")
+        self.attach_label.setObjectName("muted")
+        root.addWidget(self.attach_label)
+
         row = QHBoxLayout()
+        b_attach = QPushButton("📎")
+        b_attach.setObjectName("ghost")
+        b_attach.setFixedWidth(46)
+        b_attach.clicked.connect(self._pick_attachment)
         self.input = QLineEdit()
         self.input.setPlaceholderText("Écrire un message aux agents…")
         self.input.returnPressed.connect(self._send)
         btn = QPushButton("Envoyer")
         btn.clicked.connect(self._send)
+        row.addWidget(b_attach)
         row.addWidget(self.input, 1)
         row.addWidget(btn)
         root.addLayout(row)
 
+    def _pick_attachment(self):
+        import base64
+        import os
+
+        from PySide6.QtWidgets import QFileDialog
+
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Joindre une image", "", "Images (*.png *.jpg *.jpeg *.gif *.webp)")
+        if not path:
+            return
+        ext = os.path.splitext(path)[1].lstrip(".").lower() or "png"
+        with open(path, "rb") as fh:
+            data = base64.b64encode(fh.read()).decode()
+        self._attachment = f"data:image/{ext};base64,{data}"
+        self.attach_label.setText(f"📎 Pièce jointe : {os.path.basename(path)}  (sera envoyée)")
+
     def _send(self):
         text = self.input.text().strip()
-        if text:
-            self.send.emit(text)
+        if text or self._attachment:
+            self.send.emit(text, self._attachment or "")
             self.input.clear()
+            self._attachment = None
+            self.attach_label.setText("")
 
     def set_messages(self, msgs):
         self.view.clear()
@@ -725,12 +754,17 @@ class ChatPage(QWidget):
         color = theme.ACCENT if mine else theme.ACCENT_2
         name = "Moi" if mine else f"{m.get('sender_name')} · {role}"
         text = (m.get("text") or "").replace("<", "&lt;").replace(">", "&gt;")
+        body = f'<span style="color:{theme.TEXT};">{text}</span>' if text else ""
+        if m.get("attachment_url"):
+            url = self.api_base + m["attachment_url"]
+            body += (f'<br><a href="{url}" style="color:{theme.ACCENT}; font-weight:bold;">'
+                     f'📎 Voir la pièce jointe</a>')
         html = (
             f'<table width="100%" cellspacing="0" cellpadding="0"><tr><td '
             f'style="border-left:3px solid {color}; padding:5px 12px; background:{color}18;">'
             f'<span style="color:{color}; font-size:11px; font-weight:bold;">{name}</span>'
             f'<span style="color:{theme.MUTED}; font-size:11px;"> · {m.get("time","")}</span><br>'
-            f'<span style="color:{theme.TEXT};">{text}</span></td></tr></table>'
+            f'{body}</td></tr></table>'
         )
         self.view.append(html)
         sb = self.view.verticalScrollBar()

@@ -286,7 +286,7 @@ class MainWindow(QWidget):
         self.page_stats = StatisticsPage()
         self.page_analytics = AnalyticsPage()
         self.page_reports = ReportsPage()
-        self.page_chat = ChatPage(self.operator)
+        self.page_chat = ChatPage(self.operator, API_BASE)
         self.page_settings = SettingsPage(API_BASE, self.operator)
         for p in (
             self.page_dashboard, self.page_live, self.page_map, self.page_agents,
@@ -415,9 +415,9 @@ class MainWindow(QWidget):
         except Exception as e:
             QMessageBox.warning(self, "Messagerie", str(e))
 
-    def _send_message(self, text):
+    def _send_message(self, text, attachment=""):
         try:
-            self.api.send_message(text)  # l'affichage se fait via l'événement temps réel
+            self.api.send_message(text, attachment=attachment or None)
         except Exception as e:
             QMessageBox.warning(self, "Messagerie", str(e))
 
