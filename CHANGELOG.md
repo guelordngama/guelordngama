@@ -2,6 +2,17 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [2.9.0] — Notifications sonores du portail agents
+
+### Ajouté
+- **Sons de notification dans le portail agents** :
+  - **Alarme** (+ vibration + toast) à la réception d'une nouvelle alerte.
+  - **Alarme renforcée** lorsqu'une intervention est assignée à l'agent
+    (itinéraire tracé automatiquement, statut passé en « en intervention »).
+  - **Son d'accusé de réception** lorsque l'agent accepte une intervention.
+  - **Bip discret** à la réception d'un message du centre.
+- Notifications visuelles (toasts) dans le portail agents.
+
 ## [2.7.0] — Pièces jointes, mode hors-ligne & déploiement Docker complet
 
 ### Ajouté

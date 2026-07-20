@@ -73,6 +73,7 @@
 
   async function loadMessages() {
     try { (await api("GET", "/api/messages?limit=40")).forEach(addMessage); } catch (e) {}
+    state.chatReady = true;  // les messages suivants déclencheront un bip
   }
   let chatAttachment = null;
   function initChatFile() {
@@ -101,6 +102,7 @@
   function addMessage(m) {
     const box = $("chat-messages");
     const mine = state.agent && m.sender_id === state.agent.id;
+    if (!mine && state.chatReady) soundPing();  // bip pour un message entrant
     const div = document.createElement("div");
     div.className = "chat-msg " + (mine ? "mine" : "other");
     const who = document.createElement("span");
@@ -132,8 +134,12 @@
       state.socket = io(API, { transports: ["polling"] });
       state.socket.on("connect", () => setConn(true));
       state.socket.on("disconnect", () => setConn(false));
-      state.socket.on("new_alert", (a) => { addAlert(a, true); notify(a); });
-      state.socket.on("alert_updated", (a) => addAlert(a, false));
+      state.socket.on("new_alert", (a) => {
+        addAlert(a, true);
+        soundAlarm();
+        toast("🚨 Nouvelle alerte : " + (a.type || "").toUpperCase(), URGENCY[a.urgency]);
+      });
+      state.socket.on("alert_updated", onAlertUpdated);
     } catch (e) { console.warn(e); }
   }
   function setConn(ok) {
@@ -147,6 +153,21 @@
       const list = await api("GET", "/api/alerts?status=active&page=1&page_size=50");
       (list.items || list).forEach((a) => addAlert(a, false));
     } catch (e) { console.warn(e); }
+  }
+
+  // Une alerte est mise à jour : si elle vient de m'être assignée, alarme forte.
+  function onAlertUpdated(a) {
+    const prev = state.alerts[a.id];
+    const me = state.agent && state.agent.id;
+    const mineNow = a.assigned_agent && a.assigned_agent.id === me;
+    const mineBefore = prev && prev.assigned_agent && prev.assigned_agent.id === me;
+    addAlert(a, false);
+    if (mineNow && !mineBefore) {
+      soundAssigned();
+      toast("🚔 Une intervention vous est assignée : " + (a.type || "").toUpperCase(), "#f97316");
+      if (state.selfPos) showRoute(state.selfPos, [a.lat, a.lng]);
+      $("availability").value = "busy";
+    }
   }
 
   // ---- Rendu des alertes ----
@@ -219,6 +240,8 @@
       const updated = await api("POST", "/api/alerts/" + id + "/accept");
       addAlert(updated, false);
       $("availability").value = "busy";
+      soundAck();  // accusé de réception : intervention acceptée
+      toast("✅ Intervention acceptée", "#22c55e");
       // Trace l'itinéraire le plus rapide depuis ma position vers l'incident.
       if (state.selfPos) showRoute(state.selfPos, [updated.lat, updated.lng]);
     } catch (e) { alert("Échec : " + e.message); }
@@ -246,20 +269,45 @@
     }
   }
 
-  // ---- Notification sonore + visuelle ----
-  function notify(a) {
+  // ---- Sons de notification (Web Audio) ----
+  function playTones(segments) {
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      [660, 990].forEach((f, i) => {
+      let t = ctx.currentTime;
+      segments.forEach(([freq, dur, vol]) => {
         const o = ctx.createOscillator(), g = ctx.createGain();
-        o.frequency.value = f; o.connect(g); g.connect(ctx.destination);
-        g.gain.setValueAtTime(0.001, ctx.currentTime + i * 0.18);
-        g.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime + i * 0.18 + 0.02);
-        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.18 + 0.16);
-        o.start(ctx.currentTime + i * 0.18); o.stop(ctx.currentTime + i * 0.18 + 0.18);
+        o.frequency.value = freq; o.connect(g); g.connect(ctx.destination);
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(vol, t + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        o.start(t); o.stop(t + dur);
+        t += dur + 0.04;
       });
     } catch (e) {}
+  }
+  // Alarme générale (nouvelle alerte diffusée à tous les agents).
+  function soundAlarm() {
+    playTones([[660, 0.16, 0.3], [990, 0.16, 0.3]]);
     if (navigator.vibrate) navigator.vibrate([200, 80, 200]);
+  }
+  // Alarme renforcée : une intervention vous est assignée.
+  function soundAssigned() {
+    playTones([[880, 0.14, 0.35], [1174, 0.14, 0.35], [1568, 0.22, 0.35]]);
+    if (navigator.vibrate) navigator.vibrate([250, 100, 250, 100, 300]);
+  }
+  // Accusé de réception : l'agent accepte l'intervention.
+  function soundAck() { playTones([[880, 0.10, 0.28], [1174, 0.14, 0.28]]); }
+  // Bip discret : nouveau message du centre.
+  function soundPing() { playTones([[1046, 0.08, 0.18]]); }
+
+  // ---- Toast (notification visuelle) ----
+  function toast(text, color) {
+    const t = document.createElement("div");
+    t.className = "portal-toast";
+    t.style.borderColor = color || "#ef4444";
+    t.textContent = text;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 5000);
   }
 
   // ---- Géolocalisation de l'agent ----
