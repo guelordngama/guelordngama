@@ -25,7 +25,23 @@ Architecture cible :
                    Sauvegardes automatiques (pg_dump)
 ```
 
-## 1. Préparer le VPS
+## 0. Installation en UNE commande (recommandé)
+
+```bash
+ssh root@169.58.47.76
+apt update && apt install -y git
+git clone <votre-dépôt> safecity && cd safecity
+sudo bash deploy/install.sh
+```
+
+`deploy/install.sh` installe Docker, génère `deploy/.env.prod` de façon
+interactive (domaine sslip.io proposé automatiquement, secrets générés), ouvre
+les ports, émet le certificat HTTPS et démarre toute la pile. **Vous pouvez vous
+arrêter ici.** La suite décrit les étapes manuelles équivalentes.
+
+---
+
+## 1. Préparer le VPS (manuel)
 
 ```bash
 ssh root@169.58.47.76

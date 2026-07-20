@@ -71,8 +71,8 @@ Pile complète pour un serveur (ex. Contabo/Ubuntu) : Nginx (reverse proxy +
 TLS), backend Gunicorn/eventlet (vraies websockets), PostgreSQL, certificats
 Let's Encrypt et sauvegardes automatiques. Voir **[docs/PRODUCTION.md](docs/PRODUCTION.md)**.
 ```bash
-cp deploy/.env.prod.example deploy/.env.prod   # renseigner domaine, secrets…
-sh deploy/init-letsencrypt.sh                  # HTTPS + démarrage
+# Installation automatique (Docker + config + HTTPS) :
+sudo bash deploy/install.sh
 ```
 
 ## 🧪 Tests

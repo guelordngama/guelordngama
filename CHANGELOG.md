@@ -21,6 +21,10 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
   vrai administrateur) et `list-staff`.
 - Fronts « même origine » (config auto : localhost en dev, origine du serveur en
   prod via Nginx) ; montée en WebSocket côté navigateur avec repli polling.
+- **Script d'installation unique** `deploy/install.sh` : installe Docker,
+  génère la configuration de production de façon interactive (domaine sslip.io
+  + secrets générés automatiquement), ouvre les ports, émet le certificat HTTPS
+  et démarre toute la pile — en une commande sur le VPS.
 - Guide **docs/PRODUCTION.md** (déploiement pas à pas, sslip.io pour HTTPS sans
   domaine acheté).
 
