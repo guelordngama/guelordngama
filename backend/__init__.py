@@ -23,7 +23,13 @@ def create_app(config=None):
     config = config or get_config()
     config.validate()  # refuse de démarrer si la config de prod est non sûre
 
-    setup_logging(config.LOG_LEVEL)
+    log = setup_logging(config.LOG_LEVEL)
+    if config.ENV == "production" and config.SEED_DEMO_OPERATOR:
+        log.warning(
+            "Compte de démonstration ACTIF en production (SAFECITY_SEED_DEMO=true). "
+            "À désactiver après avoir créé un vrai administrateur "
+            "(python -m backend.manage create-admin)."
+        )
 
     app = Flask(__name__, static_folder=None)
     app.config.from_object(config)

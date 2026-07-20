@@ -17,10 +17,11 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 # Dépendances Python (couche cache).
+# gunicorn + eventlet : serveur de production avec vraies websockets.
 COPY requirements.txt .
 RUN pip install --upgrade pip \
     && pip install -r requirements.txt \
-    && pip install psycopg2-binary waitress
+    && pip install psycopg2-binary waitress "gunicorn>=22.0" "eventlet>=0.36"
 
 # Code applicatif.
 COPY backend/ ./backend/

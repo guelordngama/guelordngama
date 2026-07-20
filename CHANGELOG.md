@@ -2,6 +2,32 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [3.0.0] — Architecture de production (VPS + Nginx + HTTPS + WebSocket)
+
+### Ajouté
+- **Pile de production Docker** (`docker-compose.prod.yml`) pour un VPS
+  (ex. Contabo/Ubuntu) :
+  - **Nginx** en reverse proxy : TLS/HTTPS, sert l'app citoyenne (`/`) et le
+    portail agents (`/portal/`), proxifie `/api`, `/uploads` et `/socket.io`
+    (avec montée en **WebSocket**).
+  - **Backend Gunicorn + eventlet** (`backend/wsgi.py`) : vraies websockets
+    Socket.IO en production.
+  - **PostgreSQL** (volume persistant).
+  - **Certbot** : émission (`deploy/init-letsencrypt.sh`) et renouvellement
+    automatique des certificats Let's Encrypt.
+  - **Sauvegardes automatiques** PostgreSQL (`deploy/backup.sh` : pg_dump
+    périodique + rotation).
+- Commande d'administration `python -m backend.manage create-admin` (créer un
+  vrai administrateur) et `list-staff`.
+- Fronts « même origine » (config auto : localhost en dev, origine du serveur en
+  prod via Nginx) ; montée en WebSocket côté navigateur avec repli polling.
+- Guide **docs/PRODUCTION.md** (déploiement pas à pas, sslip.io pour HTTPS sans
+  domaine acheté).
+
+### Modifié
+- Le compte de démonstration en production n'est plus bloquant mais génère un
+  **avertissement** (permet un premier démarrage, à désactiver ensuite).
+
 ## [2.12.0] — Historique des interventions par agent
 
 ### Ajouté

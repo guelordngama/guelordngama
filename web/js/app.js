@@ -35,8 +35,9 @@
   // ---------------------------------------------------------------------- //
   let socket = null;
   try {
-    // polling uniquement : le backend Waitress (WSGI) ne gère pas les websockets.
-    socket = io(API, { transports: ["polling"] });
+    // polling d'abord, puis montée en websocket si le serveur le permet
+    // (production eventlet/Nginx). En dev (Waitress), reste en polling.
+    socket = io(API, { transports: ["polling", "websocket"] });
     socket.on("connect", () => setConn(true));
     socket.on("disconnect", () => setConn(false));
   } catch (e) {

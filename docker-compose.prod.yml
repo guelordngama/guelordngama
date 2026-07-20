@@ -1,0 +1,96 @@
+# ===== SafeCity — Architecture de PRODUCTION (VPS + Nginx + HTTPS) =====
+# PostgreSQL + backend (Gunicorn/eventlet, vraies websockets) + Nginx (reverse
+# proxy + TLS) servant l'app citoyenne et le portail agents.
+#
+# Prérequis : renseigner deploy/.env.prod (copié depuis deploy/.env.prod.example)
+# puis : docker compose --env-file deploy/.env.prod -f docker-compose.prod.yml up -d --build
+#
+# 1re mise en route (certificats HTTPS) : voir deploy/init-letsencrypt.sh.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: safecity
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Definir POSTGRES_PASSWORD}
+      POSTGRES_DB: safecity
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U safecity"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  backend:
+    build: .
+    command: gunicorn -k eventlet -w 1 -b 0.0.0.0:5000 --access-logfile - backend.wsgi:app
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SAFECITY_ENV: production
+      SAFECITY_ASYNC_MODE: eventlet
+      SAFECITY_SECRET_KEY: ${SAFECITY_SECRET_KEY:?Definir SAFECITY_SECRET_KEY}
+      SAFECITY_CORS_ORIGINS: ${SAFECITY_CORS_ORIGINS:?Definir SAFECITY_CORS_ORIGINS}
+      SAFECITY_SEED_DEMO: ${SAFECITY_SEED_DEMO:-false}
+      DATABASE_URL: postgresql+psycopg2://safecity:${POSTGRES_PASSWORD}@db:5432/safecity
+    volumes:
+      - uploads:/app/backend/uploads
+    expose:
+      - "5000"
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    depends_on:
+      - backend
+    environment:
+      SAFECITY_DOMAIN: ${SAFECITY_DOMAIN:?Definir SAFECITY_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/nginx/safecity.conf.template:/etc/nginx/templates/safecity.conf.template:ro
+      - ./web:/usr/share/nginx/web:ro
+      - ./portal:/usr/share/nginx/portal:ro
+      - certbot-conf:/etc/letsencrypt:ro
+      - certbot-webroot:/var/www/certbot:ro
+    restart: unless-stopped
+
+  # Émission + renouvellement automatique des certificats Let's Encrypt.
+  certbot:
+    image: certbot/certbot
+    volumes:
+      - certbot-conf:/etc/letsencrypt
+      - certbot-webroot:/var/www/certbot
+    entrypoint: >
+      /bin/sh -c 'trap exit TERM;
+      while :; do certbot renew --webroot -w /var/www/certbot --quiet;
+      nginx -s reload 2>/dev/null || true; sleep 12h & wait $${!}; done'
+
+  # Sauvegardes PostgreSQL automatiques (pg_dump périodique + rotation).
+  backup:
+    image: postgres:16-alpine
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGUSER: safecity
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: safecity
+      BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
+      BACKUP_KEEP: ${BACKUP_KEEP:-14}
+    volumes:
+      - ./deploy/backup.sh:/backup.sh:ro
+      - backups:/backups
+    entrypoint: ["/bin/sh", "/backup.sh"]
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  uploads:
+  certbot-conf:
+  certbot-webroot:
+  backups:

@@ -116,10 +116,8 @@ class Config:
                 problems.append(
                     "SAFECITY_CORS_ORIGINS ne doit pas être '*' en production."
                 )
-            if self.SEED_DEMO_OPERATOR:
-                problems.append(
-                    "Désactivez le compte démo en production (SAFECITY_SEED_DEMO=false)."
-                )
+            # Le compte démo en production n'est pas bloquant, mais fortement
+            # déconseillé : on le signale plus bas (avertissement).
         if problems:
             raise RuntimeError(
                 "Configuration de production invalide :\n  - " + "\n  - ".join(problems)

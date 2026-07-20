@@ -138,7 +138,7 @@
   function connectRealtime() {
     if (typeof io === "undefined") { throw new Error("Socket.IO non chargé"); }
     try {
-      state.socket = io(API, { transports: ["polling"] });
+      state.socket = io(API, { transports: ["polling", "websocket"] });
       state.socket.on("connect", () => setConn(true));
       state.socket.on("disconnect", () => setConn(false));
       state.socket.on("new_alert", (a) => {

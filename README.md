@@ -61,11 +61,18 @@ Compte opérateur de démo : `operateur@safecity.local` / `safecity123`
 python scripts/simulate_alerts.py http://localhost:5000
 ```
 
-### Docker (backend + PostgreSQL)
+### Docker — démo locale (backend + PostgreSQL + web + portail)
 ```bash
-export SAFECITY_SECRET_KEY="$(python -c 'import secrets; print(secrets.token_hex(32))')"
-export SAFECITY_CORS_ORIGINS="https://mon-domaine.org"
-docker compose up --build -d
+docker compose up --build        # app :8080 · portail :8090 · api :5000
+```
+
+### Docker — PRODUCTION (VPS + Nginx + HTTPS + WebSocket + sauvegardes)
+Pile complète pour un serveur (ex. Contabo/Ubuntu) : Nginx (reverse proxy +
+TLS), backend Gunicorn/eventlet (vraies websockets), PostgreSQL, certificats
+Let's Encrypt et sauvegardes automatiques. Voir **[docs/PRODUCTION.md](docs/PRODUCTION.md)**.
+```bash
+cp deploy/.env.prod.example deploy/.env.prod   # renseigner domaine, secrets…
+sh deploy/init-letsencrypt.sh                  # HTTPS + démarrage
 ```
 
 ## 🧪 Tests
