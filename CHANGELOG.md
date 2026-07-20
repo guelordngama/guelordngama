@@ -2,6 +2,18 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [3.1.0] — Guide utilisateur final (soutenance)
+
+### Ajouté
+- **Guide utilisateur final** prêt pour la soutenance :
+  - `docs/guide.html` — guide autonome (captures d'écran intégrées) mis en page
+    pour l'impression A4 : page de couverture (SafeCity Lubumbashi, Guelord
+    Ngama Wa Ngama, version 1.0.0, 2026), sommaire, présentation, architecture,
+    installation, comptes de démonstration, mode d'emploi des 3 applications
+    (app citoyenne, poste opérateur, portail agents), récapitulatif des
+    fonctionnalités, sécurité & sauvegardes.
+  - `docs/SafeCity_Guide_Utilisateur.pdf` — version PDF imprimable du guide.
+
 ## [3.0.0] — Architecture de production (VPS + Nginx + HTTPS + WebSocket)
 
 ### Ajouté
