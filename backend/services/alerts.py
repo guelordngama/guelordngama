@@ -183,6 +183,33 @@ def complete_intervention(alert_id, agent):
     return close_alert(alert_id)
 
 
+def assign_agent(alert_id, agent_id):
+    """L'opérateur assigne une alerte à un agent précis."""
+    from ..models import User
+
+    alert = get_alert(alert_id)
+    agent = db.session.get(User, agent_id)
+    if not agent or agent.role == "citizen":
+        raise NotFoundError("Agent introuvable.")
+
+    alert.assigned_agent_id = agent.id
+    alert.status = "assignee"
+    if not alert.accepted_at:
+        alert.accepted_at = datetime.utcnow()
+    if agent.lat is not None and agent.lng is not None:
+        dist, moto, walk = compute_intervention(agent.lat, agent.lng, alert.lat, alert.lng)
+        alert.distance_m, alert.eta_moto_min, alert.eta_walk_min = dist, moto, walk
+    agent.availability = "busy"
+    agent.current_alert_id = alert.id
+    db.session.commit()
+    log.info("Alerte #%s assignée à l'agent '%s' par l'opérateur", alert.id, agent.name)
+
+    payload = alert.to_dict()
+    _emit("alert_updated", payload)
+    _emit("agent_updated", agent.to_dict(with_tracking=True))
+    return payload
+
+
 def accept_intervention(alert_id, agent):
     """Un agent prend en charge une alerte."""
     from ..models import User

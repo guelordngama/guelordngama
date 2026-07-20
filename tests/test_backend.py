@@ -237,6 +237,26 @@ def test_agent_accept_and_tracking():
     assert r.get_json()["status"] == "assignee"
 
 
+def test_operator_assign_agent():
+    _, client = make_client()
+    client.post("/api/alerts", json={"type": "braquage", "lat": -4.33, "lng": 15.31})
+    op = client.post("/api/auth/login", json={
+        "email": "operateur@safecity.local", "password": "safecity123"}).get_json()["token"]
+    ho = {"Authorization": "Bearer " + op}
+    agent = [a for a in client.get("/api/agents?role=agent", headers=ho).get_json()][0]
+    r = client.post("/api/alerts/1/assign-agent", json={"agent_id": agent["id"]}, headers=ho)
+    assert r.status_code == 200
+    assert r.get_json()["assigned_agent"]["id"] == agent["id"]
+    assert r.get_json()["status"] == "assignee"
+    # agent_id manquant -> 400
+    assert client.post("/api/alerts/1/assign-agent", json={}, headers=ho).status_code == 400
+    # réservé aux opérateurs
+    ag = client.post("/api/auth/login", json={
+        "email": "agent1@safecity.local", "password": "safecity123"}).get_json()["token"]
+    assert client.post("/api/alerts/1/assign-agent", json={"agent_id": agent["id"]},
+                       headers={"Authorization": "Bearer " + ag}).status_code == 403
+
+
 def test_agent_complete_intervention():
     _, client = make_client()
     client.post("/api/alerts", json={"type": "braquage", "lat": -4.3, "lng": 15.3})

@@ -66,6 +66,20 @@ def close(alert_id):
     return jsonify(payload)
 
 
+@bp.post("/<int:alert_id>/assign-agent")
+@require_auth(roles=["operator", "supervisor", "admin"])
+def assign_agent(alert_id):
+    data = request.get_json(silent=True) or {}
+    try:
+        agent_id = int(data.get("agent_id"))
+    except (TypeError, ValueError):
+        from ..errors import ValidationError
+        raise ValidationError("Le champ 'agent_id' (entier) est requis.")
+    payload = alerts_service.assign_agent(alert_id, agent_id)
+    stats_service.invalidate_cache()
+    return jsonify(payload)
+
+
 @bp.post("/<int:alert_id>/accept")
 @require_auth(roles=["agent", "operator", "supervisor", "admin"])
 def accept(alert_id):

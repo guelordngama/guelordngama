@@ -235,6 +235,7 @@ class SearchBar(QFrame):
 
 class LiveAlertsPage(QWidget):
     request_assign = Signal(int)
+    request_assign_agent = Signal(int)
     request_close = Signal(int)
     request_focus = Signal(int)
     open_incident = Signal(int)
@@ -270,9 +271,11 @@ class LiveAlertsPage(QWidget):
         b_map.setObjectName("ghost")
         b_assign = QPushButton("🚔 Affecter une équipe")
         b_assign.setObjectName("warn")
+        b_agent = QPushButton("👮 Affecter un agent")
+        b_agent.setObjectName("warn")
         b_close = QPushButton("✅ Clôturer")
         b_close.setObjectName("success")
-        for b in (b_view, b_map, b_assign, b_close):
+        for b in (b_view, b_map, b_assign, b_agent, b_close):
             actions.addWidget(b)
         actions.addStretch()
         root.addLayout(actions)
@@ -280,6 +283,7 @@ class LiveAlertsPage(QWidget):
         b_view.clicked.connect(lambda: self._emit(self.open_incident))
         b_map.clicked.connect(lambda: self._emit(self.request_focus))
         b_assign.clicked.connect(lambda: self._emit(self.request_assign))
+        b_agent.clicked.connect(lambda: self._emit(self.request_assign_agent))
         b_close.clicked.connect(lambda: self._emit(self.request_close))
 
     def set_alerts(self, alerts, searching=False):

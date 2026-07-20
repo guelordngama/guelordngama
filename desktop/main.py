@@ -333,6 +333,7 @@ class MainWindow(QWidget):
         self.page_dashboard.go_to_map.connect(lambda: self._navigate(2))
         self.page_dashboard.request_focus.connect(self._focus_on_map)
         self.page_live.request_assign.connect(self._assign)
+        self.page_live.request_assign_agent.connect(self._assign_agent_to_alert)
         self.page_live.request_close.connect(self._close)
         self.page_live.request_focus.connect(self._focus_on_map)
         self.page_live.open_incident.connect(self._open_incident_by_id)
@@ -653,6 +654,45 @@ class MainWindow(QWidget):
                 self.page_map.set_patrols(self.teams)
                 self.alarm.play_ack()  # accusé de réception : alerte prise en compte
                 Toast(self, "Équipe affectée 🚔", "#eab308").show_for(2500)
+            except Exception as e:
+                QMessageBox.warning(self, "Erreur", str(e))
+
+    def _assign_agent_to_alert(self, alert_id):
+        """L'opérateur assigne l'alerte sélectionnée à un agent précis."""
+        alert = self.alerts.get(alert_id)
+        if not alert:
+            return
+        agents = [a for a in self.page_agents.agents.values() if a.get("role") == "agent"]
+        if not agents:
+            try:
+                agents = [a for a in self.api.get_agents() if a.get("role") == "agent"]
+            except Exception as e:
+                QMessageBox.warning(self, "Agents", str(e))
+                return
+        if not agents:
+            QMessageBox.information(self, "Info", "Aucun agent disponible.")
+            return
+        dlg = QDialog(self)
+        dlg.setStyleSheet(theme.QSS)
+        dlg.setWindowTitle("Affecter un agent")
+        lay = QVBoxLayout(dlg)
+        lay.addWidget(QLabel(f"Assigner l'alerte « {alert['type'].capitalize()} » "
+                             f"({theme.urgency_label(alert['urgency'])}) à :"))
+        combo = QComboBox()
+        for a in sorted(agents, key=lambda x: x.get("availability") != "available"):
+            dispo = {"available": "🟢", "busy": "🟠", "offline": "⚫"}.get(a.get("availability"), "")
+            combo.addItem(f"{dispo} {a['name']}", a["id"])
+        lay.addWidget(combo)
+        ok = QPushButton("Affecter l'agent")
+        ok.clicked.connect(dlg.accept)
+        lay.addWidget(ok)
+        if dlg.exec() == QDialog.Accepted:
+            try:
+                updated = self.api.assign_agent(alert_id, combo.currentData())
+                self._on_alert_updated(updated)
+                self._load_agents()
+                self.alarm.play_ack()
+                Toast(self, "Agent assigné 👮", "#eab308").show_for(2500)
             except Exception as e:
                 QMessageBox.warning(self, "Erreur", str(e))
 

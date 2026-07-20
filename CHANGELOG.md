@@ -2,6 +2,15 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [2.11.0] — Assignation d'une alerte à un agent précis
+
+### Ajouté
+- L'opérateur peut **assigner une alerte à un agent précis** depuis la page
+  « Alertes en direct » (bouton « 👮 Affecter un agent » + sélecteur d'agent
+  avec disponibilité). L'agent concerné reçoit l'alarme « intervention
+  assignée » et l'itinéraire dans son portail. Endpoint
+  `POST /api/alerts/<id>/assign-agent` (opérateur/superviseur/admin).
+
 ## [2.10.0] — Terminer l'intervention côté agent
 
 ### Ajouté

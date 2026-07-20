@@ -143,6 +143,10 @@ class ApiClient:
         return self._request("POST", f"/api/alerts/{alert_id}/close",
                             {}, auth=True)
 
+    def assign_agent(self, alert_id, agent_id):
+        return self._request("POST", f"/api/alerts/{alert_id}/assign-agent",
+                            {"agent_id": agent_id}, auth=True)
+
     # ------------------------------------------------------------------ #
     # Temps réel
     # ------------------------------------------------------------------ #
