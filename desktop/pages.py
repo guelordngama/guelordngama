@@ -320,9 +320,15 @@ class MapPage(QWidget):
             root.addWidget(self.view)
         else:
             self.view = None
-            lbl = QLabel("Module carte (QtWebEngine) indisponible.")
+            lbl = QLabel(
+                "🗺️ Module carte (Qt WebEngine) indisponible.\n\n"
+                "Installez le composant complet de PySide6 :\n"
+                "    pip install PySide6-Addons\n"
+                "(ou : pip install PySide6)\n\n"
+                "puis relancez l'application.")
             lbl.setObjectName("muted")
             lbl.setAlignment(Qt.AlignCenter)
+            lbl.setStyleSheet(f"color:{theme.MUTED}; font-size:14px; line-height:1.6;")
             root.addWidget(lbl)
         self._pending = None
         self._pending_agents = None

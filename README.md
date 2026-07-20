@@ -104,6 +104,13 @@ Détails : [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 [Sécurité](docs/SECURITY.md) · [Déploiement](docs/DEPLOYMENT.md) ·
 [Contribuer](CONTRIBUTING.md) · [Changelog](CHANGELOG.md)
 
+## 🩺 Dépannage — la carte ne s'affiche pas (poste opérateur)
+- **Leaflet est embarqué localement** (`desktop/vendor/leaflet/`) : la carte et
+  les marqueurs fonctionnent **sans Internet**. Seules les **tuiles de fond**
+  nécessitent le réseau (un fond uni sombre s'affiche sinon, avec les marqueurs).
+- Si la zone affiche « Module carte (Qt WebEngine) indisponible » :
+  `pip install PySide6-Addons` (ou `pip install PySide6`), puis relancez.
+
 ## 🔒 Avertissement
 Prototype à visée pédagogique. Pour une urgence réelle, contactez toujours les
 services de secours officiels.

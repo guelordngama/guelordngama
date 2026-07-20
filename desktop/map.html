@@ -4,8 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Carte SafeCity</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Leaflet embarqué localement : la carte fonctionne SANS Internet.
+       (Seules les tuiles de fond nécessitent le réseau.) -->
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css" />
+  <script src="vendor/leaflet/leaflet.js"></script>
   <style>
     html, body, #map { height: 100%; margin: 0; background: #0b1220; }
     .leaflet-container { background: #0b1220; }
@@ -22,11 +24,27 @@
 <body>
   <div id="map"></div>
   <script>
+    // Icônes Leaflet par défaut servies localement.
+    L.Icon.Default.imagePath = "vendor/leaflet/images/";
+
     var map = L.map("map", { zoomControl: true }).setView([-4.325, 15.3222], 13);
-    // Fond de carte sombre (CARTO dark) avec repli OSM.
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+    // Fond de carte sombre (CARTO). Si le réseau est absent, la carte reste
+    // utilisable (fond uni) et les marqueurs/itinéraires s'affichent quand même.
+    var tiles = L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
       attribution: "© OpenStreetMap © CARTO", maxZoom: 19, subdomains: "abcd",
     }).addTo(map);
+    var tileErrors = 0;
+    tiles.on("tileerror", function () {
+      if (++tileErrors === 4) {  // réseau probablement indisponible
+        var b = L.control({ position: "topleft" });
+        b.onAdd = function () {
+          var d = L.DomUtil.create("div", "legend");
+          d.innerHTML = "⚠️ Fond de carte hors-ligne — marqueurs actifs";
+          return d;
+        };
+        b.addTo(map);
+      }
+    });
 
     var URGENCY = { faible: "#22c55e", moyenne: "#eab308", haute: "#f97316", critique: "#ef4444" };
     var markers = {};     // id -> marker
