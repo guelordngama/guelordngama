@@ -59,7 +59,8 @@ input:focus, select:focus { outline: none; border-color: var(--accent); }
 .alert-actions button { flex: 1; border: none; border-radius: 10px; padding: 9px; font-weight: 700; cursor: pointer; }
 .btn-accept { background: var(--green); color: #05230f; }
 .btn-locate { background: rgba(88,110,150,0.2); color: var(--ink); }
-.alert-card.accepted { border-left-color: var(--green); opacity: 0.75; }
+.btn-complete { background: #ef4444; color: #fff; flex-basis: 100%; margin-top: 6px; }
+.alert-card.accepted { border-left-color: var(--green); }
 
 /* Messagerie */
 .chat-title { font-size: 15px; margin: 18px 0 10px; border-top: 1px solid var(--line); padding-top: 14px; }

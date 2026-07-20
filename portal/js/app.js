@@ -217,6 +217,11 @@
         if (state.map) state.map.setView([a.lat, a.lng], 16);
         if (state.markers[a.id]) state.markers[a.id].openPopup();
       });
+      // Bouton « Terminer l'intervention » : visible seulement si l'alerte
+      // m'est assignée.
+      const bComplete = node.querySelector(".btn-complete");
+      bComplete.hidden = !accepted;
+      bComplete.addEventListener("click", () => complete(a.id));
       list.appendChild(node);
     });
   }
@@ -244,6 +249,19 @@
       toast("✅ Intervention acceptée", "#22c55e");
       // Trace l'itinéraire le plus rapide depuis ma position vers l'incident.
       if (state.selfPos) showRoute(state.selfPos, [updated.lat, updated.lng]);
+    } catch (e) { alert("Échec : " + e.message); }
+  }
+
+  async function complete(id) {
+    if (!confirm("Terminer cette intervention ?")) return;
+    try {
+      await api("POST", "/api/alerts/" + id + "/complete");
+      removeAlert(id);                    // l'alerte clôturée quitte la liste
+      if (typeof clearRoute === "function") clearRoute();
+      if (routeLine && state.map) { state.map.removeLayer(routeLine); routeLine = null; }
+      $("availability").value = "available";
+      soundAck();
+      toast("🏁 Intervention terminée", "#22c55e");
     } catch (e) { alert("Échec : " + e.message); }
   }
 

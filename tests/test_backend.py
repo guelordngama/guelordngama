@@ -237,6 +237,26 @@ def test_agent_accept_and_tracking():
     assert r.get_json()["status"] == "assignee"
 
 
+def test_agent_complete_intervention():
+    _, client = make_client()
+    client.post("/api/alerts", json={"type": "braquage", "lat": -4.3, "lng": 15.3})
+    ag1 = client.post("/api/auth/login", json={
+        "email": "agent1@safecity.local", "password": "safecity123"}).get_json()["token"]
+    ag2 = client.post("/api/auth/login", json={
+        "email": "agent2@safecity.local", "password": "safecity123"}).get_json()["token"]
+    h1 = {"Authorization": "Bearer " + ag1}
+    h2 = {"Authorization": "Bearer " + ag2}
+    client.post("/api/alerts/1/accept", headers=h1)
+    # un autre agent ne peut pas terminer l'intervention
+    assert client.post("/api/alerts/1/complete", headers=h2).status_code == 403
+    # l'agent assigné termine
+    r = client.post("/api/alerts/1/complete", headers=h1)
+    assert r.status_code == 200 and r.get_json()["status"] == "cloturee"
+    # l'agent redevient disponible
+    me = client.get("/api/agents/me", headers=h1).get_json()
+    assert me["availability"] == "available" and me["current_alert_id"] is None
+
+
 def test_analytics_endpoint():
     _, client = make_client()
     client.post("/api/alerts", json={"type": "vol", "lat": -4.3, "lng": 15.3})

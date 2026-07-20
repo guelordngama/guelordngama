@@ -73,3 +73,12 @@ def accept(alert_id):
     payload = alerts_service.accept_intervention(alert_id, g.user)
     stats_service.invalidate_cache()
     return jsonify(payload)
+
+
+@bp.post("/<int:alert_id>/complete")
+@require_auth(roles=["agent", "operator", "supervisor", "admin"])
+def complete(alert_id):
+    """L'agent termine (clôture) sa propre intervention."""
+    payload = alerts_service.complete_intervention(alert_id, g.user)
+    stats_service.invalidate_cache()
+    return jsonify(payload)

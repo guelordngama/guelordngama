@@ -172,6 +172,17 @@ def close_alert(alert_id):
     return payload
 
 
+def complete_intervention(alert_id, agent):
+    """Un agent termine (clôture) une intervention qui lui est assignée."""
+    from ..errors import ForbiddenError
+
+    alert = get_alert(alert_id)
+    agent_id = agent["uid"] if isinstance(agent, dict) else agent
+    if alert.assigned_agent_id != agent_id:
+        raise ForbiddenError("Cette intervention ne vous est pas assignée.")
+    return close_alert(alert_id)
+
+
 def accept_intervention(alert_id, agent):
     """Un agent prend en charge une alerte."""
     from ..models import User

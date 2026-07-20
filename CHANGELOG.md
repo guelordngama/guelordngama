@@ -2,6 +2,15 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [2.10.0] — Terminer l'intervention côté agent
+
+### Ajouté
+- Bouton **« 🏁 Terminer l'intervention »** dans le portail agents : l'agent
+  clôture depuis le terrain l'intervention qui lui est assignée. Il redevient
+  automatiquement « disponible » et l'itinéraire est effacé. Endpoint
+  `POST /api/alerts/<id>/complete` (l'agent ne peut terminer que SA propre
+  intervention).
+
 ## [2.9.0] — Notifications sonores du portail agents
 
 ### Ajouté
