@@ -146,6 +146,22 @@ input:focus, textarea:focus { outline: none; border-color: var(--accent); }
 .location-summary > div { display: flex; justify-content: space-between; padding: 5px 0; }
 .ls-label { color: var(--muted); }
 
+/* Avertissement légal — fausse alerte */
+.legal-notice {
+  display: flex; gap: 12px; align-items: flex-start;
+  margin-top: 22px; padding: 14px 16px; border-radius: 14px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+.legal-notice .legal-icon { font-size: 20px; line-height: 1.4; flex-shrink: 0; }
+.legal-notice p { margin: 0; font-size: 13px; line-height: 1.6; color: var(--ink); }
+.legal-notice strong { color: #fca5a5; }
+
+.legal-hint {
+  margin: 22px auto 0; max-width: 340px; text-align: center;
+  font-size: 12.5px; line-height: 1.5; color: var(--muted);
+}
+
 .actions { display: flex; gap: 12px; margin-top: 26px; }
 .btn-primary, .btn-secondary {
   flex: 1; padding: 16px; border: none; border-radius: 14px; font-size: 16px;
