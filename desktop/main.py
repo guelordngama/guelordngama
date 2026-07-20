@@ -39,6 +39,7 @@ from PySide6.QtWidgets import (
 import theme
 from api_client import ApiClient
 from pages import (
+    AboutPage,
     AgentsPage,
     AnalyticsPage,
     ChatPage,
@@ -157,6 +158,7 @@ class Sidebar(QFrame):
         ("📄", "Rapports"),
         ("💬", "Messagerie"),
         ("⚙️", "Paramètres"),
+        ("ℹ️", "À propos"),
     ]
 
     def __init__(self):
@@ -288,10 +290,11 @@ class MainWindow(QWidget):
         self.page_reports = ReportsPage()
         self.page_chat = ChatPage(self.operator, API_BASE)
         self.page_settings = SettingsPage(API_BASE, self.operator)
+        self.page_about = AboutPage()
         for p in (
             self.page_dashboard, self.page_live, self.page_map, self.page_agents,
             self.page_citizens, self.page_history, self.page_stats, self.page_analytics,
-            self.page_reports, self.page_chat, self.page_settings,
+            self.page_reports, self.page_chat, self.page_settings, self.page_about,
         ):
             self.stack.addWidget(p)
         right.addWidget(self.stack, 1)

@@ -851,6 +851,102 @@ class SettingsPage(QWidget):
         root.addStretch()
 
 
+class AboutPage(QWidget):
+    """Onglet « À propos » : présentation de la plateforme et du créateur."""
+
+    APP_VERSION = "1.0.0"
+    APP_YEAR = "2026"
+
+    def __init__(self):
+        super().__init__()
+        scroll = QScrollArea(self)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.NoFrame)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.addWidget(scroll)
+
+        content = QWidget()
+        content.setStyleSheet("background: transparent;")
+        scroll.setStyleSheet("background: transparent;")
+        scroll.setWidget(content)
+        root = QVBoxLayout(content)
+        root.setContentsMargins(28, 24, 28, 28)
+        root.setSpacing(16)
+
+        # En-tête
+        header = QHBoxLayout()
+        logo = QLabel("🛡️")
+        logo.setStyleSheet("font-size: 48px;")
+        htxt = QVBoxLayout()
+        htxt.setSpacing(2)
+        t = QLabel("SafeCity Lubumbashi")
+        t.setStyleSheet(f"font-size: 26px; font-weight: 800; color: {theme.ACCENT};")
+        st = QLabel("Solution numérique de sécurité citoyenne")
+        st.setObjectName("muted")
+        htxt.addWidget(t)
+        htxt.addWidget(st)
+        header.addWidget(logo)
+        header.addSpacing(12)
+        header.addLayout(htxt)
+        header.addStretch()
+        root.addLayout(header)
+
+        # Présentation
+        pres = Card("À propos de la plateforme")
+        intro = QLabel(
+            "SafeCity Lubumbashi est une solution numérique de sécurité citoyenne "
+            "conçue par <b>Guelord Ngama Wa Ngama</b>, licencié en Informatique de Gestion.<br><br>"
+            "Passionné par les nouvelles technologies et l'innovation, j'ai développé "
+            "cette plateforme afin de contribuer à l'amélioration de la sécurité dans nos "
+            "communautés grâce à la technologie.<br><br>"
+            "L'application permet aux citoyens de signaler rapidement des situations "
+            "dangereuses, de partager leur localisation en cas d'urgence et de faciliter "
+            "l'intervention des agents de sécurité."
+        )
+        intro.setWordWrap(True)
+        intro.setStyleSheet("font-size: 14px; line-height: 1.7;")
+        pres.add(intro)
+        root.addWidget(pres)
+
+        # Créateur
+        creator = Card("Créateur")
+        name = QLabel("Guelord Ngama Wa Ngama")
+        name.setStyleSheet(f"font-size: 17px; font-weight: 800; color: {theme.ACCENT};")
+        role = QLabel("Développeur informatique | Ingénieur logiciel en formation continue")
+        role.setObjectName("muted")
+        role.setWordWrap(True)
+        creator.add(name)
+        creator.add(role)
+        spec_title = QLabel("Spécialisé en :")
+        spec_title.setStyleSheet("font-weight: 700; margin-top: 8px;")
+        creator.add(spec_title)
+        for item in [
+            "Développement d'applications web et desktop",
+            "Développement mobile Android",
+            "Sécurité informatique",
+            "Intelligence artificielle appliquée",
+        ]:
+            row = QLabel(f"  •  {item}")
+            row.setStyleSheet("font-size: 14px;")
+            creator.add(row)
+        root.addWidget(creator)
+
+        # Version
+        version = Card("Informations")
+        version.add(QLabel(f"<b>Version :</b> {self.APP_VERSION}"))
+        version.add(QLabel(f"<b>Année :</b> {self.APP_YEAR}"))
+        version.add(QLabel("<b>Ville :</b> Lubumbashi, RD Congo"))
+        root.addWidget(version)
+
+        credit = QLabel(f"© {self.APP_YEAR} SafeCity Lubumbashi — Guelord Ngama Wa Ngama. "
+                        "Tous droits réservés.")
+        credit.setObjectName("muted")
+        credit.setAlignment(Qt.AlignCenter)
+        root.addWidget(credit)
+        root.addStretch()
+
+
 # --------------------------------------------------------------------------- #
 # Helpers de remplissage
 # --------------------------------------------------------------------------- #
