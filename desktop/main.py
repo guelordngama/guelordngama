@@ -602,6 +602,7 @@ class MainWindow(QWidget):
         popup.setStyleSheet(theme.QSS)
         popup.accept_incident.connect(self._acknowledge_incident)
         popup.send_patrol.connect(self._assign_alert)
+        popup.assign_agent.connect(lambda a: self._assign_agent_to_alert(a["id"]))
         popup.open_on_map.connect(lambda a: (self._navigate(2), self._focus_on_map(a["id"])))
         popup.close_incident.connect(lambda a: self._close(a["id"]))
         popup.finished.connect(lambda _=0, aid=alert["id"]: self._open_popups.pop(aid, None))

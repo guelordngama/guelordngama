@@ -135,6 +135,7 @@ class IncidentPopup(QDialog):
 
     accept_incident = Signal(dict)
     send_patrol = Signal(dict)
+    assign_agent = Signal(dict)
     open_on_map = Signal(dict)
     close_incident = Signal(dict)
 
@@ -200,6 +201,8 @@ class IncidentPopup(QDialog):
         b_accept.setObjectName("success")
         b_patrol = QPushButton("🚔 Envoyer une patrouille")
         b_patrol.setObjectName("warn")
+        b_agent = QPushButton("👮 Affecter un agent")
+        b_agent.setObjectName("warn")
         b_call = QPushButton("📞 Appeler")
         b_call.setObjectName("ghost")
         b_map = QPushButton("🗺️ Ouvrir la carte")
@@ -209,14 +212,16 @@ class IncidentPopup(QDialog):
 
         actions.addWidget(b_accept, 0, 0)
         actions.addWidget(b_patrol, 0, 1)
-        actions.addWidget(b_call, 1, 0)
-        actions.addWidget(b_map, 1, 1)
-        actions.addWidget(b_close, 2, 0, 1, 2)
+        actions.addWidget(b_agent, 1, 0)
+        actions.addWidget(b_call, 1, 1)
+        actions.addWidget(b_map, 2, 0, 1, 2)
+        actions.addWidget(b_close, 3, 0, 1, 2)
         body.addLayout(actions)
         root.addLayout(body)
 
         b_accept.clicked.connect(lambda: (self.accept_incident.emit(self.alert), self.accept()))
         b_patrol.clicked.connect(lambda: self.send_patrol.emit(self.alert))
+        b_agent.clicked.connect(lambda: (self.assign_agent.emit(self.alert), self.accept()))
         b_call.clicked.connect(self._call)
         b_map.clicked.connect(lambda: (self.open_on_map.emit(self.alert), self.accept()))
         b_close.clicked.connect(lambda: (self.close_incident.emit(self.alert), self.accept()))
