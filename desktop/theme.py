@@ -67,12 +67,12 @@ QLabel#brandSub {{ font-size: 11px; color: {MUTED}; }}
 
 QPushButton#navBtn {{
     text-align: left;
-    padding: 12px 16px;
+    padding: 12px 12px;
     border: none;
     border-radius: 10px;
     background: transparent;
     color: {MUTED};
-    font-size: 14px;
+    font-size: 13.5px;
     font-weight: 600;
 }}
 QPushButton#navBtn:hover {{ background: {PANEL}; color: {TEXT}; }}

@@ -1,8 +1,7 @@
-"""Génération et lecture du son d'alarme (sans fichier binaire embarqué).
+"""Sons de l'application bureau : alarme d'alerte + accusé de réception.
 
-Un court signal deux tons est synthétisé en mémoire et écrit dans un .wav
-temporaire, lu via QSoundEffect. Repli sur QApplication.beep() si le module
-multimédia n'est pas disponible.
+Les sons sont synthétisés en mémoire (aucun fichier binaire embarqué) et lus
+via QSoundEffect. Repli sur QApplication.beep() si QtMultimedia est absent.
 """
 import math
 import os
@@ -10,62 +9,82 @@ import struct
 import tempfile
 import wave
 
-_ALARM_PATH = None
+_CACHE = {}
 
 
-def _generate_alarm_wav():
-    """Crée un .wav d'alarme (deux tons alternés) et renvoie son chemin."""
-    global _ALARM_PATH
-    if _ALARM_PATH and os.path.exists(_ALARM_PATH):
-        return _ALARM_PATH
-
-    rate = 44100
-    path = os.path.join(tempfile.gettempdir(), "safecity_alarm.wav")
+def _write_wav(name, segments, rate=44100):
+    """segments = liste de (fréquence_Hz, durée_s, volume). Écrit un .wav."""
+    if name in _CACHE and os.path.exists(_CACHE[name]):
+        return _CACHE[name]
+    path = os.path.join(tempfile.gettempdir(), name)
     frames = bytearray()
-    # 3 bips montants (440 Hz puis 880 Hz), 0.15 s chacun.
-    for freq in (660, 990, 660, 990):
-        for i in range(int(rate * 0.15)):
-            # Enveloppe pour éviter les clics.
-            env = min(1.0, i / 400.0, (rate * 0.15 - i) / 400.0)
-            sample = int(32767 * 0.35 * env * math.sin(2 * math.pi * freq * i / rate))
-            frames += struct.pack("<h", sample)
-        frames += b"\x00\x00" * int(rate * 0.05)  # court silence
-
+    for freq, dur, vol in segments:
+        n = int(rate * dur)
+        for i in range(n):
+            env = min(1.0, i / 400.0, (n - i) / 400.0)  # anti-clic
+            frames += struct.pack("<h", int(32767 * vol * env * math.sin(2 * math.pi * freq * i / rate)))
+        frames += b"\x00\x00" * int(rate * 0.03)
     with wave.open(path, "wb") as wf:
         wf.setnchannels(1)
         wf.setsampwidth(2)
         wf.setframerate(rate)
         wf.writeframes(bytes(frames))
-    _ALARM_PATH = path
+    _CACHE[name] = path
     return path
 
 
-class AlarmPlayer:
-    """Joue le son d'alarme ; robuste si QtMultimedia est absent."""
+def _alarm_wav():
+    # Alarme urgente : bips alternés graves/aigus.
+    return _write_wav("safecity_alarm.wav",
+                      [(660, 0.15, 0.35), (990, 0.15, 0.35)] * 2)
+
+
+def _ack_wav():
+    # Accusé de réception : courte tierce ascendante, douce.
+    return _write_wav("safecity_ack.wav",
+                      [(880, 0.10, 0.28), (1174, 0.14, 0.28)])
+
+
+class SoundPlayer:
+    """Joue les sons de l'application ; robuste si QtMultimedia est indisponible."""
 
     def __init__(self):
-        self._effect = None
+        self._alarm = self._make(_alarm_wav(), 0.6)
+        self._ack = self._make(_ack_wav(), 0.4)
+
+    def _make(self, path, volume):
         try:
             from PySide6.QtCore import QUrl
             from PySide6.QtMultimedia import QSoundEffect
 
-            self._effect = QSoundEffect()
-            self._effect.setSource(QUrl.fromLocalFile(_generate_alarm_wav()))
-            self._effect.setVolume(0.6)
+            eff = QSoundEffect()
+            eff.setSource(QUrl.fromLocalFile(path))
+            eff.setVolume(volume)
+            return eff
         except Exception:
-            self._effect = None
+            return None
 
-    def play(self):
-        if self._effect is not None:
+    def _play(self, effect):
+        if effect is not None:
             try:
-                self._effect.play()
+                effect.play()
                 return
             except Exception:
                 pass
-        # Repli : bip système.
         try:
             from PySide6.QtWidgets import QApplication
-
             QApplication.beep()
         except Exception:
             pass
+
+    def play(self):
+        """Alarme d'alerte (nouvelle alerte reçue)."""
+        self._play(self._alarm)
+
+    def play_ack(self):
+        """Accusé de réception (alerte prise en compte par l'opérateur)."""
+        self._play(self._ack)
+
+
+# Compatibilité ascendante.
+AlarmPlayer = SoundPlayer

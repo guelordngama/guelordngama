@@ -164,7 +164,7 @@ class Sidebar(QFrame):
     def __init__(self):
         super().__init__()
         self.setObjectName("sidebar")
-        self.setFixedWidth(248)
+        self.setFixedWidth(280)
         root = QVBoxLayout(self)
         root.setContentsMargins(14, 18, 14, 14)
         root.setSpacing(6)
@@ -179,8 +179,13 @@ class Sidebar(QFrame):
 
         self.group = QButtonGroup(self)
         self.group.setExclusive(True)
+        self._base_text = {}     # idx -> texte de base du bouton
+        self._unread = {}        # idx -> compteur non lus
         for i, (icon, label) in enumerate(self.ITEMS):
-            b = QPushButton(f"  {icon}   {label}")
+            base = f"  {icon}   {label}"
+            self._base_text[i] = base
+            self._unread[i] = 0
+            b = QPushButton(base)
             b.setObjectName("navBtn")
             b.setCheckable(True)
             b.setCursor(Qt.PointingHandCursor)
@@ -209,11 +214,35 @@ class Sidebar(QFrame):
     def select(self, idx):
         self.group.button(idx).setChecked(True)
 
+    # ---- Badges de notification « non lu » ----
+    def bump(self, idx, n=1):
+        self._unread[idx] = self._unread.get(idx, 0) + n
+        self._refresh_badge(idx)
+
+    def clear_badge(self, idx):
+        if self._unread.get(idx):
+            self._unread[idx] = 0
+            self._refresh_badge(idx)
+
+    def _refresh_badge(self, idx):
+        btn = self.group.button(idx)
+        if not btn:
+            return
+        count = self._unread.get(idx, 0)
+        badge = f"  🔴{count if count < 100 else '99+'}" if count else ""
+        btn.setText(self._base_text[idx] + badge)
+
 
 # --------------------------------------------------------------------------- #
 # Fenêtre principale
 # --------------------------------------------------------------------------- #
 class MainWindow(QWidget):
+    # Index des menus (voir Sidebar.ITEMS)
+    IDX_ALERTS = 1
+    IDX_MAP = 2
+    IDX_AGENTS = 3
+    IDX_CHAT = 9
+
     def __init__(self, api, operator):
         super().__init__()
         self.api = api
@@ -329,6 +358,7 @@ class MainWindow(QWidget):
     def _navigate(self, idx):
         self.stack.setCurrentIndex(idx)
         self.sidebar.select(idx)
+        self.sidebar.clear_badge(idx)  # consulter la section efface son badge
         self.page_title.setText(Sidebar.ITEMS[idx][1])
         if idx == 3:
             self._load_agents()
@@ -400,16 +430,24 @@ class MainWindow(QWidget):
         self.bridge.chat_message.connect(self._on_chat_message)
 
     def _on_agent_updated(self, agent):
+        # Détecte un changement significatif (nouvel agent ou changement de
+        # disponibilité) pour n'alerter que sur l'essentiel, pas sur chaque
+        # rafraîchissement de position GPS.
+        prev = self.page_agents.agents.get(agent["id"])
+        significant = prev is None or prev.get("availability") != agent.get("availability")
         self.page_agents.update_agent(agent)
-        # Rafraîchit les marqueurs agents sur la carte.
         try:
             self.page_map.set_agents(list(self.page_agents.agents.values()))
         except Exception:
             pass
+        if significant and self.stack.currentIndex() != self.IDX_AGENTS:
+            self.sidebar.bump(self.IDX_AGENTS)
 
     def _on_agent_deleted(self, agent_id):
         self.page_agents.remove_agent(agent_id)
         self.page_map.set_agents(list(self.page_agents.agents.values()))
+        if self.stack.currentIndex() != self.IDX_AGENTS:
+            self.sidebar.bump(self.IDX_AGENTS)
 
     # ---- Messagerie ----
     def _load_messages(self):
@@ -426,8 +464,10 @@ class MainWindow(QWidget):
 
     def _on_chat_message(self, msg):
         self.page_chat.add_message(msg)
-        # Notification discrète si on n'est pas sur la page Messagerie.
-        if self.stack.currentWidget() is not self.page_chat and msg.get("sender_id") != self.operator.get("id"):
+        # Notification + badge « non lu » si on n'est pas sur la page Messagerie
+        # et que le message vient d'un autre utilisateur.
+        if self.stack.currentIndex() != self.IDX_CHAT and msg.get("sender_id") != self.operator.get("id"):
+            self.sidebar.bump(self.IDX_CHAT)
             Toast(self, f"💬 {msg.get('sender_name')}: {msg.get('text', '')[:40]}", theme.ACCENT_2).show_for(3500)
 
     # ---- Export de l'historique ----
@@ -520,6 +560,9 @@ class MainWindow(QWidget):
         self.page_map.add_alert(alert)
         # Notification sonore + visuelle + pop-up d'incident
         self.alarm.play()
+        # Badge « non lu » sur « Alertes en direct » si on ne la consulte pas.
+        if self.stack.currentIndex() != self.IDX_ALERTS:
+            self.sidebar.bump(self.IDX_ALERTS)
         Toast(self, f"Nouvelle alerte : {alert['type'].capitalize()} ({theme.urgency_label(alert['urgency'])})",
               theme.urgency_color(alert["urgency"])).show_for(5000)
         self._open_incident(alert)
@@ -556,7 +599,7 @@ class MainWindow(QWidget):
             return
         popup = IncidentPopup(alert, self)
         popup.setStyleSheet(theme.QSS)
-        popup.accept_incident.connect(lambda a: Toast(self, "Incident accepté", theme.ACCENT).show_for(2500))
+        popup.accept_incident.connect(self._acknowledge_incident)
         popup.send_patrol.connect(self._assign_alert)
         popup.open_on_map.connect(lambda a: (self._navigate(2), self._focus_on_map(a["id"])))
         popup.close_incident.connect(lambda a: self._close(a["id"]))
@@ -570,6 +613,11 @@ class MainWindow(QWidget):
         alert = self.alerts.get(alert_id)
         if alert:
             self._open_incident(alert)
+
+    def _acknowledge_incident(self, alert):
+        """Alerte prise en compte par l'opérateur : son d'accusé de réception."""
+        self.alarm.play_ack()
+        Toast(self, "✅ Incident pris en compte", "#22c55e").show_for(2500)
 
     # ---- Actions opérateur ----
     def _focus_on_map(self, alert_id):
@@ -603,6 +651,7 @@ class MainWindow(QWidget):
                 self._on_alert_updated(updated)
                 self.teams = self.api.get_teams()
                 self.page_map.set_patrols(self.teams)
+                self.alarm.play_ack()  # accusé de réception : alerte prise en compte
                 Toast(self, "Équipe affectée 🚔", "#eab308").show_for(2500)
             except Exception as e:
                 QMessageBox.warning(self, "Erreur", str(e))
