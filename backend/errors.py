@@ -52,6 +52,13 @@ class NotFoundError(ApiError):
     code = "not_found"
 
 
+class ConflictError(ApiError):
+    """Conflit avec une ressource existante (ex. numéro de téléphone déjà pris)."""
+
+    status_code = 409
+    code = "conflict"
+
+
 class RateLimitError(ApiError):
     status_code = 429
     code = "rate_limited"

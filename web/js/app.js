@@ -20,6 +20,7 @@
   // --- Raccourcis DOM ---
   const $ = (id) => document.getElementById(id);
   const screens = {
+    auth: $("screen-auth"),
     alert: $("screen-alert"),
     details: $("screen-details"),
     confirm: $("screen-confirm"),
@@ -29,6 +30,135 @@
     Object.values(screens).forEach((s) => s.classList.remove("active"));
     screens[name].classList.add("active");
   }
+
+  // ---------------------------------------------------------------------- //
+  // Authentification (compte citoyen)
+  // ---------------------------------------------------------------------- //
+  const AUTH_KEY = "safecity_auth";
+
+  function getAuth() {
+    try { return JSON.parse(localStorage.getItem(AUTH_KEY)) || null; } catch (e) { return null; }
+  }
+  function setAuth(data) { localStorage.setItem(AUTH_KEY, JSON.stringify(data)); }
+  function clearAuth() { localStorage.removeItem(AUTH_KEY); }
+
+  function refreshUserChip() {
+    const auth = getAuth();
+    const chip = $("user-chip");
+    if (auth && auth.user) {
+      $("user-name").textContent = auth.user.name || auth.user.phone || "Mon compte";
+      chip.hidden = false;
+    } else {
+      chip.hidden = true;
+    }
+  }
+
+  function authError(msg) {
+    const box = $("auth-error");
+    box.textContent = msg;
+    box.hidden = !msg;
+  }
+
+  function switchAuthTab(mode) {
+    const login = mode === "login";
+    $("tab-login").classList.toggle("active", login);
+    $("tab-register").classList.toggle("active", !login);
+    $("form-login").hidden = !login;
+    $("form-register").hidden = login;
+    authError("");
+  }
+
+  $("tab-login").addEventListener("click", () => switchAuthTab("login"));
+  $("tab-register").addEventListener("click", () => switchAuthTab("register"));
+  $("go-register").addEventListener("click", (e) => { e.preventDefault(); switchAuthTab("register"); });
+  $("go-login").addEventListener("click", (e) => { e.preventDefault(); switchAuthTab("login"); });
+
+  async function authRequest(path, body) {
+    const res = await fetch(API + path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    return { ok: res.ok, status: res.status, data };
+  }
+
+  // Connexion
+  $("form-login").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = e.target.querySelector("button[type=submit]");
+    btn.disabled = true;
+    authError("");
+    const identifier = $("login-identifier").value.trim();
+    const password = $("login-password").value;
+    try {
+      const { ok, data } = await authRequest("/api/auth/login", { identifier, password });
+      if (!ok) {
+        authError((data.error && data.error.message) || "Connexion impossible.");
+        return;
+      }
+      onAuthenticated(data);
+    } catch (err) {
+      authError("Réseau indisponible. Vérifiez votre connexion.");
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  // Inscription (avec vérification du numéro de téléphone)
+  $("form-register").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = e.target.querySelector("button[type=submit]");
+    btn.disabled = true;
+    authError("");
+    const body = {
+      name: $("reg-name").value.trim(),
+      phone: $("reg-phone").value.trim(),
+      email: $("reg-email").value.trim(),
+      password: $("reg-password").value,
+    };
+    try {
+      const { ok, status, data } = await authRequest("/api/auth/register", body);
+      if (!ok) {
+        // 409 : le numéro (ou l'e-mail) est déjà utilisé.
+        const msg = (data.error && data.error.message) ||
+          (status === 409 ? "Ce numéro existe déjà. Connectez-vous ou utilisez un autre numéro."
+                          : "Inscription impossible.");
+        authError(msg);
+        // Si le numéro existe déjà, on bascule vers la connexion en pré-remplissant.
+        if (status === 409 && data.error && data.error.details &&
+            data.error.details.field === "phone") {
+          $("login-identifier").value = body.phone;
+        }
+        return;
+      }
+      onAuthenticated(data);
+    } catch (err) {
+      authError("Réseau indisponible. Vérifiez votre connexion.");
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  function onAuthenticated(data) {
+    setAuth(data);
+    refreshUserChip();
+    // Pré-remplit les champs déclarant avec le compte.
+    if (data.user) {
+      if (data.user.name) $("citizen-name").value = data.user.name;
+      if (data.user.phone) $("citizen-phone").value = data.user.phone;
+    }
+    authError("");
+    show("alert");
+    acquireGPS();
+  }
+
+  $("btn-logout").addEventListener("click", () => {
+    clearAuth();
+    refreshUserChip();
+    $("login-password").value = "";
+    show("auth");
+  });
 
   // ---------------------------------------------------------------------- //
   // Connexion temps réel (indicateur d'état)
@@ -190,11 +320,13 @@
     const lat = state.lat != null ? state.lat : -4.325;
     const lng = state.lng != null ? state.lng : 15.3222;
 
+    const auth = getAuth();
     const payload = {
       type: state.type || "autre",
       description: $("description").value,
-      reporter_name: $("citizen-name").value,
-      reporter_phone: $("citizen-phone").value,
+      reporter_name: $("citizen-name").value || (auth && auth.user && auth.user.name) || "",
+      reporter_phone: $("citizen-phone").value || (auth && auth.user && auth.user.phone) || "",
+      reporter_id: auth && auth.user ? auth.user.id : null,
       lat: lat,
       lng: lng,
       photo: state.photo,
@@ -362,6 +494,17 @@
     return s ? s.charAt(0).toUpperCase() + s.slice(1) : "";
   }
 
-  // Pré-acquisition de la position au chargement.
-  acquireGPS();
+  // ---------------------------------------------------------------------- //
+  // Démarrage : compte requis avant d'accéder au bouton d'alerte
+  // ---------------------------------------------------------------------- //
+  refreshUserChip();
+  if (getAuth()) {
+    const u = getAuth().user || {};
+    if (u.name) $("citizen-name").value = u.name;
+    if (u.phone) $("citizen-phone").value = u.phone;
+    show("alert");
+    acquireGPS(); // pré-acquisition de la position
+  } else {
+    show("auth"); // première visite : inviter à créer un compte / se connecter
+  }
 })();

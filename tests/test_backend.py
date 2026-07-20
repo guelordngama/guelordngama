@@ -432,6 +432,57 @@ def test_report_pdf():
 
 
 # --------------------------------------------------------------------------- #
+# Inscription / connexion des citoyens
+# --------------------------------------------------------------------------- #
+def test_register_citizen_and_login_by_phone():
+    _, client = make_client()
+    r = client.post("/api/auth/register", json={
+        "name": "Citoyen Test", "phone": "+243 810 000 111", "password": "secret1"})
+    assert r.status_code == 201
+    body = r.get_json()
+    assert body["user"]["role"] == "citizen"
+    assert body["user"]["phone"] == "+243810000111"
+    assert body["token"]
+    # Connexion avec le numéro dans un autre format (sans « + », avec tirets).
+    login = client.post("/api/auth/login", json={
+        "identifier": "243-810-000-111", "password": "secret1"})
+    assert login.status_code == 200
+    assert login.get_json()["user"]["id"] == body["user"]["id"]
+
+
+def test_register_duplicate_phone_conflict():
+    _, client = make_client()
+    client.post("/api/auth/register", json={
+        "name": "A", "phone": "+243810000111", "password": "secret1"})
+    # Même numéro sans « + » : doit être rejeté (409) avec le champ 'phone'.
+    dup = client.post("/api/auth/register", json={
+        "name": "B", "phone": "243810000111", "password": "secret2"})
+    assert dup.status_code == 409
+    err = dup.get_json()["error"]
+    assert err["code"] == "conflict"
+    assert err["details"]["field"] == "phone"
+
+
+def test_register_validation_errors():
+    _, client = make_client()
+    # Numéro manquant.
+    assert client.post("/api/auth/register", json={
+        "name": "X", "password": "secret1"}).status_code == 400
+    # Mot de passe trop court.
+    assert client.post("/api/auth/register", json={
+        "name": "X", "phone": "+243810000222", "password": "123"}).status_code == 400
+
+
+def test_login_wrong_password_is_generic():
+    _, client = make_client()
+    client.post("/api/auth/register", json={
+        "name": "C", "phone": "+243810000333", "password": "secret1"})
+    bad = client.post("/api/auth/login", json={
+        "identifier": "243810000333", "password": "faux"})
+    assert bad.status_code == 401
+
+
+# --------------------------------------------------------------------------- #
 # Exécution directe (sans pytest)
 # --------------------------------------------------------------------------- #
 if __name__ == "__main__":

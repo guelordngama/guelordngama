@@ -20,12 +20,73 @@
         <p class="tagline">Alerte d'urgence citoyenne</p>
       </div>
     </div>
-    <span id="conn-status" class="conn-status offline" title="État de la connexion">●</span>
+    <div class="header-right">
+      <span id="user-chip" class="user-chip" hidden>
+        <span id="user-name">—</span>
+        <button id="btn-logout" type="button" title="Se déconnecter">Déconnexion</button>
+      </span>
+      <span id="conn-status" class="conn-status offline" title="État de la connexion">●</span>
+    </div>
   </header>
 
   <main class="app-main">
+    <!-- ÉCRAN 0 : authentification (connexion / inscription) -->
+    <section id="screen-auth" class="screen active">
+      <div class="auth-card glass">
+        <div class="auth-tabs">
+          <button id="tab-login" class="auth-tab active" type="button">Se connecter</button>
+          <button id="tab-register" class="auth-tab" type="button">Créer un compte</button>
+        </div>
+
+        <p id="auth-intro" class="auth-intro">
+          Bienvenue sur SafeCity. Créez un compte pour signaler un danger, ou
+          connectez-vous si vous en avez déjà un.
+        </p>
+
+        <div id="auth-error" class="auth-error" hidden></div>
+
+        <!-- Formulaire de CONNEXION -->
+        <form id="form-login" class="auth-form">
+          <label class="field-label" for="login-identifier">📱 Téléphone ou e-mail</label>
+          <input id="login-identifier" type="text" autocomplete="username"
+                 placeholder="+243 … ou vous@exemple.com" required />
+
+          <label class="field-label" for="login-password">🔒 Mot de passe</label>
+          <input id="login-password" type="password" autocomplete="current-password"
+                 placeholder="Votre mot de passe" required />
+
+          <button class="btn-primary auth-submit" type="submit">Se connecter</button>
+          <p class="auth-switch">Pas encore de compte ?
+            <a href="#" id="go-register">Créez-en un</a>.</p>
+        </form>
+
+        <!-- Formulaire d'INSCRIPTION -->
+        <form id="form-register" class="auth-form" hidden>
+          <label class="field-label" for="reg-name">👤 Nom complet</label>
+          <input id="reg-name" type="text" autocomplete="name"
+                 placeholder="Nom et prénom" required />
+
+          <label class="field-label" for="reg-phone">📱 Numéro de téléphone</label>
+          <input id="reg-phone" type="tel" autocomplete="tel"
+                 placeholder="+243 …" required />
+
+          <label class="field-label" for="reg-email">✉️ E-mail (optionnel)</label>
+          <input id="reg-email" type="email" autocomplete="email"
+                 placeholder="vous@exemple.com" />
+
+          <label class="field-label" for="reg-password">🔒 Mot de passe (min. 6 caractères)</label>
+          <input id="reg-password" type="password" autocomplete="new-password"
+                 placeholder="Choisissez un mot de passe" required />
+
+          <button class="btn-primary auth-submit" type="submit">Créer mon compte</button>
+          <p class="auth-switch">Déjà inscrit ?
+            <a href="#" id="go-login">Connectez-vous</a>.</p>
+        </form>
+      </div>
+    </section>
+
     <!-- ÉCRAN 1 : bouton d'alerte -->
-    <section id="screen-alert" class="screen active">
+    <section id="screen-alert" class="screen">
       <p class="intro">En cas de danger, appuyez sur le bouton.<br>
         Votre position GPS sera transmise immédiatement au centre de surveillance.</p>
 

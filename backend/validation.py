@@ -69,13 +69,71 @@ def validate_alert_payload(data):
     }
 
 
+def normalize_phone(value):
+    """Normalise un numéro de téléphone pour la comparaison / le stockage.
+
+    Conserve un éventuel « + » de tête et uniquement les chiffres (les espaces,
+    tirets, points et parenthèses sont retirés). Retourne "" si vide.
+    """
+    if value is None:
+        return ""
+    raw = str(value).strip()
+    if not raw:
+        return ""
+    plus = raw.startswith("+")
+    digits = "".join(ch for ch in raw if ch.isdigit())
+    return ("+" + digits) if plus else digits
+
+
+def _is_email(identifier):
+    return "@" in identifier
+
+
 def validate_login_payload(data):
+    """Valide les identifiants de connexion.
+
+    Accepte un identifiant sous forme d'e-mail (personnel) OU de numéro de
+    téléphone (citoyen), via les champs `identifier`, `email` ou `phone`.
+    Retourne (identifier_normalisé, password).
+    """
     data = require_dict(data)
-    email = clean_text(data.get("email"), 160).lower()
+    raw = data.get("identifier") or data.get("email") or data.get("phone") or ""
+    raw = str(raw).strip()
     password = data.get("password") or ""
-    if not email or not password:
-        raise ValidationError("Email et mot de passe requis.")
-    return email, password
+    if not raw or not password:
+        raise ValidationError("Identifiant et mot de passe requis.")
+    identifier = raw.lower() if _is_email(raw) else normalize_phone(raw)
+    return identifier, password
+
+
+def validate_register_payload(data):
+    """Valide l'inscription d'un citoyen.
+
+    Champs : name (requis), phone (requis, unique vérifié côté service),
+    password (requis, ≥ 6), email (optionnel).
+    """
+    data = require_dict(data)
+
+    name = clean_text(data.get("name"), 120)
+    if not name:
+        raise ValidationError("Le nom est requis.")
+
+    phone = normalize_phone(data.get("phone"))
+    if not phone:
+        raise ValidationError("Le numéro de téléphone est requis.")
+    digits = phone.lstrip("+")
+    if len(digits) < 8:
+        raise ValidationError("Numéro de téléphone invalide (au moins 8 chiffres).")
+
+    password = data.get("password") or ""
+    if len(password) < 6:
+        raise ValidationError("Le mot de passe doit contenir au moins 6 caractères.")
+
+    email = clean_text(data.get("email"), 160).lower() or None
+    if email and "@" not in email:
+        raise ValidationError("Email invalide.")
+
+    return {"name": name, "phone": phone, "password": password, "email": email}
 
 
 def validate_team_id(data):

@@ -11,9 +11,11 @@ reçoit, localise et traite l'alerte **en temps réel**.
 
 ## ✨ Fonctionnalités
 
-**Application citoyenne** (`web/`) — bouton d'alerte, GPS automatique, type de
-danger (vol, braquage, incendie, accident, violence, autre), photo, message
-vocal, distance/ETA, confirmation avec carte OpenStreetMap.
+**Application citoyenne** (`web/`) — **compte citoyen** (inscription /
+connexion, numéro de téléphone unique vérifié), bouton d'alerte, GPS
+automatique, type de danger (vol, braquage, incendie, accident, violence,
+autre), photo, message vocal, distance/ETA, confirmation avec carte
+OpenStreetMap.
 
 **Backend** (`backend/`) — API REST + temps réel Socket.IO, **classification IA**
 des incidents (scikit-learn), calcul de distance (Haversine) et d'ETA,

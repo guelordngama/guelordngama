@@ -2,6 +2,25 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [3.2.0] — Comptes citoyens (inscription / connexion)
+
+### Ajouté
+- **Compte obligatoire côté app citoyenne** : à la première visite, l'utilisateur
+  est invité à **créer un compte** ou à **se connecter** avant d'accéder au bouton
+  d'alerte (écran d'authentification à onglets, session mémorisée localement).
+- **Inscription** avec **vérification du numéro de téléphone** : si le numéro est
+  déjà utilisé, un message clair invite l'utilisateur à se connecter avec ses
+  identifiants ou à utiliser un autre numéro. La comparaison ignore le format
+  (`+243…`, `243…`, espaces/tirets) pour éviter les doublons. Endpoint
+  `POST /api/auth/register` (compte de rôle `citizen`).
+- **Connexion par téléphone ou e-mail** : `POST /api/auth/login` accepte un
+  identifiant e-mail (personnels) ou numéro de téléphone (citoyens). Compte
+  désactivé refusé.
+- Les alertes envoyées sont désormais **rattachées au compte** du citoyen
+  (`reporter_id`, nom et téléphone pré-remplis).
+- Nouvelle erreur API `409 conflict` (numéro/e-mail déjà utilisé).
+- 4 tests supplémentaires (inscription, doublon de numéro, validation, connexion).
+
 ## [3.1.0] — Guide utilisateur final (soutenance)
 
 ### Ajouté
