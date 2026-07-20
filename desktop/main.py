@@ -346,6 +346,7 @@ class MainWindow(QWidget):
         self.page_agents.request_delete.connect(self._delete_agent)
         self.page_agents.request_locate.connect(self._locate_agent)
         self.page_agents.request_route.connect(self._route_agent)
+        self.page_agents.request_history.connect(self._agent_history)
         self.page_chat.send.connect(self._send_message)
         self.page_history.export_csv.connect(lambda: self._export_history("csv"))
         self.page_history.export_xlsx.connect(lambda: self._export_history("xlsx"))
@@ -535,6 +536,57 @@ class MainWindow(QWidget):
         self._navigate(2)  # carte
         self.page_map.set_agents(list(self.page_agents.agents.values()))
         self.page_map.focus_agent(agent["lat"], agent["lng"])
+
+    def _agent_history(self, agent):
+        """Affiche l'historique des interventions d'un agent."""
+        from PySide6.QtWidgets import (QAbstractItemView, QDialog, QHeaderView,
+                                       QTableWidget, QTableWidgetItem)
+
+        try:
+            data = self.api.get_agent_interventions(agent["id"])
+        except Exception as e:
+            QMessageBox.warning(self, "Interventions", str(e))
+            return
+        dlg = QDialog(self)
+        dlg.setStyleSheet(theme.QSS)
+        dlg.setWindowTitle(f"Interventions — {agent['name']}")
+        dlg.resize(720, 480)
+        lay = QVBoxLayout(dlg)
+        rt = data.get("avg_response_min")
+        summary = QLabel(
+            f"<b>{data['agent']['name']}</b> — {data['total']} intervention(s), "
+            f"{data['resolved']} résolue(s), temps de réponse moyen "
+            f"{rt if rt is not None else '—'} min, "
+            f"{round(data['distance_m']/1000, 2)} km parcourus.")
+        summary.setStyleSheet("font-size: 14px;")
+        lay.addWidget(summary)
+        table = QTableWidget(0, 6)
+        table.setHorizontalHeaderLabels(["Date", "Type", "Quartier", "Urgence", "Statut", "Distance"])
+        table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        table.verticalHeader().setVisible(False)
+        items = data.get("items", [])
+        table.setRowCount(len(items))
+        for i, a in enumerate(items):
+            cells = [
+                (a.get("created_at") or "").replace("T", " ")[:16],
+                (a.get("type") or "").capitalize(),
+                a.get("neighborhood") or "—",
+                theme.urgency_label(a.get("urgency")),
+                theme.STATUS_LABELS.get(a.get("status"), a.get("status")),
+                f"{round(a['distance_m'])} m" if a.get("distance_m") is not None else "—",
+            ]
+            for j, text in enumerate(cells):
+                it = QTableWidgetItem(str(text))
+                if j == 3:
+                    it.setForeground(QColor(theme.urgency_color(a.get("urgency"))))
+                elif j == 4:
+                    it.setForeground(QColor(theme.STATUS_COLORS.get(a.get("status"), "#fff")))
+                table.setItem(i, j, it)
+        lay.addWidget(table)
+        if not items:
+            lay.addWidget(QLabel("Aucune intervention pour cet agent."))
+        dlg.exec()
 
     def _route_agent(self, agent):
         """Trace l'itinéraire le plus rapide entre l'agent et son intervention."""

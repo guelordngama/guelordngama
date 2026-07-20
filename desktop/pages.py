@@ -482,6 +482,7 @@ class AgentsPage(QWidget):
     request_delete = Signal(dict)
     request_locate = Signal(dict)
     request_route = Signal(dict)
+    request_history = Signal(dict)
 
     def __init__(self):
         super().__init__()
@@ -509,7 +510,8 @@ class AgentsPage(QWidget):
         b_del = QPushButton("🗑️ Supprimer"); b_del.setObjectName("danger")
         b_loc = QPushButton("📍 Localiser"); b_loc.setObjectName("ghost")
         b_route = QPushButton("🧭 Itinéraire"); b_route.setObjectName("ghost")
-        for b in (b_route, b_loc, b_edit, b_del, b_add):
+        b_hist = QPushButton("📜 Interventions"); b_hist.setObjectName("ghost")
+        for b in (b_hist, b_route, b_loc, b_edit, b_del, b_add):
             tools.addWidget(b)
         root.addLayout(tools)
 
@@ -518,6 +520,7 @@ class AgentsPage(QWidget):
         b_del.clicked.connect(lambda: self._with_selected(self.request_delete))
         b_loc.clicked.connect(lambda: self._with_selected(self.request_locate))
         b_route.clicked.connect(lambda: self._with_selected(self.request_route))
+        b_hist.clicked.connect(lambda: self._with_selected(self.request_history))
 
         self.table = _table(["Nom", "Rôle", "Disponibilité", "Téléphone", "Position", "Intervention", "Vu à"])
         self.table.cellDoubleClicked.connect(lambda *_: self._with_selected(self.request_edit))

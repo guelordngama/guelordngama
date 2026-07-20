@@ -91,6 +91,34 @@ def delete_agent(agent_id, requester_id=None):
     return {"deleted": agent_id, "name": name}
 
 
+def interventions(agent_id, limit=200):
+    """Historique des interventions (alertes) prises en charge par un agent."""
+    from ..errors import NotFoundError
+
+    agent = db.session.get(User, agent_id)
+    if not agent:
+        raise NotFoundError("Agent introuvable.")
+    items = (
+        Alert.query.filter(Alert.assigned_agent_id == agent_id)
+        .order_by(Alert.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    resolved = [a for a in items if a.status == "cloturee"]
+    resp = [
+        (a.accepted_at - a.created_at).total_seconds() / 60.0
+        for a in items if a.accepted_at and a.created_at
+    ]
+    return {
+        "agent": {"id": agent.id, "name": agent.name, "role": agent.role},
+        "total": len(items),
+        "resolved": len(resolved),
+        "avg_response_min": round(sum(resp) / len(resp), 1) if resp else None,
+        "distance_m": round(sum(a.distance_m or 0 for a in items), 1),
+        "items": [a.to_dict() for a in items],
+    }
+
+
 def update_location(agent_id, lat, lng):
     agent = db.session.get(User, agent_id)
     if not agent:

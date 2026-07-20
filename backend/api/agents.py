@@ -56,6 +56,20 @@ def me():
     return jsonify(user.to_dict(with_tracking=True))
 
 
+@bp.get("/agents/me/interventions")
+@require_auth(roles=["agent", "operator", "supervisor", "admin"])
+def my_interventions():
+    """Historique des interventions de l'agent connecté."""
+    return jsonify(agents_service.interventions(g.user["uid"]))
+
+
+@bp.get("/agents/<int:agent_id>/interventions")
+@require_auth(roles=["operator", "supervisor", "admin"])
+def agent_interventions(agent_id):
+    """Historique des interventions d'un agent (superviseur/opérateur)."""
+    return jsonify(agents_service.interventions(agent_id))
+
+
 @bp.post("/agents/me/location")
 @require_auth(roles=["agent", "operator", "supervisor", "admin"])
 def update_location():

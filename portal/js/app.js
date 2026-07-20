@@ -63,6 +63,13 @@
       try { await api("POST", "/api/agents/me/status", { availability: e.target.value }); } catch (err) {}
     });
 
+    // Historique des interventions
+    $("btn-history").addEventListener("click", openHistory);
+    $("history-close").addEventListener("click", () => $("history-modal").classList.add("hidden"));
+    $("history-modal").addEventListener("click", (e) => {
+      if (e.target.id === "history-modal") $("history-modal").classList.add("hidden");
+    });
+
     // Messagerie
     initChatFile();
     loadMessages();
@@ -317,6 +324,36 @@
   function soundAck() { playTones([[880, 0.10, 0.28], [1174, 0.14, 0.28]]); }
   // Bip discret : nouveau message du centre.
   function soundPing() { playTones([[1046, 0.08, 0.18]]); }
+
+  // ---- Historique des interventions de l'agent ----
+  async function openHistory() {
+    try {
+      const d = await api("GET", "/api/agents/me/interventions");
+      $("history-summary").textContent =
+        `${d.total} intervention(s) · ${d.resolved} résolue(s)` +
+        (d.avg_response_min != null ? ` · réponse moy. ${d.avg_response_min} min` : "") +
+        ` · ${(d.distance_m / 1000).toFixed(2)} km`;
+      const list = $("history-list");
+      list.innerHTML = "";
+      if (!d.items.length) {
+        list.innerHTML = '<div class="empty">Aucune intervention pour le moment.</div>';
+      }
+      d.items.forEach((a) => {
+        const color = URGENCY[a.urgency] || "#ef4444";
+        const div = document.createElement("div");
+        div.className = "history-item";
+        div.style.borderLeftColor = color;
+        const date = (a.created_at || "").replace("T", " ").slice(0, 16);
+        div.innerHTML =
+          "<b>" + (a.type || "").toUpperCase() + "</b> " +
+          '<span style="color:' + color + '">' + (URG_LABEL[a.urgency] || "") + "</span><br>" +
+          '<span class="muted">' + date + " · " + (a.neighborhood || "—") +
+          " · " + (a.status === "cloturee" ? "✅ Résolue" : a.status) + "</span>";
+        list.appendChild(div);
+      });
+      $("history-modal").classList.remove("hidden");
+    } catch (e) { alert("Échec : " + e.message); }
+  }
 
   // ---- Toast (notification visuelle) ----
   function toast(text, color) {

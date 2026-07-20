@@ -257,6 +257,31 @@ def test_operator_assign_agent():
                        headers={"Authorization": "Bearer " + ag}).status_code == 403
 
 
+def test_agent_interventions_history():
+    _, client = make_client()
+    client.post("/api/alerts", json={"type": "braquage", "lat": -4.3, "lng": 15.3})
+    client.post("/api/alerts", json={"type": "vol", "lat": -4.3, "lng": 15.3})
+    op = client.post("/api/auth/login", json={
+        "email": "operateur@safecity.local", "password": "safecity123"}).get_json()["token"]
+    ag = client.post("/api/auth/login", json={
+        "email": "agent1@safecity.local", "password": "safecity123"}).get_json()["token"]
+    ho = {"Authorization": "Bearer " + op}
+    ha = {"Authorization": "Bearer " + ag}
+    agent = client.get("/api/agents?role=agent", headers=ho).get_json()[0]
+    client.post("/api/alerts/1/assign-agent", json={"agent_id": agent["id"]}, headers=ho)
+    client.post("/api/alerts/1/complete", headers=ha)
+    client.post("/api/alerts/2/accept", headers=ha)
+    # historique via opérateur
+    h = client.get(f"/api/agents/{agent['id']}/interventions", headers=ho).get_json()
+    assert h["total"] == 2 and h["resolved"] == 1
+    assert len(h["items"]) == 2
+    # historique de l'agent lui-même
+    me = client.get("/api/agents/me/interventions", headers=ha).get_json()
+    assert me["total"] == 2
+    # endpoint opérateur interdit à un agent
+    assert client.get(f"/api/agents/{agent['id']}/interventions", headers=ha).status_code == 403
+
+
 def test_agent_complete_intervention():
     _, client = make_client()
     client.post("/api/alerts", json={"type": "braquage", "lat": -4.3, "lng": 15.3})

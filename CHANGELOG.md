@@ -2,6 +2,18 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [2.12.0] — Historique des interventions par agent
+
+### Ajouté
+- **Historique des interventions par agent** :
+  - Poste opérateur : bouton « 📜 Interventions » (page Gestion des agents) →
+    fenêtre listant les interventions de l'agent (date, type, quartier, urgence,
+    statut, distance) avec résumé (total, résolues, temps de réponse, distance).
+  - Portail agents : bouton « 📜 Mes interventions » → fenêtre modale de son
+    propre historique.
+  - Endpoints `GET /api/agents/<id>/interventions` (opérateur) et
+    `GET /api/agents/me/interventions` (agent).
+
 ## [2.11.0] — Assignation d'une alerte à un agent précis
 
 ### Ajouté

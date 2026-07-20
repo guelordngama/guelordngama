@@ -118,6 +118,9 @@ class ApiClient:
     def get_agents(self):
         return self._request("GET", "/api/agents", auth=True)
 
+    def get_agent_interventions(self, agent_id):
+        return self._request("GET", f"/api/agents/{agent_id}/interventions", auth=True)
+
     def get_citizens(self):
         return self._request("GET", "/api/citizens", auth=True)
 
