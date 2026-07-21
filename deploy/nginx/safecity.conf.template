@@ -2,7 +2,7 @@
 # Sert l'app citoyenne (/) et le portail agents (/portal/), et proxifie l'API
 # et Socket.IO (avec montée en WebSocket) vers le backend.
 #
-# Remplacez ${SAFECITY_DOMAIN} par votre domaine (ex. 169-58-47-76.sslip.io).
+# ${SAFECITY_DOMAIN} provient de deploy/.env.prod (ex. safecity-rdc.duckdns.org).
 
 upstream safecity_backend {
     server backend:5000;

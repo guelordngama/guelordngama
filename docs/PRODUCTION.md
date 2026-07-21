@@ -35,7 +35,8 @@ sudo bash deploy/install.sh
 ```
 
 `deploy/install.sh` installe Docker, génère `deploy/.env.prod` de façon
-interactive (domaine sslip.io proposé automatiquement, secrets générés), ouvre
+interactive (domaine `safecity-rdc.duckdns.org` proposé par défaut, secrets
+générés), ouvre
 les ports, émet le certificat HTTPS et démarre toute la pile. **Vous pouvez vous
 arrêter ici.** La suite décrit les étapes manuelles équivalentes.
 
@@ -58,10 +59,11 @@ Ouvrez les ports **80** et **443** (pare-feu / panneau Contabo).
 cp deploy/.env.prod.example deploy/.env.prod
 nano deploy/.env.prod
 ```
-Renseignez au minimum :
-- `SAFECITY_DOMAIN` — un nom de domaine. **Sans domaine acheté**, utilisez
-  **sslip.io** qui transforme votre IP en nom valide :
-  `169.58.47.76` → **`169-58-47-76.sslip.io`**.
+Le fichier est **préconfiguré pour le domaine DuckDNS du serveur** :
+- `SAFECITY_DOMAIN=safecity-rdc.duckdns.org` (pointe vers `169.58.47.76`).
+  Vérifiez sur [duckdns.org](https://www.duckdns.org) que l'enregistrement
+  **safecity-rdc** pointe bien vers **169.58.47.76** avant l'émission du
+  certificat. *(Alternative sans configuration DNS : `169-58-47-76.sslip.io`.)*
 - `CERTBOT_EMAIL` — votre e-mail (notifications Let's Encrypt).
 - `SAFECITY_SECRET_KEY` — `python3 -c "import secrets; print(secrets.token_hex(32))"`.
 - `POSTGRES_PASSWORD` — un mot de passe solide.
@@ -75,13 +77,13 @@ sh deploy/init-letsencrypt.sh
 Ce script crée un certificat temporaire, démarre Nginx, obtient le vrai
 certificat Let's Encrypt, puis recharge Nginx. Ensuite tout tourne :
 
-- App citoyenne  : `https://<domaine>/`
-- Portail agents : `https://<domaine>/portal/`
-- API / santé    : `https://<domaine>/api/health`
+- App citoyenne  : `https://safecity-rdc.duckdns.org/`
+- Portail agents : `https://safecity-rdc.duckdns.org/portal/`
+- API / santé    : `https://safecity-rdc.duckdns.org/api/health`
 
 Le **poste opérateur** (bureau) se connecte au serveur :
 ```bash
-set SAFECITY_API=https://<domaine>      # Windows
+set SAFECITY_API=https://safecity-rdc.duckdns.org      # Windows
 python desktop/main.py
 ```
 
