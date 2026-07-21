@@ -2,15 +2,6 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
-## [3.2.1] — Domaine de production DuckDNS
-
-### Modifié
-- Déploiement **préconfiguré pour le domaine `safecity-rdc.duckdns.org`**
-  (serveur `169.58.47.76`) : `deploy/.env.prod.example`, `deploy/install.sh`
-  (domaine et e-mail proposés par défaut), documentation `docs/PRODUCTION.md`.
-  Le certificat HTTPS (Let's Encrypt, validation HTTP-01) et le CORS pointent
-  automatiquement sur ce domaine.
-
 ## [3.2.0] — Comptes citoyens (inscription / connexion)
 
 ### Ajouté

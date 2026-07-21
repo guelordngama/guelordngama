@@ -56,18 +56,16 @@ fi
 
 if [ ! -f deploy/.env.prod ]; then
     info "Configuration interactive…"
-    # Domaine DuckDNS préconfiguré pour ce serveur SafeCity.
-    DEFAULT_DOMAIN="safecity-rdc.duckdns.org"
-    DEFAULT_EMAIL="lucangama20@gmail.com"
-    # IP publique du serveur (pour rappel / repli sslip.io).
+    # IP publique du serveur.
     IP="$(curl -fsS https://api.ipify.org 2>/dev/null || hostname -I 2>/dev/null | awk '{print $1}')"
-    IP="${IP:-169.58.47.76}"
-    info "IP détectée : ${IP} — vérifiez que ${DEFAULT_DOMAIN} pointe bien dessus (DuckDNS)."
+    IP="${IP:-127.0.0.1}"
+    DASHED="$(echo "$IP" | tr '.' '-')"
+    DEFAULT_DOMAIN="${DASHED}.sslip.io"
 
     read -r -p "Nom de domaine [${DEFAULT_DOMAIN}] : " DOMAIN
     DOMAIN="${DOMAIN:-$DEFAULT_DOMAIN}"
-    read -r -p "E-mail (certificats Let's Encrypt) [${DEFAULT_EMAIL}] : " EMAIL
-    EMAIL="${EMAIL:-$DEFAULT_EMAIL}"
+    read -r -p "E-mail (certificats Let's Encrypt) : " EMAIL
+    while [ -z "${EMAIL:-}" ]; do read -r -p "E-mail requis : " EMAIL; done
     read -r -p "Activer les comptes de démonstration au premier démarrage ? [O/n] " DEMO
     if [ "${DEMO:-o}" = "n" ] || [ "${DEMO:-o}" = "N" ]; then SEED="false"; else SEED="true"; fi
 

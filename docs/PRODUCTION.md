@@ -28,24 +28,24 @@ Architecture cible :
 ## 0. Installation en UNE commande (recommandé)
 
 ```bash
-ssh root@169.58.47.76
+ssh root@VOTRE_IP_SERVEUR
 apt update && apt install -y git
 git clone <votre-dépôt> safecity && cd safecity
 sudo bash deploy/install.sh
 ```
 
 `deploy/install.sh` installe Docker, génère `deploy/.env.prod` de façon
-interactive (domaine `safecity-rdc.duckdns.org` proposé par défaut, secrets
-générés), ouvre
-les ports, émet le certificat HTTPS et démarre toute la pile. **Vous pouvez vous
-arrêter ici.** La suite décrit les étapes manuelles équivalentes.
+interactive (domaine sslip.io proposé automatiquement à partir de votre IP,
+secrets générés), ouvre les ports, émet le certificat HTTPS et démarre toute la
+pile. **Vous pouvez vous arrêter ici.** La suite décrit les étapes manuelles
+équivalentes.
 
 ---
 
 ## 1. Préparer le VPS (manuel)
 
 ```bash
-ssh root@169.58.47.76
+ssh root@VOTRE_IP_SERVEUR
 apt update && apt install -y docker.io docker-compose-plugin git
 systemctl enable --now docker
 git clone <votre-dépôt> safecity && cd safecity
@@ -59,11 +59,10 @@ Ouvrez les ports **80** et **443** (pare-feu / panneau Contabo).
 cp deploy/.env.prod.example deploy/.env.prod
 nano deploy/.env.prod
 ```
-Le fichier est **préconfiguré pour le domaine DuckDNS du serveur** :
-- `SAFECITY_DOMAIN=safecity-rdc.duckdns.org` (pointe vers `169.58.47.76`).
-  Vérifiez sur [duckdns.org](https://www.duckdns.org) que l'enregistrement
-  **safecity-rdc** pointe bien vers **169.58.47.76** avant l'émission du
-  certificat. *(Alternative sans configuration DNS : `169-58-47-76.sslip.io`.)*
+Renseignez au minimum :
+- `SAFECITY_DOMAIN` — un nom de domaine. **Sans domaine acheté**, utilisez
+  **sslip.io** qui transforme votre IP en nom valide :
+  `203.0.113.10` → **`203-0-113-10.sslip.io`**.
 - `CERTBOT_EMAIL` — votre e-mail (notifications Let's Encrypt).
 - `SAFECITY_SECRET_KEY` — `python3 -c "import secrets; print(secrets.token_hex(32))"`.
 - `POSTGRES_PASSWORD` — un mot de passe solide.
@@ -77,13 +76,13 @@ sh deploy/init-letsencrypt.sh
 Ce script crée un certificat temporaire, démarre Nginx, obtient le vrai
 certificat Let's Encrypt, puis recharge Nginx. Ensuite tout tourne :
 
-- App citoyenne  : `https://safecity-rdc.duckdns.org/`
-- Portail agents : `https://safecity-rdc.duckdns.org/portal/`
-- API / santé    : `https://safecity-rdc.duckdns.org/api/health`
+- App citoyenne  : `https://<votre-domaine>/`
+- Portail agents : `https://<votre-domaine>/portal/`
+- API / santé    : `https://<votre-domaine>/api/health`
 
 Le **poste opérateur** (bureau) se connecte au serveur :
 ```bash
-set SAFECITY_API=https://safecity-rdc.duckdns.org      # Windows
+set SAFECITY_API=https://<votre-domaine>      # Windows
 python desktop/main.py
 ```
 
