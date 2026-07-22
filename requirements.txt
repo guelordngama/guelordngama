@@ -16,9 +16,10 @@ python-dotenv>=1.0.1
 # Suivi d'erreurs en production, actif si SAFECITY_SENTRY_DSN est défini.
 sentry-sdk[flask]>=2.0.0
 
-# --- Base de données professionnelle (PostgreSQL) ---
-# Décommenter pour la production :
-# psycopg2-binary>=2.9.9
+# --- Base de données : PostgreSQL (driver) ---
+# SafeCity utilise PostgreSQL (dev via « docker compose up », et en production).
+# SQLite reste disponible en repli local et pour les tests.
+psycopg2-binary>=2.9.9
 
 # --- Sécurité ---
 # ATTENTION : installer "PyJWT", PAS le paquet "jwt". En cas de conflit :

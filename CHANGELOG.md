@@ -2,6 +2,16 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [3.9.1] — PostgreSQL comme base de données standard
+
+### Modifié
+- **PostgreSQL** est désormais la base de données de référence (dev + prod). Le
+  driver `psycopg2-binary` fait partie des dépendances installées par défaut.
+  Démarrage local simple : `docker compose up -d db` puis `DATABASE_URL=…`.
+  SQLite reste un repli local sans installation et sert aux tests automatiques.
+- `.env.example` et le README mis à jour (PostgreSQL en tête). Migrations Alembic
+  vérifiées sur PostgreSQL 16 (baseline + `consent_at` appliquées sans erreur).
+
 ## [3.9.0] — Thème clair/sombre & son de réception
 
 ### Ajouté

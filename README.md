@@ -19,7 +19,7 @@ OpenStreetMap.
 
 **Backend** (`backend/`) — API REST + temps réel Socket.IO, **classification IA**
 des incidents (scikit-learn), calcul de distance (Haversine) et d'ETA,
-authentification bcrypt + JWT, base SQLite (dev) / PostgreSQL (prod).
+authentification bcrypt + JWT, base **PostgreSQL** (SQLite en repli local / tests).
 
 **Poste opérateur** (`desktop/`) — tableau de bord, alertes en direct, carte
 interactive (Qt WebEngine + Leaflet), graphiques (Qt Charts), actions
@@ -38,6 +38,12 @@ interactive (Qt WebEngine + Leaflet), graphiques (Qt Charts), actions
 ## 🚀 Démarrage rapide
 
 ```bash
+# 0. Base de données PostgreSQL (recommandé) — la plus simple : via Docker
+docker compose up -d db             # PostgreSQL sur localhost:5432
+export DATABASE_URL="postgresql+psycopg2://safecity:safecity@localhost:5432/safecity"
+# (Windows PowerShell : $env:DATABASE_URL="postgresql+psycopg2://safecity:safecity@localhost:5432/safecity")
+# Sans PostgreSQL sous la main : ne définissez pas DATABASE_URL (SQLite local).
+
 # 1. Backend (sert AUSSI l'app citoyenne et le portail en développement)
 pip install -r requirements.txt
 python -m backend.app               # Flask (dev) sur http://localhost:5000
@@ -104,7 +110,7 @@ Copier `.env.example` en `.env`. Principales variables :
 | Variable | Rôle | Défaut |
 |----------|------|--------|
 | `SAFECITY_ENV` | development / production / testing | development |
-| `DATABASE_URL` | Base de données | SQLite local |
+| `DATABASE_URL` | Base **PostgreSQL** (`postgresql+psycopg2://…`) | SQLite si vide |
 | `SAFECITY_SECRET_KEY` | Clé JWT (obligatoire en prod) | clé de dev |
 | `SAFECITY_CORS_ORIGINS` | Origines autorisées | `*` |
 | `SAFECITY_SEED_DEMO` | Compte démo (désactiver en prod) | true |
