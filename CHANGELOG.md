@@ -2,6 +2,18 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [3.9.0] — Thème clair/sombre & son de réception
+
+### Ajouté
+- **Thème clair / sombre commutable** sur les trois applications :
+  - **Site citoyen** et **portail agents** : bouton 🌙/☀️ (préférence mémorisée
+    dans le navigateur) qui bascule le thème via `data-theme` (variables CSS).
+  - **Poste opérateur** : bouton dans la barre supérieure ; deux palettes
+    (`theme.set_mode`) appliquées à chaud à toute l'interface, préférence
+    mémorisée (QSettings).
+- **Son de réception des messages** dans le poste opérateur : un « ping » discret
+  accompagne le badge et la notification (toast) à l'arrivée d'un message.
+
 ## [3.8.1] — Connecteur SMS Africa's Talking
 
 ### Ajouté

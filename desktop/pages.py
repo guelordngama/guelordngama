@@ -739,10 +739,7 @@ class ChatPage(QWidget):
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.scroll.setObjectName("chatScroll")
-        self.scroll.setStyleSheet(
-            f"QScrollArea#chatScroll {{ background: {theme.BG_ALT}; "
-            f"border: 1px solid {theme.BORDER}; border-radius: 14px; }}"
-        )
+        self._apply_scroll_style()
         self._host = QWidget()
         self._host.setStyleSheet("background: transparent;")
         self._msgs = QVBoxLayout(self._host)
@@ -770,6 +767,15 @@ class ChatPage(QWidget):
         row.addWidget(self.input, 1)
         row.addWidget(btn)
         root.addLayout(row)
+
+    def _apply_scroll_style(self):
+        self.scroll.setStyleSheet(
+            f"QScrollArea#chatScroll {{ background: {theme.BG_ALT}; "
+            f"border: 1px solid {theme.BORDER}; border-radius: 14px; }}")
+
+    def apply_theme(self):
+        """Rafraîchit les zones à style inline lors d'un changement de thème."""
+        self._apply_scroll_style()
 
     def _pick_attachment(self):
         import base64

@@ -435,6 +435,14 @@ class MainWindow(QWidget):
         self.clock = QLabel("")
         self.clock.setObjectName("clock")
         tl.addWidget(self.clock)
+        tl.addSpacing(12)
+        self.btn_theme = QPushButton("☀️" if theme.current_mode() == "light" else "🌙")
+        self.btn_theme.setObjectName("ghost")
+        self.btn_theme.setFixedWidth(46)
+        self.btn_theme.setToolTip("Changer de thème (clair / sombre)")
+        self.btn_theme.setCursor(Qt.PointingHandCursor)
+        self.btn_theme.clicked.connect(self._toggle_theme)
+        tl.addWidget(self.btn_theme)
         tl.addSpacing(16)
         who = QLabel(f"👮 {self.operator.get('name', '—')}  ·  {self.operator.get('role', '')}")
         who.setStyleSheet("font-weight: 700;")
@@ -497,6 +505,22 @@ class MainWindow(QWidget):
         from datetime import datetime
 
         self.clock.setText(datetime.now().strftime("%A %d %B %Y · %H:%M:%S"))
+
+    def _toggle_theme(self):
+        from PySide6.QtCore import QSettings
+
+        new = "dark" if theme.current_mode() == "light" else "light"
+        theme.set_mode(new)
+        QSettings("SafeCity", "Operateur").setValue("theme", new)
+        # Ré-applique la feuille de style à toute l'application (thème à chaud).
+        app = QApplication.instance()
+        if app:
+            app.setStyleSheet(theme.QSS)
+        self.setStyleSheet(theme.QSS)
+        self.btn_theme.setText("☀️" if new == "light" else "🌙")
+        # Zones à style « inline » : on les rafraîchit explicitement.
+        if hasattr(self.page_chat, "apply_theme"):
+            self.page_chat.apply_theme()
 
     # ---- Navigation ----
     def _navigate(self, idx):
@@ -633,6 +657,7 @@ class MainWindow(QWidget):
         if self.stack.currentIndex() != self.IDX_CHAT and msg.get("sender_id") != self.operator.get("id"):
             self._unread_msg_ids.add(msg.get("id"))
             self.sidebar.set_badge(self.IDX_CHAT, len(self._unread_msg_ids))
+            self.alarm.play_notify()  # son de réception (message)
             Toast(self, f"💬 {msg.get('sender_name')}: {msg.get('text', '')[:40]}", theme.ACCENT_2).show_for(3500)
 
     # ---- Export de l'historique ----
@@ -958,7 +983,12 @@ class MainWindow(QWidget):
 
 
 def main():
+    from PySide6.QtCore import QSettings
+
     app = QApplication(sys.argv)
+    # Applique le thème mémorisé (clair / sombre) avant de construire l'UI.
+    saved_theme = QSettings("SafeCity", "Operateur").value("theme", "dark")
+    theme.set_mode(saved_theme if saved_theme in ("light", "dark") else "dark")
     app.setStyleSheet(theme.QSS)
     api = ApiClient(API_BASE)
 

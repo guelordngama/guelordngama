@@ -45,12 +45,19 @@ def _ack_wav():
                       [(880, 0.10, 0.28), (1174, 0.14, 0.28)])
 
 
+def _notify_wav():
+    # Notification de message : double « ping » discret et clair.
+    return _write_wav("safecity_notify.wav",
+                      [(1318, 0.08, 0.22), (1568, 0.10, 0.22)])
+
+
 class SoundPlayer:
     """Joue les sons de l'application ; robuste si QtMultimedia est indisponible."""
 
     def __init__(self):
         self._alarm = self._make(_alarm_wav(), 0.6)
         self._ack = self._make(_ack_wav(), 0.4)
+        self._notify = self._make(_notify_wav(), 0.4)
 
     def _make(self, path, volume):
         try:
@@ -84,6 +91,10 @@ class SoundPlayer:
     def play_ack(self):
         """Accusé de réception (alerte prise en compte par l'opérateur)."""
         self._play(self._ack)
+
+    def play_notify(self):
+        """Notification discrète (message reçu)."""
+        self._play(self._notify)
 
 
 # Compatibilité ascendante.
