@@ -14,6 +14,11 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 - **Changement de mot de passe en libre-service** : section « 🔒 Changer mon mot
   de passe » dans les Paramètres du poste opérateur (vérifie le mot de passe
   actuel). Endpoint `POST /api/auth/change-password` (utilisateur connecté).
+- **Journal d'audit** : traçabilité des actions sensibles (connexions réussies
+  et échouées, création de compte, réinitialisation et changement de mot de
+  passe, clôture d'alerte, création/suppression d'agent) avec utilisateur, IP et
+  horodatage. Consultation réservée aux administrateurs/superviseurs via
+  `GET /api/audit`. Enregistrement *best-effort* (n'interrompt jamais la requête).
 
 ### Sécurité
 - L'auto-inscription du personnel n'est plus ouverte à tous : un centre de

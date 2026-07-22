@@ -207,5 +207,31 @@ class Message(TimestampMixin, db.Model):
         }
 
 
+class AuditLog(TimestampMixin, db.Model):
+    """Journal d'audit : trace des actions sensibles (connexions, comptes,
+    clôtures d'alertes, gestion des agents) pour une administration publique."""
+
+    __tablename__ = "audit_logs"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, index=True)
+    user_name = db.Column(db.String(120))
+    action = db.Column(db.String(60), nullable=False, index=True)
+    detail = db.Column(db.String(255))
+    ip = db.Column(db.String(60))
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "user_name": self.user_name or "—",
+            "action": self.action,
+            "detail": self.detail,
+            "ip": self.ip,
+            "created_at": _iso(self.created_at),
+            "time": self.created_at.strftime("%Y-%m-%d %H:%M:%S") if self.created_at else None,
+        }
+
+
 def _iso(dt):
     return dt.isoformat() if dt else None

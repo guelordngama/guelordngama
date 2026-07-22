@@ -550,6 +550,29 @@ def test_change_password_flow():
         "current_password": "x", "new_password": "yyyyyy"}).status_code == 401
 
 
+def test_audit_log_records_and_is_admin_only():
+    _, client = make_client()
+    # Génère des événements audités.
+    client.post("/api/auth/login", json={"email": "x@x.com", "password": "faux"})  # login_failed
+    client.post("/api/auth/login", json={
+        "email": "operateur@safecity.local", "password": "safecity123"})           # login
+
+    # Un admin peut consulter le journal.
+    admin_tok = client.post("/api/auth/login", json={
+        "email": "admin@safecity.local", "password": "safecity123"}).get_json()["token"]
+    ah = {"Authorization": "Bearer " + admin_tok}
+    r = client.get("/api/audit", headers=ah)
+    assert r.status_code == 200
+    actions = {e["action"] for e in r.get_json()}
+    assert "login_failed" in actions and "login" in actions
+
+    # Un opérateur ne peut pas consulter le journal ; anonyme non plus.
+    op_tok = client.post("/api/auth/login", json={
+        "email": "operateur@safecity.local", "password": "safecity123"}).get_json()["token"]
+    assert client.get("/api/audit", headers={"Authorization": "Bearer " + op_tok}).status_code == 403
+    assert client.get("/api/audit").status_code == 401
+
+
 def test_forgot_password_without_smtp_returns_503():
     # En test, aucun SMTP n'est configuré : la réinitialisation par e-mail est
     # indisponible et renvoie un message clair (code email_not_configured).

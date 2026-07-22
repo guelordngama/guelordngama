@@ -4,6 +4,7 @@ from flask import Blueprint, current_app, g, jsonify, request
 
 from ..security import require_auth
 from ..services import alerts as alerts_service
+from ..services import audit
 from ..services import stats as stats_service
 from ..validation import validate_alert_payload, validate_team_id
 
@@ -63,6 +64,7 @@ def assign(alert_id):
 def close(alert_id):
     payload = alerts_service.close_alert(alert_id)
     stats_service.invalidate_cache()
+    audit.record("alert_closed", detail=f"alerte #{alert_id}")
     return jsonify(payload)
 
 

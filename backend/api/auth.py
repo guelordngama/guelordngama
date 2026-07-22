@@ -4,6 +4,7 @@ from flask import Blueprint, current_app, g, jsonify, request
 from ..errors import AuthError
 from ..models import User
 from ..security import generate_token, rate_limit, require_auth, verify_password
+from ..services import audit
 from ..services.auth import (
     change_password,
     register_citizen,
@@ -53,6 +54,7 @@ def register_staff_route():
 def _do_register_staff():
     payload = validate_staff_register_payload(request.get_json(silent=True))
     user = register_staff(payload)
+    audit.record("staff_created", detail=user.email, user_id=user.id, user_name=user.name)
     return jsonify({"token": generate_token(user), "user": user.to_dict()}), 201
 
 
@@ -70,6 +72,7 @@ def forgot_password():
 def _do_forgot_password():
     email = validate_email_only(request.get_json(silent=True))
     request_password_reset(email)
+    audit.record("password_reset_requested", detail=email, user_name=email)
     return jsonify({
         "message": "Si un compte existe pour cet e-mail, un mot de passe de "
                    "réinitialisation vient d'être envoyé. Vérifiez votre boîte Gmail."
@@ -82,6 +85,7 @@ def change_password_route():
     """Change le mot de passe de l'utilisateur connecté (bureau / portail)."""
     current, new = validate_change_password_payload(request.get_json(silent=True))
     change_password(int(g.user["sub"]), current, new)
+    audit.record("password_changed")
     return jsonify({"message": "Mot de passe modifié avec succès."})
 
 
@@ -108,7 +112,12 @@ def _do_login():
         user = User.query.filter(User.phone.in_(candidates)).first()
     # Message générique : ne révèle pas si le compte existe.
     if not user or not verify_password(password, user.password_hash):
+        audit.record("login_failed", detail=identifier, user_name=identifier)
         raise AuthError("Identifiants invalides.")
     if not user.active:
+        audit.record("login_denied_inactive", detail=identifier,
+                     user_id=user.id, user_name=user.name)
         raise AuthError("Ce compte est désactivé.")
+    audit.record("login", detail=f"{user.email or user.phone} ({user.role})",
+                 user_id=user.id, user_name=user.name)
     return jsonify({"token": generate_token(user), "user": user.to_dict()})
