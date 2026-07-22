@@ -114,7 +114,8 @@ Détails : [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 ## 📚 Documentation
 [Architecture](docs/ARCHITECTURE.md) · [API](docs/API.md) ·
 [Sécurité](docs/SECURITY.md) · [Déploiement](docs/DEPLOYMENT.md) ·
-[Production](docs/PRODUCTION.md) · [Confidentialité](docs/CONFIDENTIALITE.md) ·
+[Production](docs/PRODUCTION.md) · [**Checklist de déploiement**](docs/DEPLOIEMENT_CHECKLIST.md) ·
+[Confidentialité](docs/CONFIDENTIALITE.md) ·
 [Contribuer](CONTRIBUTING.md) · [Changelog](CHANGELOG.md)
 
 ## 🩺 Dépannage — la carte ne s'affiche pas (poste opérateur)
