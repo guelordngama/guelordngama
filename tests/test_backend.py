@@ -441,7 +441,7 @@ def _register_and_verify_citizen(app, client, name, phone, password):
     captured = {}
     notifications.send_sms = lambda to, text: captured.update(text=text)
     r = client.post("/api/auth/register", json={
-        "name": name, "phone": phone, "password": password})
+        "name": name, "phone": phone, "password": password, "consent": True})
     assert r.status_code == 201 and r.get_json()["verification_required"]
     import re as _re
     code = _re.search(r"est (\d+)\.", captured["text"]).group(1)
@@ -454,7 +454,8 @@ def test_register_requires_otp_then_login_by_phone():
     app, client = make_client()
     # L'inscription n'ouvre pas de session : vérification requise.
     r = client.post("/api/auth/register", json={
-        "name": "Citoyen Test", "phone": "+243 810 000 111", "password": "secret1"})
+        "name": "Citoyen Test", "phone": "+243 810 000 111", "password": "secret1",
+        "consent": True})
     assert r.status_code == 201
     assert r.get_json().get("verification_required") is True
     assert "token" not in r.get_json()
@@ -484,7 +485,7 @@ def test_otp_wrong_code_rejected():
     from backend.services import notifications
     notifications.send_sms = lambda to, text: None
     client.post("/api/auth/register", json={
-        "name": "C", "phone": "+243810000222", "password": "secret1"})
+        "name": "C", "phone": "+243810000222", "password": "secret1", "consent": True})
     bad = client.post("/api/auth/verify-otp", json={
         "phone": "243810000222", "code": "000000"})
     assert bad.status_code == 401
@@ -493,10 +494,10 @@ def test_otp_wrong_code_rejected():
 def test_register_duplicate_phone_conflict():
     _, client = make_client()
     client.post("/api/auth/register", json={
-        "name": "A", "phone": "+243810000111", "password": "secret1"})
+        "name": "A", "phone": "+243810000111", "password": "secret1", "consent": True})
     # Même numéro sans « + » : doit être rejeté (409) avec le champ 'phone'.
     dup = client.post("/api/auth/register", json={
-        "name": "B", "phone": "243810000111", "password": "secret2"})
+        "name": "B", "phone": "243810000111", "password": "secret2", "consent": True})
     assert dup.status_code == 409
     err = dup.get_json()["error"]
     assert err["code"] == "conflict"
@@ -513,10 +514,61 @@ def test_register_validation_errors():
         "name": "X", "phone": "+243810000222", "password": "123"}).status_code == 400
 
 
+def test_register_requires_consent():
+    _, client = make_client()
+    # Sans consentement à la politique de confidentialité → refus.
+    r = client.post("/api/auth/register", json={
+        "name": "X", "phone": "+243810000444", "password": "secret1"})
+    assert r.status_code == 400
+    assert "confidentialité" in r.get_json()["error"]["message"]
+
+
+def test_delete_own_account_anonymises_alerts():
+    app, client = make_client()
+    body = _register_and_verify_citizen(app, client, "Citoyen", "+243810000111", "secret1")
+    uid = body["user"]["id"]
+    token = body["token"]
+    # Une alerte rattachée au citoyen.
+    client.post("/api/alerts", json={
+        "type": "vol", "lat": -4.3, "lng": 15.3,
+        "reporter_id": uid, "reporter_name": "Citoyen", "reporter_phone": "+243810000111"})
+    # Suppression du compte (droit à l'effacement).
+    h = {"Authorization": "Bearer " + token}
+    assert client.delete("/api/auth/me", headers=h).status_code == 200
+    # Le compte n'existe plus (reconnexion impossible).
+    assert client.post("/api/auth/login", json={
+        "identifier": "243810000111", "password": "secret1"}).status_code == 401
+    # L'alerte subsiste mais est anonymisée.
+    from backend.models import Alert
+    with app.app_context():
+        a = Alert.query.first()
+        assert a is not None
+        assert a.reporter_id is None
+        assert a.reporter_phone is None
+        assert "supprimé" in a.reporter_name
+
+
+def test_purge_old_alerts():
+    from datetime import datetime, timedelta
+
+    from backend.models import Alert
+    from backend.services.retention import purge_old_alerts
+    app, client = make_client()
+    client.post("/api/alerts", json={"type": "vol", "lat": -4.3, "lng": 15.3})
+    with app.app_context():
+        a = Alert.query.first()
+        a.status = "cloturee"
+        a.closed_at = datetime.utcnow() - timedelta(days=400)
+        from backend.extensions import db
+        db.session.commit()
+        assert purge_old_alerts(365) == 1
+        assert Alert.query.count() == 0
+
+
 def test_login_wrong_password_is_generic():
     _, client = make_client()
     client.post("/api/auth/register", json={
-        "name": "C", "phone": "+243810000333", "password": "secret1"})
+        "name": "C", "phone": "+243810000333", "password": "secret1", "consent": True})
     bad = client.post("/api/auth/login", json={
         "identifier": "243810000333", "password": "faux"})
     assert bad.status_code == 401

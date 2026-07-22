@@ -133,11 +133,17 @@
     const btn = e.target.querySelector("button[type=submit]");
     btn.disabled = true;
     authError("");
+    if (!$("reg-consent").checked) {
+      authError("Vous devez accepter la politique de confidentialité.");
+      btn.disabled = false;
+      return;
+    }
     const body = {
       name: $("reg-name").value.trim(),
       phone: $("reg-phone").value.trim(),
       email: $("reg-email").value.trim(),
       password: $("reg-password").value,
+      consent: true,
     };
     try {
       const { ok, status, data } = await authRequest("/api/auth/register", body);
@@ -222,6 +228,38 @@
     refreshUserChip();
     $("login-password").value = "";
     show("auth");
+  });
+
+  // ---- Politique de confidentialité (modale) ----
+  function openPrivacy(e) { if (e) e.preventDefault(); $("privacy-modal").hidden = false; }
+  function closePrivacy() { $("privacy-modal").hidden = true; }
+  $("open-privacy").addEventListener("click", openPrivacy);
+  $("open-privacy-2").addEventListener("click", openPrivacy);
+  $("close-privacy").addEventListener("click", closePrivacy);
+  $("privacy-modal").addEventListener("click", (e) => {
+    if (e.target === $("privacy-modal")) closePrivacy();
+  });
+
+  // ---- Droit à l'effacement : suppression du compte ----
+  $("btn-delete-account").addEventListener("click", async (e) => {
+    e.preventDefault();
+    const auth = getAuth();
+    if (!auth || !auth.token) return;
+    if (!confirm("Supprimer définitivement votre compte ? Vos données personnelles "
+      + "seront effacées. Cette action est irréversible.")) return;
+    try {
+      const res = await fetch(API + "/api/auth/me", {
+        method: "DELETE",
+        headers: { "Authorization": "Bearer " + auth.token },
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      clearAuth();
+      refreshUserChip();
+      alert("Votre compte et vos données personnelles ont été supprimés.");
+      show("auth");
+    } catch (err) {
+      alert("Suppression impossible pour le moment. Réessayez plus tard.");
+    }
   });
 
   // ---------------------------------------------------------------------- //

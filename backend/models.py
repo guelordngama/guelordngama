@@ -52,6 +52,9 @@ class User(TimestampMixin, db.Model):
     otp_expires_at = db.Column(db.DateTime)
     otp_attempts = db.Column(db.Integer, default=0)
 
+    # --- Consentement à la politique de confidentialité (date d'acceptation) ---
+    consent_at = db.Column(db.DateTime)
+
     # --- Suivi opérationnel des agents d'intervention ---
     availability = db.Column(db.String(20), default="offline")  # available|busy|offline
     lat = db.Column(db.Float)

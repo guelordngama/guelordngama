@@ -78,6 +78,13 @@
           <input id="reg-password" type="password" autocomplete="new-password"
                  placeholder="Choisissez un mot de passe" required />
 
+          <label class="consent-row">
+            <input id="reg-consent" type="checkbox" required />
+            <span>J'ai lu et j'accepte la
+              <a href="#" id="open-privacy">politique de confidentialité</a>
+              (collecte du nom, téléphone, position et signalements).</span>
+          </label>
+
           <button class="btn-primary auth-submit" type="submit">Créer mon compte</button>
           <p class="auth-switch">Déjà inscrit ?
             <a href="#" id="go-login">Connectez-vous</a>.</p>
@@ -122,6 +129,11 @@
 
       <p class="legal-hint">⚖️ N'utilisez ce bouton qu'en cas de danger réel.
         Une fausse alerte est punie par la loi.</p>
+
+      <p class="account-links">
+        <a href="#" id="open-privacy-2">Confidentialité</a> ·
+        <a href="#" id="btn-delete-account" class="danger-link">Supprimer mon compte</a>
+      </p>
     </section>
 
     <!-- ÉCRAN 2 : détails de l'incident -->
@@ -203,6 +215,36 @@
       <button id="btn-new" class="btn-primary" type="button">Nouvelle alerte</button>
     </section>
   </main>
+
+  <!-- Modale : politique de confidentialité -->
+  <div id="privacy-modal" class="modal-backdrop" hidden>
+    <div class="modal glass">
+      <div class="modal-head">
+        <h3>🔒 Politique de confidentialité</h3>
+        <button id="close-privacy" class="modal-close" type="button" aria-label="Fermer">✕</button>
+      </div>
+      <div class="modal-body">
+        <p><strong>Données collectées :</strong> nom, numéro de téléphone (vérifié
+          par SMS), position GPS au moment de l'alerte, description, photo et note
+          vocale éventuelles, ainsi que l'adresse IP et l'horodatage (sécurité).</p>
+        <p><strong>Pourquoi :</strong> traiter les alertes et permettre une
+          intervention rapide, vérifier votre numéro (anti-fausses alertes) et
+          sécuriser le service. Vos données ne sont ni vendues ni utilisées à des
+          fins commerciales.</p>
+        <p><strong>Qui y accède :</strong> uniquement les agents habilités du
+          centre de surveillance et les intervenants concernés. Les accès
+          sensibles sont journalisés.</p>
+        <p><strong>Conservation :</strong> les alertes clôturées sont supprimées
+          automatiquement après la durée de conservation ; votre compte est
+          conservé jusqu'à sa suppression.</p>
+        <p><strong>Vos droits :</strong> vous pouvez supprimer votre compte à tout
+          moment (bouton « Supprimer mon compte »). Vos données personnelles sont
+          alors effacées ; les incidents déjà signalés sont anonymisés.</p>
+        <p>⚠️ En cas d'urgence vitale, contactez toujours en priorité les services
+          de secours officiels.</p>
+      </div>
+    </div>
+  </div>
 
   <footer class="app-footer">SafeCity · Prototype — pour une urgence réelle, contactez toujours les secours officiels.</footer>
 

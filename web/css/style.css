@@ -100,6 +100,37 @@ body {
 .auth-intro { color: var(--muted); font-size: 13px; line-height: 1.55; margin: 0 0 16px; }
 .otp-intro { color: var(--ink); font-size: 13px; line-height: 1.55; margin: 0 0 8px; }
 .otp-intro strong { color: var(--accent); }
+
+.consent-row {
+  display: flex; gap: 10px; align-items: flex-start; margin: 14px 0 4px;
+  font-size: 12.5px; color: var(--muted); line-height: 1.5; cursor: pointer;
+}
+.consent-row input { margin-top: 2px; width: 18px; height: 18px; flex-shrink: 0; accent-color: var(--accent); }
+.consent-row a { color: var(--accent); font-weight: 700; text-decoration: none; }
+
+.account-links { text-align: center; margin-top: 22px; font-size: 12.5px; color: var(--muted); }
+.account-links a { color: var(--muted); text-decoration: none; }
+.account-links a:hover { text-decoration: underline; }
+.account-links .danger-link { color: #f87171; }
+
+/* Modale (confidentialité) */
+.modal-backdrop {
+  position: fixed; inset: 0; z-index: 100; display: flex;
+  align-items: center; justify-content: center; padding: 18px;
+  background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(4px);
+}
+.modal {
+  width: 100%; max-width: 460px; max-height: 84vh; overflow-y: auto;
+  border-radius: var(--radius); padding: 20px 22px;
+}
+.modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.modal-head h3 { margin: 0; font-size: 18px; }
+.modal-close {
+  background: transparent; border: none; color: var(--muted);
+  font-size: 20px; cursor: pointer; line-height: 1;
+}
+.modal-body p { font-size: 13px; line-height: 1.6; color: var(--ink); margin: 0 0 12px; }
+.modal-body strong { color: var(--accent); }
 .auth-form { display: block; }
 .auth-form .field-label { margin-top: 12px; }
 .auth-form .field-label:first-child { margin-top: 0; }

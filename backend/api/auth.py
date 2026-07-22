@@ -7,6 +7,7 @@ from ..security import generate_token, rate_limit, require_auth, verify_password
 from ..services import audit
 from ..services.auth import (
     change_password,
+    delete_own_account,
     register_citizen,
     register_staff,
     request_password_reset,
@@ -135,6 +136,16 @@ def change_password_route():
     change_password(int(g.user["sub"]), current, new)
     audit.record("password_changed")
     return jsonify({"message": "Mot de passe modifié avec succès."})
+
+
+@bp.delete("/me")
+@require_auth()
+def delete_account():
+    """Droit à l'effacement : supprime le compte de l'utilisateur connecté."""
+    uid = int(g.user["sub"])
+    audit.record("account_deleted", detail=f"compte #{uid}")
+    delete_own_account(uid)
+    return jsonify({"message": "Votre compte et vos données personnelles ont été supprimés."})
 
 
 @bp.post("/login")

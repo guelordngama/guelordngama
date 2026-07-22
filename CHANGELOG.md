@@ -2,6 +2,22 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [3.8.0] — Conformité & confidentialité
+
+### Ajouté
+- **Politique de confidentialité** (`docs/CONFIDENTIALITE.md`) + **modale** dans
+  l'app citoyenne (données collectées, finalités, accès, conservation, droits).
+- **Consentement obligatoire** à l'inscription : case à cocher « J'accepte la
+  politique de confidentialité » (bloquante côté app et côté serveur), date de
+  consentement enregistrée (`consent_at`).
+- **Droit à l'effacement** : bouton « Supprimer mon compte » dans l'app citoyenne
+  → `DELETE /api/auth/me`. Les données personnelles sont supprimées et les
+  incidents déjà signalés **anonymisés** (conservés sans nom ni téléphone).
+- **Conservation des données** : commande `python -m backend.manage purge-old`
+  (+ `SAFECITY_RETENTION_DAYS`) qui supprime les alertes clôturées anciennes et
+  leurs fichiers joints (à planifier via cron). Migration Alembic pour
+  `consent_at` (évolution sans perte).
+
 ## [3.7.0] — Fiabilité : migrations, suivi d'erreurs, restauration
 
 ### Ajouté

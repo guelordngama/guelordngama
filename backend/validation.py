@@ -133,6 +133,10 @@ def validate_register_payload(data):
     if email and "@" not in email:
         raise ValidationError("Email invalide.")
 
+    if not bool(data.get("consent")):
+        raise ValidationError(
+            "Vous devez accepter la politique de confidentialité pour créer un compte.")
+
     return {"name": name, "phone": phone, "password": password, "email": email}
 
 

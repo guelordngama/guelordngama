@@ -63,6 +63,7 @@ def register_citizen(payload):
         role="citizen",
         password_hash=hash_password(payload["password"]),
         phone_verified=False,
+        consent_at=datetime.utcnow(),  # consentement recueilli à l'inscription
     )
     db.session.add(user)
     db.session.commit()
@@ -264,6 +265,27 @@ def request_password_reset(email):
     user.password_hash = hash_password(temp)
     db.session.commit()
     log.info("Mot de passe réinitialisé et envoyé par e-mail pour #%s", user.id)
+
+
+def delete_own_account(user_id):
+    """Droit à l'effacement : anonymise les alertes du citoyen puis supprime son compte.
+
+    On conserve les incidents (utilité de sécurité publique) mais on retire toute
+    donnée personnelle (nom, téléphone, lien au compte).
+    """
+    from ..models import Alert
+
+    user = User.query.get(user_id)
+    if not user:
+        raise AuthError("Compte introuvable.")
+    Alert.query.filter_by(reporter_id=user.id).update(
+        {"reporter_id": None,
+         "reporter_name": "Citoyen (compte supprimé)",
+         "reporter_phone": None},
+        synchronize_session=False)
+    db.session.delete(user)
+    db.session.commit()
+    log.info("Compte #%s supprimé (droit à l'effacement).", user_id)
 
 
 def change_password(user_id, current_password, new_password):

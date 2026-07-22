@@ -123,6 +123,10 @@ class Config:
     OTP_TTL_MIN = int(os.environ.get("SAFECITY_OTP_TTL_MIN", "10"))
     OTP_MAX_ATTEMPTS = int(os.environ.get("SAFECITY_OTP_MAX_ATTEMPTS", "5"))
 
+    # --- Conservation des données (conformité) ---
+    # Durée de conservation des alertes clôturées avant purge (jours).
+    RETENTION_DAYS = int(os.environ.get("SAFECITY_RETENTION_DAYS", "365"))
+
     @property
     def cors_origins_list(self):
         if self.CORS_ORIGINS.strip() == "*":

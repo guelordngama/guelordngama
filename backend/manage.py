@@ -43,6 +43,17 @@ def _list_staff(_args):
             print(f"  {u.id:>3}  {u.role:<10}  {u.name:<24}  {u.email}")
 
 
+def _purge_old(args):
+    """Purge de conservation : supprime les alertes clôturées anciennes."""
+    from .services.retention import purge_old_alerts
+
+    app = create_app()
+    with app.app_context():
+        days = args.days if args.days is not None else app.config["RETENTION_DAYS"]
+        n = purge_old_alerts(days)
+        print(f"Purge terminée : {n} alerte(s) clôturée(s) de plus de {days} jours supprimée(s).")
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="backend.manage")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -55,6 +66,11 @@ def main(argv=None):
     c.set_defaults(func=_create_admin)
 
     sub.add_parser("list-staff", help="Lister les comptes personnels").set_defaults(func=_list_staff)
+
+    pg = sub.add_parser("purge-old", help="Supprimer les alertes clôturées anciennes (conservation)")
+    pg.add_argument("--days", type=int, default=None,
+                    help="Âge en jours (défaut : SAFECITY_RETENTION_DAYS)")
+    pg.set_defaults(func=_purge_old)
 
     args = parser.parse_args(argv)
     args.func(args)
