@@ -106,7 +106,15 @@ class Config:
     TWILIO_FROM = os.environ.get("SAFECITY_TWILIO_FROM")
     TWILIO_TO = [n.strip() for n in os.environ.get("SAFECITY_TWILIO_TO", "").split(",") if n.strip()]
 
-    # --- Passerelle SMS HTTP générique (fournisseur local RDC) ---
+    # --- SMS via Africa's Talking (agrégateur, couverture RDC) ---
+    # Actif si SAFECITY_AT_USERNAME et SAFECITY_AT_API_KEY sont définis.
+    # Bac à sable : username=sandbox (ou SAFECITY_AT_SANDBOX=true).
+    AT_USERNAME = os.environ.get("SAFECITY_AT_USERNAME")
+    AT_API_KEY = os.environ.get("SAFECITY_AT_API_KEY")
+    AT_SENDER = os.environ.get("SAFECITY_AT_SENDER")  # sender ID / short code (optionnel)
+    AT_SANDBOX = _env_bool("SAFECITY_AT_SANDBOX", False)
+
+    # --- Passerelle SMS HTTP générique (autre fournisseur local RDC) ---
     # Active si SAFECITY_SMS_HTTP_URL est défini. Convient à la plupart des
     # agrégateurs (Vodacom/Airtel/Orange via une API HTTP) : on mappe les noms
     # de champs « destinataire » et « message », plus des paramètres statiques.

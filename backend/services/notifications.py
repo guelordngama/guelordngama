@@ -43,20 +43,60 @@ def send_email_message(to_addrs, subject, body):
 
 
 def sms_configured():
-    """Vrai si une passerelle SMS est configurée (HTTP générique ou Twilio)."""
+    """Vrai si une passerelle SMS est configurée (Africa's Talking, HTTP, Twilio)."""
     cfg = current_app.config
-    return bool(cfg.get("SMS_HTTP_URL") or (cfg.get("TWILIO_SID") and cfg.get("TWILIO_FROM")))
+    return bool(
+        (cfg.get("AT_USERNAME") and cfg.get("AT_API_KEY"))
+        or cfg.get("SMS_HTTP_URL")
+        or (cfg.get("TWILIO_SID") and cfg.get("TWILIO_FROM"))
+    )
 
 
 def send_sms(to, text):
     """Envoie un SMS à un destinataire via la passerelle configurée. Lève en cas d'échec."""
     cfg = current_app.config
-    if cfg.get("SMS_HTTP_URL"):
+    if cfg.get("AT_USERNAME") and cfg.get("AT_API_KEY"):
+        _send_sms_africastalking(to, text, cfg)
+    elif cfg.get("SMS_HTTP_URL"):
         _send_sms_http(to, text, cfg)
     elif cfg.get("TWILIO_SID") and cfg.get("TWILIO_FROM"):
         _send_sms_twilio(to, text, cfg)
     else:
         raise RuntimeError("Aucune passerelle SMS configurée.")
+
+
+def _send_sms_africastalking(to, text, cfg):
+    """Envoi d'un SMS via l'API Africa's Talking (couverture RDC).
+
+    Doc : https://developers.africastalking.com/docs/sms/sending/bulk
+    """
+    import json as _json
+
+    username = cfg["AT_USERNAME"]
+    sandbox = cfg.get("AT_SANDBOX") or username == "sandbox"
+    base = "https://api.sandbox.africastalking.com" if sandbox else "https://api.africastalking.com"
+    url = base + "/version1/messaging"
+
+    params = {"username": username, "to": to, "message": text}
+    if cfg.get("AT_SENDER"):
+        params["from"] = cfg["AT_SENDER"]
+
+    req = urllib.request.Request(
+        url, data=urllib.parse.urlencode(params).encode(), method="POST")
+    req.add_header("apiKey", cfg["AT_API_KEY"])
+    req.add_header("Content-Type", "application/x-www-form-urlencoded")
+    req.add_header("Accept", "application/json")
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        body = resp.read().decode("utf-8", "ignore")
+
+    # Vérifie le statut de livraison (101=Sent, 100=Processed, 102=Queued = OK).
+    try:
+        recipients = _json.loads(body).get("SMSMessageData", {}).get("Recipients", [])
+    except ValueError:
+        recipients = []
+    if recipients and recipients[0].get("statusCode") not in (100, 101, 102):
+        raise RuntimeError(
+            f"Africa's Talking a refusé l'envoi : {recipients[0].get('status')}")
 
 
 def _send_sms_http(to, text, cfg):

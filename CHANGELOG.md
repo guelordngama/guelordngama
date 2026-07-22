@@ -2,6 +2,16 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [3.8.1] — Connecteur SMS Africa's Talking
+
+### Ajouté
+- **Connecteur SMS Africa's Talking** (couverture RDC) pour l'envoi des codes de
+  vérification (OTP), sans dépendance supplémentaire. Configuration
+  `SAFECITY_AT_USERNAME` / `SAFECITY_AT_API_KEY` (+ sender ID et mode bac à sable
+  optionnels). Vérifie le statut de livraison renvoyé par l'API et lève une
+  erreur claire en cas de refus. Priorité : Africa's Talking → passerelle HTTP
+  générique → Twilio. Documentation et checklist mises à jour.
+
 ## [3.8.0] — Conformité & confidentialité
 
 ### Ajouté

@@ -14,8 +14,9 @@ Suivez les étapes **dans l'ordre**. Cochez au fur et à mesure. Temps estimé :
   - **sslip.io** (aucun réglage) : `169-58-47-76.sslip.io`.
 - [ ] **Un compte Gmail + « mot de passe d'application »** (pour « mot de passe
   oublié ») — [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords).
-- [ ] **Une passerelle SMS** (fournisseur local RDC) avec son URL + clé API, pour
-  la vérification des numéros (OTP). *(Peut être ajoutée plus tard.)*
+- [ ] **Un compte SMS Africa's Talking** ([africastalking.com](https://africastalking.com))
+  pour la vérification des numéros (OTP) : notez votre **username** et votre
+  **API key**. Testez d'abord avec `username=sandbox`. *(Peut être ajouté plus tard.)*
 - [ ] **Générer deux secrets** (gardez-les de côté) :
   ```bash
   python3 -c "import secrets; print(secrets.token_hex(32))"   # SECRET_KEY
@@ -81,8 +82,10 @@ SAFECITY_SMTP_TLS=true
 SAFECITY_SMTP_USER=<votre-gmail>
 SAFECITY_SMTP_PASSWORD=<mot-de-passe-application-16-car>
 SAFECITY_SMTP_FROM=<votre-gmail>
-SAFECITY_SMS_HTTP_URL=<url-de-votre-passerelle-sms>       # OTP (vérif. téléphone)
-SAFECITY_SMS_HTTP_EXTRA=api_key=<votre-clé>&sender=SafeCity
+SAFECITY_AT_USERNAME=<votre-username-africastalking>     # OTP (vérif. téléphone)
+SAFECITY_AT_API_KEY=<votre-clé-api-africastalking>
+SAFECITY_AT_SENDER=SafeCity                               # sender ID (optionnel)
+SAFECITY_AT_SANDBOX=false                                 # true pour tester d'abord
 SAFECITY_SENTRY_DSN=<dsn-sentry>                          # (optionnel) alertes d'erreurs
 SAFECITY_RETENTION_DAYS=365                               # conservation des alertes
 ```
@@ -152,7 +155,7 @@ Les **migrations s'appliquent automatiquement** — aucune perte de données.
 |---|---|
 | Certificat HTTPS non émis | DNS ne pointe pas sur l'IP / ports 80-443 fermés |
 | « no such column » | reconstruire l'image : `up -d --build` (migrations) |
-| SMS/OTP non reçu | `SAFECITY_SMS_HTTP_*` mal réglé — voir logs `… logs -f backend` |
+| SMS/OTP non reçu | Vérifier `SAFECITY_AT_USERNAME`/`AT_API_KEY` + solde Africa's Talking ; logs `… logs -f backend` |
 | E-mail non envoyé | mot de passe **d'application** Gmail requis (pas le mot de passe habituel) |
 | Voir les logs | `docker compose --env-file deploy/.env.prod -f docker-compose.prod.yml logs -f backend` |
 
