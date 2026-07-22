@@ -7,10 +7,10 @@ de téléphone.
 import logging
 import secrets
 
-from ..errors import ConflictError, ServiceUnavailableError
+from ..errors import AuthError, ConflictError, ForbiddenError, ServiceUnavailableError
 from ..extensions import db
 from ..models import User
-from ..security import hash_password
+from ..security import hash_password, verify_password
 
 log = logging.getLogger("safecity")
 
@@ -65,9 +65,21 @@ def register_citizen(payload):
 def register_staff(payload):
     """Crée un compte personnel (rôle **opérateur**) depuis la console bureau.
 
-    `payload` : {name, email, password, phone?}. L'e-mail sert d'identifiant de
-    connexion et doit être unique. Lève ConflictError si e-mail/téléphone déjà pris.
+    `payload` : {name, email, password, phone?, invite_code}. Un **code
+    d'invitation** valide est exigé (sécurité). Si aucun code n'est configuré
+    côté serveur, l'auto-inscription est désactivée. L'e-mail sert d'identifiant
+    de connexion et doit être unique.
     """
+    from flask import current_app
+
+    required_code = current_app.config.get("STAFF_INVITE_CODE", "")
+    if not required_code:
+        raise ForbiddenError(
+            "La création de compte est désactivée. Contactez l'administrateur "
+            "pour obtenir un accès.")
+    if (payload.get("invite_code") or "") != required_code:
+        raise ForbiddenError("Code d'invitation invalide.")
+
     email = payload["email"]
     if User.query.filter_by(email=email).first():
         raise ConflictError(
@@ -153,3 +165,16 @@ def request_password_reset(email):
     user.password_hash = hash_password(temp)
     db.session.commit()
     log.info("Mot de passe réinitialisé et envoyé par e-mail pour #%s", user.id)
+
+
+def change_password(user_id, current_password, new_password):
+    """Change le mot de passe d'un utilisateur connecté (après vérification)."""
+    user = User.query.get(user_id)
+    if not user:
+        raise AuthError("Utilisateur introuvable.")
+    if not verify_password(current_password, user.password_hash):
+        raise AuthError("Mot de passe actuel incorrect.")
+    user.password_hash = hash_password(new_password)
+    db.session.commit()
+    log.info("Mot de passe changé pour #%s", user.id)
+    return user

@@ -69,6 +69,12 @@ class Config:
     DEFAULT_PATROL_LAT = float(os.environ.get("SAFECITY_PATROL_LAT", "-4.3250"))
     DEFAULT_PATROL_LNG = float(os.environ.get("SAFECITY_PATROL_LNG", "15.3222"))
 
+    # --- Création de comptes personnels (console bureau) ---
+    # Code d'invitation exigé pour créer un compte opérateur depuis le bureau.
+    # Si vide, l'auto-inscription du personnel est DÉSACTIVÉE (sécurité par
+    # défaut) : seuls les administrateurs créent des comptes (backend.manage).
+    STAFF_INVITE_CODE = os.environ.get("SAFECITY_STAFF_INVITE_CODE", "").strip()
+
     # --- Compte opérateur de démonstration (désactivable en production) ---
     SEED_DEMO_OPERATOR = _env_bool("SAFECITY_SEED_DEMO", True)
     DEMO_OPERATOR_EMAIL = os.environ.get("SAFECITY_DEMO_EMAIL", "operateur@safecity.local")

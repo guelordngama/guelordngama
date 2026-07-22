@@ -53,17 +53,23 @@ class ApiClient:
         self.token = res.get("token")
         return res.get("user")
 
-    def register_staff(self, name, email, password, phone=""):
+    def register_staff(self, name, email, password, phone="", invite_code=""):
         """Crée un compte personnel (rôle opérateur) et connecte directement."""
         res = self._request("POST", "/api/auth/register-staff",
-                            {"name": name, "email": email,
-                             "password": password, "phone": phone})
+                            {"name": name, "email": email, "password": password,
+                             "phone": phone, "invite_code": invite_code})
         self.token = res.get("token")
         return res.get("user")
 
     def forgot_password(self, email):
         """Demande l'envoi d'un mot de passe de réinitialisation par e-mail."""
         return self._request("POST", "/api/auth/forgot-password", {"email": email})
+
+    def change_password(self, current_password, new_password):
+        """Change le mot de passe de l'utilisateur connecté."""
+        return self._request("POST", "/api/auth/change-password",
+                             {"current_password": current_password,
+                              "new_password": new_password}, auth=True)
 
     def get_alerts(self, status=None, filters=None):
         import urllib.parse

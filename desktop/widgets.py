@@ -86,6 +86,9 @@ class Card(QFrame):
     def add(self, w):
         self.v.addWidget(w)
 
+    def add_layout(self, layout):
+        self.v.addLayout(layout)
+
 
 class Badge(QLabel):
     """Petite étiquette colorée (urgence, statut)."""

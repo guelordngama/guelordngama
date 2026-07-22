@@ -947,8 +947,12 @@ class ReportsPage(QWidget):
 
 
 class SettingsPage(QWidget):
+    change_password = Signal(str, str)  # (mot de passe actuel, nouveau)
+
     def __init__(self, api_base, operator):
         super().__init__()
+        from PySide6.QtWidgets import QFormLayout, QLineEdit
+
         root = QVBoxLayout(self)
         root.setContentsMargins(24, 20, 24, 24)
         root.setSpacing(16)
@@ -960,7 +964,49 @@ class SettingsPage(QWidget):
         card.add(QLabel(f"<b>Permissions :</b> {perms}"))
         card.add(QLabel("<b>Thème :</b> Sombre — Centre de commandement"))
         root.addWidget(card)
+
+        # --- Changer mon mot de passe ---
+        pw_card = Card("🔒 Changer mon mot de passe")
+        form = QFormLayout()
+        form.setSpacing(10)
+        self.pw_current = QLineEdit(); self.pw_current.setEchoMode(QLineEdit.Password)
+        self.pw_current.setPlaceholderText("Mot de passe actuel")
+        self.pw_new = QLineEdit(); self.pw_new.setEchoMode(QLineEdit.Password)
+        self.pw_new.setPlaceholderText("Nouveau (min. 6 caractères)")
+        self.pw_new2 = QLineEdit(); self.pw_new2.setEchoMode(QLineEdit.Password)
+        self.pw_new2.setPlaceholderText("Confirmer le nouveau")
+        form.addRow("Actuel", self.pw_current)
+        form.addRow("Nouveau", self.pw_new)
+        form.addRow("Confirmer", self.pw_new2)
+        pw_card.add_layout(form)
+        self.pw_info = QLabel(""); self.pw_info.setObjectName("muted"); self.pw_info.setWordWrap(True)
+        pw_card.add(self.pw_info)
+        btn = QPushButton("Modifier le mot de passe"); btn.setObjectName("success")
+        btn.clicked.connect(self._submit_password)
+        pw_card.add(btn)
+        root.addWidget(pw_card)
         root.addStretch()
+
+    def _submit_password(self):
+        cur, new, new2 = self.pw_current.text(), self.pw_new.text(), self.pw_new2.text()
+        if not cur or not new:
+            self._pw_msg("Renseignez le mot de passe actuel et le nouveau.", err=True); return
+        if len(new) < 6:
+            self._pw_msg("Le nouveau mot de passe doit contenir au moins 6 caractères.", err=True); return
+        if new != new2:
+            self._pw_msg("Les deux nouveaux mots de passe ne correspondent pas.", err=True); return
+        self.change_password.emit(cur, new)
+
+    def _pw_msg(self, text, err=False):
+        self.pw_info.setText(text)
+        self.pw_info.setStyleSheet("color: #ff8181;" if err else "color: #22c55e;")
+
+    def password_changed_ok(self):
+        self.pw_current.clear(); self.pw_new.clear(); self.pw_new2.clear()
+        self._pw_msg("✅ Mot de passe modifié avec succès.")
+
+    def password_change_failed(self, message):
+        self._pw_msg("Échec : " + message, err=True)
 
 
 class AboutPage(QWidget):

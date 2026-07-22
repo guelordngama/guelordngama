@@ -201,12 +201,15 @@ class LoginDialog(QDialog):
         self.r_pass2 = QLineEdit()
         self.r_pass2.setEchoMode(QLineEdit.Password)
         self.r_pass2.setPlaceholderText("Confirmer le mot de passe")
-        self.r_pass2.returnPressed.connect(self._try_register)
+        self.r_invite = QLineEdit()
+        self.r_invite.setPlaceholderText("Fourni par l'administrateur")
+        self.r_invite.returnPressed.connect(self._try_register)
         form.addRow("Nom", self.r_name)
         form.addRow("Email", self.r_email)
         form.addRow("Téléphone", self.r_phone)
         form.addRow("Mot de passe", self.r_pass)
         form.addRow("Confirmer", self.r_pass2)
+        form.addRow("Code d'invitation", self.r_invite)
         lay.addLayout(form)
 
         btn = QPushButton("Créer le compte (opérateur)")
@@ -214,7 +217,8 @@ class LoginDialog(QDialog):
         btn.clicked.connect(self._try_register)
         lay.addWidget(btn)
 
-        hint = QLabel("Le compte créé a le rôle « opérateur » (voir/affecter/clôturer les alertes).")
+        hint = QLabel("Compte de rôle « opérateur ». Un code d'invitation "
+                      "(fourni par l'administrateur) est requis.")
         hint.setObjectName("muted")
         hint.setWordWrap(True)
         lay.addWidget(hint)
@@ -240,7 +244,9 @@ class LoginDialog(QDialog):
             self._error("Les deux mots de passe ne correspondent pas.")
             return
         try:
-            self.user = self.api.register_staff(name, email, pwd, self.r_phone.text().strip())
+            self.user = self.api.register_staff(
+                name, email, pwd, self.r_phone.text().strip(),
+                self.r_invite.text().strip())
             self.accept()
         except Exception as e:
             self._error("Création impossible : " + _api_error_message(e))
@@ -483,6 +489,7 @@ class MainWindow(QWidget):
         self.page_agents.request_route.connect(self._route_agent)
         self.page_agents.request_history.connect(self._agent_history)
         self.page_chat.send.connect(self._send_message)
+        self.page_settings.change_password.connect(self._change_password)
         self.page_history.export_csv.connect(lambda: self._export_history("csv"))
         self.page_history.export_xlsx.connect(lambda: self._export_history("xlsx"))
 
@@ -611,6 +618,13 @@ class MainWindow(QWidget):
             self.api.send_message(text, attachment=attachment or None)
         except Exception as e:
             QMessageBox.warning(self, "Messagerie", str(e))
+
+    def _change_password(self, current, new):
+        try:
+            self.api.change_password(current, new)
+            self.page_settings.password_changed_ok()
+        except Exception as e:
+            self.page_settings.password_change_failed(_api_error_message(e))
 
     def _on_chat_message(self, msg):
         self.page_chat.add_message(msg)

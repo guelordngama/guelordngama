@@ -483,9 +483,11 @@ def test_login_wrong_password_is_generic():
 
 
 def test_register_staff_creates_operator():
-    _, client = make_client()
+    app, client = make_client()
+    app.config["STAFF_INVITE_CODE"] = "CODE"
     r = client.post("/api/auth/register-staff", json={
-        "name": "Georges", "email": "georges@safecity.local", "password": "secret1"})
+        "name": "Georges", "email": "georges@safecity.local", "password": "secret1",
+        "invite_code": "CODE"})
     assert r.status_code == 201
     assert r.get_json()["user"]["role"] == "operator"
     # L'opérateur peut se connecter par e-mail.
@@ -495,13 +497,57 @@ def test_register_staff_creates_operator():
 
 
 def test_register_staff_duplicate_email_conflict():
-    _, client = make_client()
+    app, client = make_client()
+    app.config["STAFF_INVITE_CODE"] = "CODE"
     client.post("/api/auth/register-staff", json={
-        "name": "A", "email": "dup@safecity.local", "password": "secret1"})
+        "name": "A", "email": "dup@safecity.local", "password": "secret1", "invite_code": "CODE"})
     dup = client.post("/api/auth/register-staff", json={
-        "name": "B", "email": "dup@safecity.local", "password": "secret2"})
+        "name": "B", "email": "dup@safecity.local", "password": "secret2", "invite_code": "CODE"})
     assert dup.status_code == 409
     assert dup.get_json()["error"]["details"]["field"] == "email"
+
+
+def test_staff_signup_disabled_without_invite_code():
+    # Par défaut (aucun code configuré), l'auto-inscription est désactivée.
+    app, client = make_client()
+    assert not app.config["STAFF_INVITE_CODE"]
+    r = client.post("/api/auth/register-staff", json={
+        "name": "G", "email": "g@x.com", "password": "secret1"})
+    assert r.status_code == 403
+
+
+def test_staff_signup_requires_valid_invite_code():
+    app, client = make_client()
+    app.config["STAFF_INVITE_CODE"] = "MAIRIE2026"
+    bad = client.post("/api/auth/register-staff", json={
+        "name": "G", "email": "g@x.com", "password": "secret1", "invite_code": "X"})
+    assert bad.status_code == 403
+    ok = client.post("/api/auth/register-staff", json={
+        "name": "G", "email": "g@x.com", "password": "secret1", "invite_code": "MAIRIE2026"})
+    assert ok.status_code == 201
+
+
+def test_change_password_flow():
+    app, client = make_client()
+    app.config["STAFF_INVITE_CODE"] = "CODE"
+    client.post("/api/auth/register-staff", json={
+        "name": "G", "email": "g@x.com", "password": "secret1", "invite_code": "CODE"})
+    token = client.post("/api/auth/login", json={
+        "email": "g@x.com", "password": "secret1"}).get_json()["token"]
+    h = {"Authorization": "Bearer " + token}
+    # Mauvais mot de passe actuel → 401.
+    assert client.post("/api/auth/change-password", json={
+        "current_password": "faux", "new_password": "nouveau1"}, headers=h).status_code == 401
+    # Correct → 200, l'ancien ne marche plus, le nouveau oui.
+    assert client.post("/api/auth/change-password", json={
+        "current_password": "secret1", "new_password": "nouveau1"}, headers=h).status_code == 200
+    assert client.post("/api/auth/login", json={
+        "email": "g@x.com", "password": "secret1"}).status_code == 401
+    assert client.post("/api/auth/login", json={
+        "email": "g@x.com", "password": "nouveau1"}).status_code == 200
+    # Sans authentification → 401.
+    assert client.post("/api/auth/change-password", json={
+        "current_password": "x", "new_password": "yyyyyy"}).status_code == 401
 
 
 def test_forgot_password_without_smtp_returns_503():

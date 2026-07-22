@@ -2,6 +2,23 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [3.5.0] — Sécurité des comptes (vers un usage réel)
+
+### Ajouté
+- **Création de compte opérateur contrôlée** : le bouton « Créer un compte » du
+  poste opérateur exige désormais un **code d'invitation**
+  (`SAFECITY_STAFF_INVITE_CODE`). Si aucun code n'est configuré, l'auto-
+  inscription est **désactivée** (403) — sécurité par défaut ; les comptes se
+  créent alors via `python -m backend.manage create-admin`. Champ « Code
+  d'invitation » ajouté à l'onglet d'inscription.
+- **Changement de mot de passe en libre-service** : section « 🔒 Changer mon mot
+  de passe » dans les Paramètres du poste opérateur (vérifie le mot de passe
+  actuel). Endpoint `POST /api/auth/change-password` (utilisateur connecté).
+
+### Sécurité
+- L'auto-inscription du personnel n'est plus ouverte à tous : un centre de
+  surveillance ne peut plus être rejoint sans code d'invitation valide.
+
 ## [3.4.1] — Messagerie type WhatsApp (poste opérateur)
 
 ### Modifié

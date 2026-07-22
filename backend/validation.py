@@ -157,8 +157,24 @@ def validate_staff_register_payload(data):
         raise ValidationError("Le mot de passe doit contenir au moins 6 caractères.")
 
     phone = normalize_phone(data.get("phone")) or None
+    invite_code = clean_text(data.get("invite_code"), 100)
 
-    return {"name": name, "email": email, "password": password, "phone": phone}
+    return {"name": name, "email": email, "password": password,
+            "phone": phone, "invite_code": invite_code}
+
+
+def validate_change_password_payload(data):
+    """Valide un changement de mot de passe (utilisateur connecté)."""
+    data = require_dict(data)
+    current = data.get("current_password") or ""
+    new = data.get("new_password") or ""
+    if not current:
+        raise ValidationError("Le mot de passe actuel est requis.")
+    if len(new) < 6:
+        raise ValidationError("Le nouveau mot de passe doit contenir au moins 6 caractères.")
+    if new == current:
+        raise ValidationError("Le nouveau mot de passe doit être différent de l'actuel.")
+    return current, new
 
 
 def validate_email_only(data):

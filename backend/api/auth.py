@@ -1,12 +1,18 @@
 """Authentification : inscription citoyenne et connexion (citoyens + personnels)."""
-from flask import Blueprint, current_app, jsonify, request
+from flask import Blueprint, current_app, g, jsonify, request
 
 from ..errors import AuthError
 from ..models import User
-from ..security import generate_token, rate_limit, verify_password
-from ..services.auth import register_citizen, register_staff, request_password_reset
+from ..security import generate_token, rate_limit, require_auth, verify_password
+from ..services.auth import (
+    change_password,
+    register_citizen,
+    register_staff,
+    request_password_reset,
+)
 from ..validation import (
     _is_email,
+    validate_change_password_payload,
     validate_email_only,
     validate_login_payload,
     validate_register_payload,
@@ -68,6 +74,15 @@ def _do_forgot_password():
         "message": "Si un compte existe pour cet e-mail, un mot de passe de "
                    "réinitialisation vient d'être envoyé. Vérifiez votre boîte Gmail."
     })
+
+
+@bp.post("/change-password")
+@require_auth()
+def change_password_route():
+    """Change le mot de passe de l'utilisateur connecté (bureau / portail)."""
+    current, new = validate_change_password_payload(request.get_json(silent=True))
+    change_password(int(g.user["sub"]), current, new)
+    return jsonify({"message": "Mot de passe modifié avec succès."})
 
 
 @bp.post("/login")
