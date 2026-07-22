@@ -47,6 +47,10 @@ def _item(text, color=None, bold=False):
     it = QTableWidgetItem(str(text))
     if color:
         it.setForeground(QColor(color))
+    if bold:
+        f = it.font()
+        f.setBold(True)
+        it.setFont(f)
     return it
 
 
@@ -263,6 +267,8 @@ class LiveAlertsPage(QWidget):
         self.table.cellDoubleClicked.connect(self._on_double)
         root.addWidget(self.table, 1)
 
+        self._unread = set()  # ids des alertes non lues par l'opérateur
+
         actions = QHBoxLayout()
         actions.setSpacing(10)
         b_view = QPushButton("👁️ Détails de l'incident")
@@ -287,11 +293,21 @@ class LiveAlertsPage(QWidget):
         b_close.clicked.connect(lambda: self._emit(self.request_close))
 
     def set_alerts(self, alerts, searching=False):
-        _fill_alert_table(self.table, alerts, with_citizen=True)
+        _fill_alert_table(self.table, alerts, with_citizen=True, unread_ids=self._unread)
         if searching:
             self.result_label.setText(f"🔎 {len(alerts)} résultat(s) pour la recherche")
         else:
             self.result_label.setText("")
+
+    # ---- Marquage « non lu » par alerte ----
+    def mark_unread(self, alert_id):
+        self._unread.add(alert_id)
+
+    def mark_read(self, alert_id):
+        self._unread.discard(alert_id)
+
+    def unread_count(self):
+        return len(self._unread)
 
     def _selected_id(self):
         items = self.table.selectedItems()
@@ -526,6 +542,11 @@ class AgentsPage(QWidget):
         self.table.cellDoubleClicked.connect(lambda *_: self._with_selected(self.request_edit))
         root.addWidget(self.table, 1)
         self.agents = {}
+        self._unread = set()  # ids des agents modifiés non encore consultés
+
+    def set_unread(self, ids):
+        self._unread = set(ids)
+        self._render()
 
     def _selected_agent(self):
         items = self.table.selectedItems()
@@ -568,9 +589,12 @@ class AgentsPage(QWidget):
                 (a.get("phone") or "—", None),
                 (pos, None), (interv, "#f97316" if interv != "—" else theme.MUTED), (seen, theme.MUTED),
             ]
+            is_unread = a["id"] in self._unread
             for j, (text, color) in enumerate(cells):
-                item = _item(text, color)
+                item = _item(text, color, bold=is_unread)
                 item.setData(Qt.UserRole, a["id"])
+                if is_unread:
+                    item.setBackground(QColor(theme.ACCENT + "22"))
                 self.table.setItem(i, j, item)
         self.c_total.set_value(len(agents))
         self.c_avail.set_value(n_av); self.c_busy.set_value(n_bu); self.c_offline.set_value(n_of)
@@ -753,19 +777,37 @@ class ChatPage(QWidget):
             self._attachment = None
             self.attach_label.setText("")
 
-    def set_messages(self, msgs):
+    def set_messages(self, msgs, unread_ids=None):
+        unread_ids = unread_ids or set()
         self.view.clear()
+        divider_done = False
         for m in msgs:
-            self._append(m)
+            is_unread = m.get("id") in unread_ids
+            if is_unread and not divider_done:
+                self._append_divider("Nouveaux messages")
+                divider_done = True
+            self._append(m, unread=is_unread)
 
     def add_message(self, m):
         self._append(m)
 
-    def _append(self, m):
+    def _append_divider(self, label):
+        html = (
+            f'<table width="100%" cellspacing="0" cellpadding="0"><tr><td align="center" '
+            f'style="color:{theme.ACCENT_2}; font-size:11px; font-weight:bold; padding:6px;">'
+            f'── {label} ──</td></tr></table>'
+        )
+        self.view.append(html)
+
+    def _append(self, m, unread=False):
         mine = m.get("sender_id") == self.me_id
         role = (m.get("sender_role") or "").capitalize()
         color = theme.ACCENT if mine else theme.ACCENT_2
         name = "Moi" if mine else f"{m.get('sender_name')} · {role}"
+        if unread:
+            name = "🔵 " + name
+        bg = f"{color}33" if unread else f"{color}18"  # fond plus marqué si non lu
+        border = "5px" if unread else "3px"
         text = (m.get("text") or "").replace("<", "&lt;").replace(">", "&gt;")
         body = f'<span style="color:{theme.TEXT};">{text}</span>' if text else ""
         if m.get("attachment_url"):
@@ -774,7 +816,7 @@ class ChatPage(QWidget):
                      f'📎 Voir la pièce jointe</a>')
         html = (
             f'<table width="100%" cellspacing="0" cellpadding="0"><tr><td '
-            f'style="border-left:3px solid {color}; padding:5px 12px; background:{color}18;">'
+            f'style="border-left:{border} solid {color}; padding:5px 12px; background:{bg};">'
             f'<span style="color:{color}; font-size:11px; font-weight:bold;">{name}</span>'
             f'<span style="color:{theme.MUTED}; font-size:11px;"> · {m.get("time","")}</span><br>'
             f'{body}</td></tr></table>'
@@ -957,19 +999,24 @@ class AboutPage(QWidget):
 # --------------------------------------------------------------------------- #
 # Helpers de remplissage
 # --------------------------------------------------------------------------- #
-def _fill_alert_table(table, alerts, with_citizen=False, hide_distance=False):
+def _fill_alert_table(table, alerts, with_citizen=False, hide_distance=False, unread_ids=None):
+    unread_ids = unread_ids or set()
     table.setRowCount(len(alerts))
     for i, a in enumerate(alerts):
         col = 0
+        is_unread = a["id"] in unread_ids
 
         def put(text, color=None):
             nonlocal col
-            it = _item(text, color)
+            it = _item(text, color, bold=is_unread)
             it.setData(Qt.UserRole, a["id"])
+            if is_unread:
+                it.setBackground(QColor(theme.ACCENT + "22"))  # fond teinté « non lu »
             table.setItem(i, col, it)
             col += 1
 
-        put(a.get("time", "—"))
+        time_txt = a.get("time", "—")
+        put(("● " + time_txt) if is_unread else time_txt)
         put((a.get("type") or "").capitalize())
         if with_citizen:
             put(a.get("reporter_name") or "Anonyme")

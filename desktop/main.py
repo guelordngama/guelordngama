@@ -351,6 +351,11 @@ class Sidebar(QFrame):
             self._unread[idx] = 0
             self._refresh_badge(idx)
 
+    def set_badge(self, idx, count):
+        """Fixe le compteur « non lu » à une valeur absolue (piloté par des ensembles)."""
+        self._unread[idx] = max(0, int(count))
+        self._refresh_badge(idx)
+
     def _refresh_badge(self, idx):
         btn = self.group.button(idx)
         if not btn:
@@ -377,6 +382,9 @@ class MainWindow(QWidget):
         self.alerts = {}
         self.teams = []
         self._open_popups = {}
+        # Ensembles d'ids « non lus » (messages reçus / agents modifiés hors page).
+        self._unread_msg_ids = set()
+        self._unread_agent_ids = set()
 
         self.setObjectName("root")
         self.setWindowTitle("SafeCity — Centre de commandement")
@@ -487,16 +495,17 @@ class MainWindow(QWidget):
     def _navigate(self, idx):
         self.stack.setCurrentIndex(idx)
         self.sidebar.select(idx)
-        self.sidebar.clear_badge(idx)  # consulter la section efface son badge
         self.page_title.setText(Sidebar.ITEMS[idx][1])
-        if idx == 3:
-            self._load_agents()
+        if idx == self.IDX_AGENTS:
+            self._load_agents()  # affiche puis efface les « non lus » agents
         elif idx == 4:
             self._load_citizens()
         elif idx == 7:
             self._load_analytics(self.page_analytics.period.currentData())
-        elif idx == 9:
-            self._load_messages()
+        elif idx == self.IDX_CHAT:
+            self._load_messages()  # affiche puis efface les « non lus » messages
+        # Les alertes gardent leur marquage par élément (effacé à l'ouverture de
+        # chaque incident) ; les autres sections n'ont pas de badge.
 
     # ---- Chargement initial ----
     def _load_initial(self):
@@ -514,6 +523,11 @@ class MainWindow(QWidget):
         try:
             agents = self.api.get_agents()
             self.page_agents.set_agents(agents)
+            # Surligne les agents modifiés hors page, puis efface leur badge.
+            self.page_agents.set_unread(self._unread_agent_ids)
+            if self._unread_agent_ids:
+                self._unread_agent_ids = set()
+                self.sidebar.set_badge(self.IDX_AGENTS, 0)
             self.page_map.set_agents(agents)
         except Exception as e:
             QMessageBox.warning(self, "Agents", str(e))
@@ -570,18 +584,25 @@ class MainWindow(QWidget):
         except Exception:
             pass
         if significant and self.stack.currentIndex() != self.IDX_AGENTS:
-            self.sidebar.bump(self.IDX_AGENTS)
+            self._unread_agent_ids.add(agent["id"])
+            self.sidebar.set_badge(self.IDX_AGENTS, len(self._unread_agent_ids))
 
     def _on_agent_deleted(self, agent_id):
         self.page_agents.remove_agent(agent_id)
         self.page_map.set_agents(list(self.page_agents.agents.values()))
         if self.stack.currentIndex() != self.IDX_AGENTS:
-            self.sidebar.bump(self.IDX_AGENTS)
+            self._unread_agent_ids.add(agent_id)
+            self.sidebar.set_badge(self.IDX_AGENTS, len(self._unread_agent_ids))
 
     # ---- Messagerie ----
     def _load_messages(self):
         try:
-            self.page_chat.set_messages(self.api.get_messages(50))
+            msgs = self.api.get_messages(50)
+            # Affiche les messages non lus (surlignés + séparateur), puis efface.
+            self.page_chat.set_messages(msgs, unread_ids=set(self._unread_msg_ids))
+            if self._unread_msg_ids:
+                self._unread_msg_ids = set()
+                self.sidebar.set_badge(self.IDX_CHAT, 0)
         except Exception as e:
             QMessageBox.warning(self, "Messagerie", str(e))
 
@@ -596,7 +617,8 @@ class MainWindow(QWidget):
         # Notification + badge « non lu » si on n'est pas sur la page Messagerie
         # et que le message vient d'un autre utilisateur.
         if self.stack.currentIndex() != self.IDX_CHAT and msg.get("sender_id") != self.operator.get("id"):
-            self.sidebar.bump(self.IDX_CHAT)
+            self._unread_msg_ids.add(msg.get("id"))
+            self.sidebar.set_badge(self.IDX_CHAT, len(self._unread_msg_ids))
             Toast(self, f"💬 {msg.get('sender_name')}: {msg.get('text', '')[:40]}", theme.ACCENT_2).show_for(3500)
 
     # ---- Export de l'historique ----
@@ -736,13 +758,14 @@ class MainWindow(QWidget):
 
     def _on_new_alert(self, alert):
         self.alerts[alert["id"]] = alert
-        self._refresh_all()
+        # Marque l'alerte « non lue » si on ne consulte pas déjà la liste.
+        if self.stack.currentIndex() != self.IDX_ALERTS:
+            self.page_live.mark_unread(alert["id"])
+        self._refresh_all()  # rend la liste avec le style « non lu »
         self.page_map.add_alert(alert)
         # Notification sonore + visuelle + pop-up d'incident
         self.alarm.play()
-        # Badge « non lu » sur « Alertes en direct » si on ne la consulte pas.
-        if self.stack.currentIndex() != self.IDX_ALERTS:
-            self.sidebar.bump(self.IDX_ALERTS)
+        self.sidebar.set_badge(self.IDX_ALERTS, self.page_live.unread_count())
         Toast(self, f"Nouvelle alerte : {alert['type'].capitalize()} ({theme.urgency_label(alert['urgency'])})",
               theme.urgency_color(alert["urgency"])).show_for(5000)
         self._open_incident(alert)
@@ -791,14 +814,23 @@ class MainWindow(QWidget):
         popup.activateWindow()
 
     def _open_incident_by_id(self, alert_id):
+        # Ouverture manuelle (double-clic / « Détails ») → l'alerte est « lue ».
+        self._mark_alert_read(alert_id)
         alert = self.alerts.get(alert_id)
         if alert:
             self._open_incident(alert)
 
     def _acknowledge_incident(self, alert):
         """Alerte prise en compte par l'opérateur : son d'accusé de réception."""
+        self._mark_alert_read(alert["id"])
         self.alarm.play_ack()
         Toast(self, "✅ Incident pris en compte", "#22c55e").show_for(2500)
+
+    def _mark_alert_read(self, alert_id):
+        """Marque une alerte comme lue et rafraîchit la liste + le badge."""
+        self.page_live.mark_read(alert_id)
+        self.sidebar.set_badge(self.IDX_ALERTS, self.page_live.unread_count())
+        self.page_live.set_alerts(self._sorted_alerts())
 
     # ---- Actions opérateur ----
     def _focus_on_map(self, alert_id):

@@ -2,6 +2,23 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [3.4.0] — Marquage « non lu » par élément (poste opérateur)
+
+### Ajouté
+- **Marquage « non lu » de chaque élément** dans le poste opérateur, en plus des
+  badges du menu latéral :
+  - **Alertes en direct** : une nouvelle alerte non consultée s'affiche **en gras
+    avec « ● » et un fond teinté**. Elle devient « lue » quand l'administrateur
+    ouvre son incident (double-clic, « Détails » ou acquittement). Le badge du
+    menu compte les alertes non lues restantes et diminue au fur et à mesure.
+  - **Messagerie** : les messages reçus non lus s'affichent **surlignés (🔵)**
+    avec un séparateur « ── Nouveaux messages ── », puis sont marqués lus à
+    l'ouverture de la section.
+  - **Gestion des agents** : les agents modifiés (disponibilité, ajout/
+    suppression) hors de la page sont **surlignés** à l'ouverture, puis marqués lus.
+- Compteur de badge piloté par des ensembles d'ids réellement non lus
+  (`Sidebar.set_badge`), évitant toute dérive du compteur.
+
 ## [3.3.0] — Comptes & mot de passe oublié (poste opérateur)
 
 ### Ajouté
