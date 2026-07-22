@@ -46,6 +46,12 @@ class User(TimestampMixin, db.Model):
     role = db.Column(db.String(20), default="citizen", nullable=False, index=True)
     active = db.Column(db.Boolean, default=True, nullable=False)
 
+    # --- Vérification du téléphone (OTP par SMS) ---
+    phone_verified = db.Column(db.Boolean, default=False, nullable=False)
+    otp_hash = db.Column(db.String(200))
+    otp_expires_at = db.Column(db.DateTime)
+    otp_attempts = db.Column(db.Integer, default=0)
+
     # --- Suivi opérationnel des agents d'intervention ---
     availability = db.Column(db.String(20), default="offline")  # available|busy|offline
     lat = db.Column(db.Float)
@@ -69,6 +75,7 @@ class User(TimestampMixin, db.Model):
             "email": self.email,
             "role": self.role,
             "active": self.active,
+            "phone_verified": self.phone_verified,
             "permissions": self.permissions,
             "created_at": _iso(self.created_at),
         }

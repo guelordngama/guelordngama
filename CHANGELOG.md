@@ -2,6 +2,29 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [3.6.0] — Vérification du téléphone par SMS (OTP)
+
+### Ajouté
+- **Vérification obligatoire du numéro de téléphone du citoyen par code SMS**
+  pour lutter contre les fausses alertes :
+  - À l'inscription, le compte est créé **non vérifié** et un **code à 6
+    chiffres** est envoyé par SMS. L'app citoyenne affiche un écran de saisie du
+    code (avec « Renvoyer le code »). Endpoints `POST /api/auth/verify-otp` et
+    `POST /api/auth/resend-otp`.
+  - La **connexion est refusée** tant que le numéro n'est pas vérifié
+    (`phone_not_verified`) ; l'app bascule alors automatiquement sur la saisie du
+    code. Code à durée de validité limitée + nombre de tentatives borné.
+- **Passerelle SMS HTTP générique** (`SAFECITY_SMS_HTTP_*`) compatible avec la
+  plupart des agrégateurs locaux (RDC), en plus de Twilio. Repli propre :
+  en développement sans passerelle, le code est journalisé côté serveur ; en
+  production sans passerelle, message clair (`sms_not_configured`).
+
+### Note de migration
+- Le modèle `User` gagne des colonnes (`phone_verified`, champs OTP). En
+  développement SQLite, **supprimez `backend/safecity.db`** (recréé
+  automatiquement) — les migrations Alembic (itération suivante) rendront ces
+  évolutions transparentes.
+
 ## [3.5.0] — Sécurité des comptes (vers un usage réel)
 
 ### Ajouté

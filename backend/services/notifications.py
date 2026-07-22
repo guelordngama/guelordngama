@@ -42,6 +42,65 @@ def send_email_message(to_addrs, subject, body):
         server.send_message(msg)
 
 
+def sms_configured():
+    """Vrai si une passerelle SMS est configurée (HTTP générique ou Twilio)."""
+    cfg = current_app.config
+    return bool(cfg.get("SMS_HTTP_URL") or (cfg.get("TWILIO_SID") and cfg.get("TWILIO_FROM")))
+
+
+def send_sms(to, text):
+    """Envoie un SMS à un destinataire via la passerelle configurée. Lève en cas d'échec."""
+    cfg = current_app.config
+    if cfg.get("SMS_HTTP_URL"):
+        _send_sms_http(to, text, cfg)
+    elif cfg.get("TWILIO_SID") and cfg.get("TWILIO_FROM"):
+        _send_sms_twilio(to, text, cfg)
+    else:
+        raise RuntimeError("Aucune passerelle SMS configurée.")
+
+
+def _send_sms_http(to, text, cfg):
+    """Passerelle SMS HTTP générique (fournisseur local paramétrable)."""
+    import json as _json
+
+    params = {cfg["SMS_HTTP_TO_PARAM"]: to, cfg["SMS_HTTP_TEXT_PARAM"]: text}
+    for pair in (cfg.get("SMS_HTTP_EXTRA") or "").split("&"):
+        if "=" in pair:
+            k, v = pair.split("=", 1)
+            params[k.strip()] = v.strip()
+    headers = {}
+    if cfg.get("SMS_HTTP_AUTH_HEADER"):
+        headers["Authorization"] = cfg["SMS_HTTP_AUTH_HEADER"]
+
+    url = cfg["SMS_HTTP_URL"]
+    method = (cfg.get("SMS_HTTP_METHOD") or "POST").upper()
+    if method == "GET":
+        full = url + ("&" if "?" in url else "?") + urllib.parse.urlencode(params)
+        req = urllib.request.Request(full, headers=headers, method="GET")
+    elif cfg.get("SMS_HTTP_JSON"):
+        headers["Content-Type"] = "application/json"
+        req = urllib.request.Request(
+            url, data=_json.dumps(params).encode(), headers=headers, method="POST")
+    else:
+        headers["Content-Type"] = "application/x-www-form-urlencoded"
+        req = urllib.request.Request(
+            url, data=urllib.parse.urlencode(params).encode(), headers=headers, method="POST")
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        resp.read()
+
+
+def _send_sms_twilio(to, text, cfg):
+    """Envoi d'un SMS unique via l'API Twilio."""
+    url = f"https://api.twilio.com/2010-04-01/Accounts/{cfg['TWILIO_SID']}/Messages.json"
+    data = urllib.parse.urlencode({"From": cfg["TWILIO_FROM"], "To": to, "Body": text}).encode()
+    auth = base64.b64encode(f"{cfg['TWILIO_SID']}:{cfg['TWILIO_TOKEN']}".encode()).decode()
+    req = urllib.request.Request(url, data=data, method="POST")
+    req.add_header("Authorization", f"Basic {auth}")
+    req.add_header("Content-Type", "application/x-www-form-urlencoded")
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        resp.read()
+
+
 def dispatch_alert_notifications(alert):
     """Décide et lance l'envoi des notifications pour une alerte (non bloquant)."""
     cfg = current_app.config

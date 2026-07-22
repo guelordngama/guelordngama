@@ -434,20 +434,60 @@ def test_report_pdf():
 # --------------------------------------------------------------------------- #
 # Inscription / connexion des citoyens
 # --------------------------------------------------------------------------- #
-def test_register_citizen_and_login_by_phone():
-    _, client = make_client()
+def _register_and_verify_citizen(app, client, name, phone, password):
+    """Inscrit un citoyen puis vérifie son téléphone (OTP capté via SMS simulé)."""
+    from backend.services import notifications
+    app.config["SMS_HTTP_URL"] = "http://sms.local/send"  # rend sms_configured() vrai
+    captured = {}
+    notifications.send_sms = lambda to, text: captured.update(text=text)
+    r = client.post("/api/auth/register", json={
+        "name": name, "phone": phone, "password": password})
+    assert r.status_code == 201 and r.get_json()["verification_required"]
+    import re as _re
+    code = _re.search(r"est (\d+)\.", captured["text"]).group(1)
+    v = client.post("/api/auth/verify-otp", json={"phone": phone, "code": code})
+    assert v.status_code == 200
+    return v.get_json()
+
+
+def test_register_requires_otp_then_login_by_phone():
+    app, client = make_client()
+    # L'inscription n'ouvre pas de session : vérification requise.
     r = client.post("/api/auth/register", json={
         "name": "Citoyen Test", "phone": "+243 810 000 111", "password": "secret1"})
     assert r.status_code == 201
-    body = r.get_json()
+    assert r.get_json().get("verification_required") is True
+    assert "token" not in r.get_json()
+    # Sans vérification, la connexion est refusée (phone_not_verified).
+    denied = client.post("/api/auth/login", json={
+        "identifier": "243810000111", "password": "secret1"})
+    assert denied.status_code == 401
+    assert denied.get_json()["error"]["code"] == "phone_not_verified"
+
+
+def test_otp_verification_flow_and_login():
+    app, client = make_client()
+    body = _register_and_verify_citizen(app, client, "Citoyen", "+243810000111", "secret1")
     assert body["user"]["role"] == "citizen"
-    assert body["user"]["phone"] == "+243810000111"
+    assert body["user"]["phone_verified"] is True
     assert body["token"]
-    # Connexion avec le numéro dans un autre format (sans « + », avec tirets).
+    # Connexion possible après vérification (numéro dans un autre format).
     login = client.post("/api/auth/login", json={
         "identifier": "243-810-000-111", "password": "secret1"})
     assert login.status_code == 200
     assert login.get_json()["user"]["id"] == body["user"]["id"]
+
+
+def test_otp_wrong_code_rejected():
+    app, client = make_client()
+    app.config["SMS_HTTP_URL"] = "http://sms.local/send"
+    from backend.services import notifications
+    notifications.send_sms = lambda to, text: None
+    client.post("/api/auth/register", json={
+        "name": "C", "phone": "+243810000222", "password": "secret1"})
+    bad = client.post("/api/auth/verify-otp", json={
+        "phone": "243810000222", "code": "000000"})
+    assert bad.status_code == 401
 
 
 def test_register_duplicate_phone_conflict():

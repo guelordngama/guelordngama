@@ -82,6 +82,21 @@
           <p class="auth-switch">Déjà inscrit ?
             <a href="#" id="go-login">Connectez-vous</a>.</p>
         </form>
+
+        <!-- Formulaire de VÉRIFICATION (code SMS / OTP) -->
+        <form id="form-otp" class="auth-form" hidden>
+          <p class="otp-intro">📲 Un code de vérification a été envoyé par SMS au
+            <strong id="otp-phone">votre numéro</strong>. Saisissez-le pour activer
+            votre compte.</p>
+
+          <label class="field-label" for="otp-code">🔢 Code de vérification</label>
+          <input id="otp-code" type="text" inputmode="numeric" autocomplete="one-time-code"
+                 placeholder="123456" required />
+
+          <button class="btn-primary auth-submit" type="submit">Vérifier mon numéro</button>
+          <p class="auth-switch">Pas reçu de code ?
+            <a href="#" id="otp-resend">Renvoyer le code</a></p>
+        </form>
       </div>
     </section>
 

@@ -57,7 +57,10 @@
     const box = $("auth-error");
     box.textContent = msg;
     box.hidden = !msg;
+    box.style.color = "";  // revient au rouge défini par la CSS
   }
+
+  let pendingOtpPhone = null;
 
   function switchAuthTab(mode) {
     const login = mode === "login";
@@ -65,7 +68,19 @@
     $("tab-register").classList.toggle("active", !login);
     $("form-login").hidden = !login;
     $("form-register").hidden = login;
+    $("form-otp").hidden = true;
     authError("");
+  }
+
+  // Affiche l'écran de saisie du code SMS (vérification du téléphone).
+  function showOtp(phone) {
+    pendingOtpPhone = phone;
+    $("otp-phone").textContent = phone;
+    $("form-login").hidden = true;
+    $("form-register").hidden = true;
+    $("form-otp").hidden = false;
+    $("otp-code").value = "";
+    $("otp-code").focus();
   }
 
   $("tab-login").addEventListener("click", () => switchAuthTab("login"));
@@ -94,6 +109,13 @@
     try {
       const { ok, data } = await authRequest("/api/auth/login", { identifier, password });
       if (!ok) {
+        // Numéro non vérifié : bascule vers la saisie du code et renvoie un code.
+        if (data.error && data.error.code === "phone_not_verified") {
+          authError("");
+          showOtp(identifier);
+          authRequest("/api/auth/resend-otp", { phone: identifier });
+          return;
+        }
         authError((data.error && data.error.message) || "Connexion impossible.");
         return;
       }
@@ -132,11 +154,53 @@
         }
         return;
       }
+      // Inscription réussie → vérification du téléphone par code SMS.
+      if (data.verification_required) {
+        showOtp(data.phone || body.phone);
+        return;
+      }
       onAuthenticated(data);
     } catch (err) {
       authError("Réseau indisponible. Vérifiez votre connexion.");
     } finally {
       btn.disabled = false;
+    }
+  });
+
+  // Vérification du code SMS (OTP)
+  $("form-otp").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = e.target.querySelector("button[type=submit]");
+    btn.disabled = true;
+    authError("");
+    const code = $("otp-code").value.trim();
+    try {
+      const { ok, data } = await authRequest("/api/auth/verify-otp",
+        { phone: pendingOtpPhone, code });
+      if (!ok) {
+        authError((data.error && data.error.message) || "Vérification impossible.");
+        return;
+      }
+      onAuthenticated(data);
+    } catch (err) {
+      authError("Réseau indisponible. Vérifiez votre connexion.");
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  $("otp-resend").addEventListener("click", async (e) => {
+    e.preventDefault();
+    if (!pendingOtpPhone) return;
+    authError("");
+    try {
+      await authRequest("/api/auth/resend-otp", { phone: pendingOtpPhone });
+      const box = $("auth-error");
+      box.textContent = "📩 Un nouveau code vient d'être envoyé.";
+      box.hidden = false;
+      box.style.color = "#8fe3cf";
+    } catch (err) {
+      authError("Réseau indisponible.");
     }
   });
 

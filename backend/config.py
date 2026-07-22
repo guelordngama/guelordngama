@@ -102,6 +102,23 @@ class Config:
     TWILIO_FROM = os.environ.get("SAFECITY_TWILIO_FROM")
     TWILIO_TO = [n.strip() for n in os.environ.get("SAFECITY_TWILIO_TO", "").split(",") if n.strip()]
 
+    # --- Passerelle SMS HTTP générique (fournisseur local RDC) ---
+    # Active si SAFECITY_SMS_HTTP_URL est défini. Convient à la plupart des
+    # agrégateurs (Vodacom/Airtel/Orange via une API HTTP) : on mappe les noms
+    # de champs « destinataire » et « message », plus des paramètres statiques.
+    SMS_HTTP_URL = os.environ.get("SAFECITY_SMS_HTTP_URL")
+    SMS_HTTP_METHOD = os.environ.get("SAFECITY_SMS_HTTP_METHOD", "POST").upper()
+    SMS_HTTP_TO_PARAM = os.environ.get("SAFECITY_SMS_HTTP_TO_PARAM", "to")
+    SMS_HTTP_TEXT_PARAM = os.environ.get("SAFECITY_SMS_HTTP_TEXT_PARAM", "message")
+    SMS_HTTP_JSON = _env_bool("SAFECITY_SMS_HTTP_JSON", False)
+    SMS_HTTP_EXTRA = os.environ.get("SAFECITY_SMS_HTTP_EXTRA", "")  # "api_key=xxx&sender=SafeCity"
+    SMS_HTTP_AUTH_HEADER = os.environ.get("SAFECITY_SMS_HTTP_AUTH_HEADER")  # ex "Bearer xxx"
+
+    # --- Vérification du téléphone (OTP) ---
+    OTP_LENGTH = int(os.environ.get("SAFECITY_OTP_LENGTH", "6"))
+    OTP_TTL_MIN = int(os.environ.get("SAFECITY_OTP_TTL_MIN", "10"))
+    OTP_MAX_ATTEMPTS = int(os.environ.get("SAFECITY_OTP_MAX_ATTEMPTS", "5"))
+
     @property
     def cors_origins_list(self):
         if self.CORS_ORIGINS.strip() == "*":

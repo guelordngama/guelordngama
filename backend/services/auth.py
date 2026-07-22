@@ -6,8 +6,15 @@ de téléphone.
 """
 import logging
 import secrets
+from datetime import datetime, timedelta
 
-from ..errors import AuthError, ConflictError, ForbiddenError, ServiceUnavailableError
+from ..errors import (
+    AuthError,
+    ConflictError,
+    ForbiddenError,
+    ServiceUnavailableError,
+    ValidationError,
+)
 from ..extensions import db
 from ..models import User
 from ..security import hash_password, verify_password
@@ -55,11 +62,103 @@ def register_citizen(payload):
         email=email,
         role="citizen",
         password_hash=hash_password(payload["password"]),
+        phone_verified=False,
     )
     db.session.add(user)
     db.session.commit()
-    log.info("Nouveau compte citoyen #%s (%s)", user.id, phone)
+    log.info("Nouveau compte citoyen #%s (%s) — vérification requise", user.id, phone)
+    send_otp(user)  # envoie le code de vérification par SMS
     return user
+
+
+# --------------------------------------------------------------------------- #
+# Vérification du téléphone (OTP par SMS)
+# --------------------------------------------------------------------------- #
+def _generate_otp(length):
+    return "".join(secrets.choice("0123456789") for _ in range(length))
+
+
+def send_otp(user):
+    """Génère et envoie un code de vérification par SMS au numéro de l'utilisateur.
+
+    Repli : si aucune passerelle SMS n'est configurée, on échoue en production
+    (503) mais on journalise le code en développement pour permettre les tests.
+    """
+    from flask import current_app
+
+    from . import notifications
+
+    cfg = current_app.config
+    code = _generate_otp(cfg["OTP_LENGTH"])
+    user.otp_hash = hash_password(code)
+    user.otp_expires_at = datetime.utcnow() + timedelta(minutes=cfg["OTP_TTL_MIN"])
+    user.otp_attempts = 0
+    db.session.commit()
+
+    text = (f"SafeCity : votre code de vérification est {code}. "
+            f"Valable {cfg['OTP_TTL_MIN']} minutes.")
+    if notifications.sms_configured():
+        try:
+            notifications.send_sms(user.phone, text)
+            log.info("OTP envoyé par SMS au compte #%s", user.id)
+        except Exception as e:  # pragma: no cover - dépend du réseau/passerelle
+            log.warning("Échec envoi OTP (#%s) : %s", user.id, e)
+            raise ServiceUnavailableError(
+                "Impossible d'envoyer le code de vérification par SMS. Réessayez "
+                "plus tard ou contactez l'administrateur.",
+                code="sms_send_failed", status_code=502)
+    elif str(cfg.get("ENV", "development")).lower() == "production":
+        raise ServiceUnavailableError(
+            "La vérification par SMS n'est pas configurée sur le serveur.",
+            code="sms_not_configured")
+    else:
+        # Développement : aucun SMS configuré → code visible dans les logs serveur.
+        log.warning("SMS non configuré — CODE OTP (DEV) pour %s : %s", user.phone, code)
+
+
+def verify_otp(phone, code):
+    """Vérifie le code OTP et active le compte (phone_verified=True).
+
+    Retourne l'utilisateur vérifié, ou lève une erreur (code incorrect/expiré,
+    trop de tentatives).
+    """
+    from flask import current_app
+
+    from ..validation import normalize_phone
+
+    phone_n = normalize_phone(phone)
+    user = User.query.filter(User.phone.in_(_phone_candidates(phone_n))).first()
+    if not user:
+        raise AuthError("Compte introuvable pour ce numéro.")
+    if user.phone_verified:
+        return user  # déjà vérifié (idempotent)
+    if not user.otp_hash or not user.otp_expires_at or datetime.utcnow() > user.otp_expires_at:
+        raise ValidationError("Code expiré. Demandez un nouveau code.")
+    if (user.otp_attempts or 0) >= current_app.config["OTP_MAX_ATTEMPTS"]:
+        raise ValidationError("Trop de tentatives. Demandez un nouveau code.")
+    if not verify_password(code, user.otp_hash):
+        user.otp_attempts = (user.otp_attempts or 0) + 1
+        db.session.commit()
+        raise AuthError("Code de vérification incorrect.")
+
+    user.phone_verified = True
+    user.otp_hash = None
+    user.otp_expires_at = None
+    user.otp_attempts = 0
+    db.session.commit()
+    log.info("Téléphone vérifié pour le compte #%s", user.id)
+    return user
+
+
+def resend_otp(phone):
+    """Renvoie un code de vérification à un compte non encore vérifié."""
+    from ..validation import normalize_phone
+
+    phone_n = normalize_phone(phone)
+    user = User.query.filter(User.phone.in_(_phone_candidates(phone_n))).first()
+    if user and not user.phone_verified:
+        send_otp(user)
+    # Réponse générique quoi qu'il arrive (anti-énumération).
 
 
 def register_staff(payload):

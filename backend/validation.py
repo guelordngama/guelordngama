@@ -186,6 +186,25 @@ def validate_email_only(data):
     return email
 
 
+def validate_verify_otp_payload(data):
+    """Valide la vérification OTP : numéro + code."""
+    data = require_dict(data)
+    phone = normalize_phone(data.get("phone"))
+    code = clean_text(data.get("code"), 12)
+    if not phone or not code:
+        raise ValidationError("Numéro de téléphone et code de vérification requis.")
+    return phone, code
+
+
+def validate_phone_only(data):
+    """Valide une charge utile ne contenant qu'un numéro de téléphone (renvoi OTP)."""
+    data = require_dict(data)
+    phone = normalize_phone(data.get("phone"))
+    if not phone:
+        raise ValidationError("Numéro de téléphone requis.")
+    return phone
+
+
 def validate_team_id(data):
     data = require_dict(data)
     try:

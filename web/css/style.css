@@ -98,6 +98,8 @@ body {
 }
 .auth-tab.active { background: var(--accent); color: #fff; }
 .auth-intro { color: var(--muted); font-size: 13px; line-height: 1.55; margin: 0 0 16px; }
+.otp-intro { color: var(--ink); font-size: 13px; line-height: 1.55; margin: 0 0 8px; }
+.otp-intro strong { color: var(--accent); }
 .auth-form { display: block; }
 .auth-form .field-label { margin-top: 12px; }
 .auth-form .field-label:first-child { margin-top: 0; }
