@@ -2,6 +2,26 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [3.7.0] — Fiabilité : migrations, suivi d'erreurs, restauration
+
+### Ajouté
+- **Migrations de schéma (Alembic via Flask-Migrate)** : le schéma évolue
+  désormais **sans perte de données**. En production, le conteneur backend
+  applique automatiquement `flask db upgrade` au démarrage ; en dev/test,
+  `create_all()` reste utilisé pour un démarrage immédiat. Migration initiale
+  (`migrations/versions/…_baseline_schema.py`) couvrant tout le schéma actuel.
+- **Suivi d'erreurs (Sentry)** : alerte automatique en cas d'erreur serveur en
+  production (`SAFECITY_SENTRY_DSN`). Sans DSN, désactivé. Ne transmet aucune
+  donnée personnelle (`send_default_pii=False`).
+- **Script de restauration** `deploy/restore.sh` (`--latest` ou fichier précis,
+  avec confirmation) pour restaurer une sauvegarde PostgreSQL. Documentation
+  mise à jour (migrations automatiques + restauration testée).
+
+### Modifié
+- L'amorçage (seed) tolère l'absence de tables avant la première migration
+  (message clair au lieu d'un plantage).
+- Le Dockerfile embarque `migrations/` et `portal/`.
+
 ## [3.6.0] — Vérification du téléphone par SMS (OTP)
 
 ### Ajouté

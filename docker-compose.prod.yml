@@ -24,12 +24,14 @@ services:
 
   backend:
     build: .
-    command: gunicorn -k eventlet -w 1 -b 0.0.0.0:5000 --access-logfile - backend.wsgi:app
+    # Applique les migrations de schéma (sans perte de données) puis démarre.
+    command: sh -c "flask db upgrade && gunicorn -k eventlet -w 1 -b 0.0.0.0:5000 --access-logfile - backend.wsgi:app"
     depends_on:
       db:
         condition: service_healthy
     environment:
       SAFECITY_ENV: production
+      FLASK_APP: backend
       SAFECITY_ASYNC_MODE: eventlet
       SAFECITY_SECRET_KEY: ${SAFECITY_SECRET_KEY:?Definir SAFECITY_SECRET_KEY}
       SAFECITY_CORS_ORIGINS: ${SAFECITY_CORS_ORIGINS:?Definir SAFECITY_CORS_ORIGINS}

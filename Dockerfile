@@ -26,6 +26,8 @@ RUN pip install --upgrade pip \
 # Code applicatif.
 COPY backend/ ./backend/
 COPY web/ ./web/
+COPY portal/ ./portal/
+COPY migrations/ ./migrations/
 
 # Utilisateur non-root.
 RUN useradd --create-home --uid 10001 safecity \

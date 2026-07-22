@@ -118,18 +118,37 @@ git pull && docker compose --env-file deploy/.env.prod -f docker-compose.prod.ym
 | `certbot` | Renouvellement automatique des certificats (toutes les 12 h) |
 | `backup` | `pg_dump` compressé périodique + rotation (volume `backups`) |
 
-## 6. Sauvegardes
+## 6. Migrations de schéma (évolution sans perte de données)
 
-Automatiques (service `backup`, par défaut toutes les 24 h, 14 copies gardées).
+Le schéma est géré par **Alembic** (via Flask-Migrate). Au démarrage, le
+conteneur backend exécute automatiquement `flask db upgrade` : les nouvelles
+versions du code appliquent leurs migrations **sans supprimer les données**.
+Vous n'avez donc rien à faire — un simple `git pull` + reconstruction suffit.
+
+```bash
+# Mettre à jour (les migrations s'appliquent automatiquement au démarrage)
+git pull && docker compose --env-file deploy/.env.prod -f docker-compose.prod.yml up -d --build
+
+# (Optionnel) appliquer/inspecter les migrations manuellement
+docker compose --env-file deploy/.env.prod -f docker-compose.prod.yml exec backend flask db upgrade
+docker compose --env-file deploy/.env.prod -f docker-compose.prod.yml exec backend flask db current
+```
+
+## 7. Sauvegardes & restauration
+
+Sauvegardes automatiques (service `backup`, par défaut toutes les 24 h, 14 copies).
 
 ```bash
 # Lister les sauvegardes
 docker compose -f docker-compose.prod.yml exec backup ls -lh /backups
 
-# Restaurer une sauvegarde
-gunzip -c /chemin/safecity_AAAAMMJJ_HHMMSS.sql.gz | \
-  docker compose -f docker-compose.prod.yml exec -T db psql -U safecity safecity
+# Restaurer (script guidé, avec confirmation)
+sh deploy/restore.sh --latest                       # dernière sauvegarde
+sh deploy/restore.sh /chemin/safecity_AAAAMMJJ_HHMMSS.sql.gz   # fichier précis
 ```
+
+> ⚠️ Testez la restauration au moins une fois sur un environnement de test : une
+> sauvegarde n'a de valeur que si l'on sait la restaurer.
 
 ## 7. Sécurité (rappel)
 Voir [SECURITY.md](SECURITY.md). En production : secret unique, CORS restreint,

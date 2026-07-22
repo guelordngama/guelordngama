@@ -7,11 +7,15 @@ dépendre de l'application elle-même.
 import os
 
 from flask_cors import CORS
+from flask_migrate import Migrate
 from flask_socketio import SocketIO
 from flask_sqlalchemy import SQLAlchemy
 
 # Base de données (ORM).
 db = SQLAlchemy()
+
+# Migrations de schéma (Alembic via Flask-Migrate) — évolution sans perte de données.
+migrate = Migrate()
 
 # CORS (origines restreintes via la configuration).
 cors = CORS()

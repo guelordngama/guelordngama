@@ -83,6 +83,10 @@ class Config:
     # --- Journalisation ---
     LOG_LEVEL = os.environ.get("SAFECITY_LOG_LEVEL", "INFO").upper()
 
+    # --- Suivi d'erreurs (Sentry) — actif si un DSN est fourni ---
+    SENTRY_DSN = os.environ.get("SAFECITY_SENTRY_DSN")
+    SENTRY_TRACES_RATE = float(os.environ.get("SAFECITY_SENTRY_TRACES_RATE", "0.0"))
+
     # --- Notifications push (e-mail / SMS) ---
     # Niveaux d'urgence qui déclenchent une notification.
     NOTIFY_URGENCY_LEVELS = {

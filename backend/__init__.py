@@ -6,7 +6,7 @@ Usage :
     socketio.run(app)
 """
 from .config import get_config
-from .extensions import cors, db, socketio
+from .extensions import cors, db, migrate, socketio
 
 __all__ = ["create_app", "socketio", "db"]
 
@@ -17,6 +17,7 @@ def create_app(config=None):
     from .api import register_blueprints
     from .errors import register_error_handlers
     from .logging_config import setup_logging
+    from .observability import init_sentry
     from .realtime import register_socket_events
     from .seed import seed_defaults
 
@@ -24,6 +25,7 @@ def create_app(config=None):
     config.validate()  # refuse de démarrer si la config de prod est non sûre
 
     log = setup_logging(config.LOG_LEVEL)
+    init_sentry(config)  # suivi d'erreurs (actif si SAFECITY_SENTRY_DSN défini)
     if config.ENV == "production" and config.SEED_DEMO_OPERATOR:
         log.warning(
             "Compte de démonstration ACTIF en production (SAFECITY_SEED_DEMO=true). "
@@ -36,6 +38,7 @@ def create_app(config=None):
 
     # Extensions
     db.init_app(app)
+    migrate.init_app(app, db)  # commandes « flask db … » (migrations Alembic)
     cors.init_app(app, resources={r"/api/*": {"origins": config.cors_origins_list},
                                   r"/uploads/*": {"origins": config.cors_origins_list}})
     socketio.init_app(app, cors_allowed_origins=config.cors_origins_list)
@@ -53,9 +56,21 @@ def create_app(config=None):
         from .ai.classifier import get_classifier
         from . import models  # noqa: F401  (enregistre les tables)
 
-        db.create_all()
-        seed_defaults(config)
-        get_classifier()  # entraîne le classifieur une fois au démarrage
+        # En production, le schéma est géré par les migrations Alembic
+        # (`flask db upgrade`, lancé au déploiement) : pas de create_all() qui
+        # empêcherait toute évolution ultérieure sans perte de données.
+        # En développement/test, create_all() garde un démarrage immédiat.
+        if config.ENV != "production":
+            db.create_all()
+        try:
+            seed_defaults(config)
+            get_classifier()  # entraîne le classifieur une fois au démarrage
+        except Exception as e:
+            # Peut arriver avant le premier « flask db upgrade » (tables absentes).
+            db.session.rollback()
+            log.warning(
+                "Amorçage différé — appliquez les migrations (flask db upgrade). "
+                "Détail : %s", e)
 
     return app
 

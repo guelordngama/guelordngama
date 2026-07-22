@@ -9,7 +9,12 @@ python-socketio>=5.12.0
 python-engineio>=4.11.0
 SQLAlchemy>=2.0.31
 Flask-SQLAlchemy>=3.1.1
+Flask-Migrate>=4.0.0        # migrations de schéma (Alembic) — évolution sans perte
 python-dotenv>=1.0.1
+
+# --- Observabilité (optionnel) ---
+# Suivi d'erreurs en production, actif si SAFECITY_SENTRY_DSN est défini.
+sentry-sdk[flask]>=2.0.0
 
 # --- Base de données professionnelle (PostgreSQL) ---
 # Décommenter pour la production :
