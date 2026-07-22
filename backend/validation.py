@@ -136,6 +136,40 @@ def validate_register_payload(data):
     return {"name": name, "phone": phone, "password": password, "email": email}
 
 
+def validate_staff_register_payload(data):
+    """Valide l'inscription d'un personnel depuis la console bureau (rôle opérateur).
+
+    Champs : name (requis), email (requis + valide), password (requis, ≥ 6),
+    phone (optionnel).
+    """
+    data = require_dict(data)
+
+    name = clean_text(data.get("name"), 120)
+    if not name:
+        raise ValidationError("Le nom est requis.")
+
+    email = clean_text(data.get("email"), 160).lower()
+    if not email or "@" not in email:
+        raise ValidationError("Un e-mail valide est requis.")
+
+    password = data.get("password") or ""
+    if len(password) < 6:
+        raise ValidationError("Le mot de passe doit contenir au moins 6 caractères.")
+
+    phone = normalize_phone(data.get("phone")) or None
+
+    return {"name": name, "email": email, "password": password, "phone": phone}
+
+
+def validate_email_only(data):
+    """Valide une charge utile ne contenant qu'un e-mail (mot de passe oublié)."""
+    data = require_dict(data)
+    email = clean_text(data.get("email"), 160).lower()
+    if not email or "@" not in email:
+        raise ValidationError("Un e-mail valide est requis.")
+    return email
+
+
 def validate_team_id(data):
     data = require_dict(data)
     try:

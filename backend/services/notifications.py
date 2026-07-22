@@ -20,6 +20,28 @@ log = logging.getLogger("safecity")
 URGENCY_LABELS = {"faible": "Faible", "moyenne": "Moyen", "haute": "Élevé", "critique": "Critique"}
 
 
+def smtp_configured():
+    """Vrai si un serveur SMTP est configuré (envoi d'e-mail possible)."""
+    return bool(current_app.config.get("SMTP_HOST"))
+
+
+def send_email_message(to_addrs, subject, body):
+    """Envoie un e-mail simple (texte) via le SMTP configuré. Lève en cas d'échec."""
+    cfg = current_app.config
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = cfg["SMTP_FROM"]
+    msg["To"] = ", ".join(to_addrs)
+    msg.set_content(body)
+
+    with smtplib.SMTP(cfg["SMTP_HOST"], cfg["SMTP_PORT"], timeout=15) as server:
+        if cfg["SMTP_TLS"]:
+            server.starttls(context=ssl.create_default_context())
+        if cfg["SMTP_USER"]:
+            server.login(cfg["SMTP_USER"], cfg["SMTP_PASSWORD"])
+        server.send_message(msg)
+
+
 def dispatch_alert_notifications(alert):
     """Décide et lance l'envoi des notifications pour une alerte (non bloquant)."""
     cfg = current_app.config

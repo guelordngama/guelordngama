@@ -4,8 +4,14 @@ from flask import Blueprint, current_app, jsonify, request
 from ..errors import AuthError
 from ..models import User
 from ..security import generate_token, rate_limit, verify_password
-from ..services.auth import register_citizen
-from ..validation import _is_email, validate_login_payload, validate_register_payload
+from ..services.auth import register_citizen, register_staff, request_password_reset
+from ..validation import (
+    _is_email,
+    validate_email_only,
+    validate_login_payload,
+    validate_register_payload,
+    validate_staff_register_payload,
+)
 
 bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
@@ -25,6 +31,43 @@ def _do_register():
     payload = validate_register_payload(request.get_json(silent=True))
     user = register_citizen(payload)
     return jsonify({"token": generate_token(user), "user": user.to_dict()}), 201
+
+
+@bp.post("/register-staff")
+def register_staff_route():
+    """Inscription d'un personnel (rôle opérateur) depuis la console bureau."""
+    limiter = rate_limit(
+        current_app.config["LOGIN_RATE_MAX"],
+        current_app.config["LOGIN_RATE_WINDOW"],
+        scope="register",
+    )
+    return limiter(_do_register_staff)()
+
+
+def _do_register_staff():
+    payload = validate_staff_register_payload(request.get_json(silent=True))
+    user = register_staff(payload)
+    return jsonify({"token": generate_token(user), "user": user.to_dict()}), 201
+
+
+@bp.post("/forgot-password")
+def forgot_password():
+    """Réinitialisation du mot de passe : envoie un mot de passe temporaire par e-mail."""
+    limiter = rate_limit(
+        current_app.config["LOGIN_RATE_MAX"],
+        current_app.config["LOGIN_RATE_WINDOW"],
+        scope="forgot",
+    )
+    return limiter(_do_forgot_password)()
+
+
+def _do_forgot_password():
+    email = validate_email_only(request.get_json(silent=True))
+    request_password_reset(email)
+    return jsonify({
+        "message": "Si un compte existe pour cet e-mail, un mot de passe de "
+                   "réinitialisation vient d'être envoyé. Vérifiez votre boîte Gmail."
+    })
 
 
 @bp.post("/login")

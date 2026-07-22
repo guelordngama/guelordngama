@@ -59,6 +59,13 @@ class ConflictError(ApiError):
     code = "conflict"
 
 
+class ServiceUnavailableError(ApiError):
+    """Service temporairement indisponible (ex. e-mail non configuré / injoignable)."""
+
+    status_code = 503
+    code = "service_unavailable"
+
+
 class RateLimitError(ApiError):
     status_code = 429
     code = "rate_limited"

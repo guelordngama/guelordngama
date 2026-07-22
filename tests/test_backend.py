@@ -482,6 +482,39 @@ def test_login_wrong_password_is_generic():
     assert bad.status_code == 401
 
 
+def test_register_staff_creates_operator():
+    _, client = make_client()
+    r = client.post("/api/auth/register-staff", json={
+        "name": "Georges", "email": "georges@safecity.local", "password": "secret1"})
+    assert r.status_code == 201
+    assert r.get_json()["user"]["role"] == "operator"
+    # L'opérateur peut se connecter par e-mail.
+    login = client.post("/api/auth/login", json={
+        "email": "georges@safecity.local", "password": "secret1"})
+    assert login.status_code == 200
+
+
+def test_register_staff_duplicate_email_conflict():
+    _, client = make_client()
+    client.post("/api/auth/register-staff", json={
+        "name": "A", "email": "dup@safecity.local", "password": "secret1"})
+    dup = client.post("/api/auth/register-staff", json={
+        "name": "B", "email": "dup@safecity.local", "password": "secret2"})
+    assert dup.status_code == 409
+    assert dup.get_json()["error"]["details"]["field"] == "email"
+
+
+def test_forgot_password_without_smtp_returns_503():
+    # En test, aucun SMTP n'est configuré : la réinitialisation par e-mail est
+    # indisponible et renvoie un message clair (code email_not_configured).
+    _, client = make_client()
+    client.post("/api/auth/register-staff", json={
+        "name": "C", "email": "c@safecity.local", "password": "secret1"})
+    r = client.post("/api/auth/forgot-password", json={"email": "c@safecity.local"})
+    assert r.status_code == 503
+    assert r.get_json()["error"]["code"] == "email_not_configured"
+
+
 # --------------------------------------------------------------------------- #
 # Exécution directe (sans pytest)
 # --------------------------------------------------------------------------- #

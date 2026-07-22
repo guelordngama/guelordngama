@@ -27,11 +27,13 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QFrame,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QLineEdit,
     QMessageBox,
     QPushButton,
     QStackedWidget,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -89,17 +91,44 @@ class RealtimeBridge(QThread):
 # --------------------------------------------------------------------------- #
 # Connexion
 # --------------------------------------------------------------------------- #
+def _api_error_message(exc):
+    """Extrait le message lisible d'une erreur ApiClient (format « 409: {json} »)."""
+    import json as _json
+    import re as _re
+
+    s = str(exc)
+    m = _re.search(r"\{.*\}", s, _re.DOTALL)
+    if m:
+        try:
+            return _json.loads(m.group(0)).get("error", {}).get("message") or s
+        except Exception:
+            pass
+    return s
+
+
 class LoginDialog(QDialog):
+    """Connexion + création de compte (opérateur) + mot de passe oublié."""
+
     def __init__(self, api):
         super().__init__()
         self.api = api
         self.user = None
         self.setWindowTitle("SafeCity — Connexion")
-        self.setMinimumWidth(380)
-        self.setStyleSheet(theme.QSS + f"QDialog {{ background: {theme.BG}; }}")
+        self.setMinimumWidth(400)
+        self.setStyleSheet(theme.QSS + f"""
+            QDialog {{ background: {theme.BG}; }}
+            QTabWidget::pane {{ border: 1px solid {theme.BORDER}; border-radius: 10px;
+                                background: {theme.BG}; top: -1px; }}
+            QTabBar::tab {{ background: {theme.PANEL}; color: {theme.MUTED};
+                           padding: 8px 18px; margin-right: 4px;
+                           border-top-left-radius: 8px; border-top-right-radius: 8px; }}
+            QTabBar::tab:selected {{ background: {theme.ACCENT}; color: white; font-weight: 700; }}
+            QPushButton#linkBtn {{ background: transparent; color: {theme.ACCENT};
+                                   border: none; font-weight: 600; padding: 2px; }}
+        """)
 
         root = QVBoxLayout(self)
-        root.setContentsMargins(28, 26, 28, 26)
+        root.setContentsMargins(28, 24, 28, 24)
         root.setSpacing(6)
 
         brand = QLabel("🛡️  SafeCity")
@@ -108,7 +137,26 @@ class LoginDialog(QDialog):
         sub.setObjectName("muted")
         root.addWidget(brand)
         root.addWidget(sub)
-        root.addSpacing(14)
+        root.addSpacing(12)
+
+        tabs = QTabWidget()
+        tabs.setUsesScrollButtons(False)
+        tabs.tabBar().setExpanding(True)
+        tabs.addTab(self._build_login_tab(), "Se connecter")
+        tabs.addTab(self._build_register_tab(), "Créer un compte")
+        root.addWidget(tabs)
+
+        self.info = QLabel("Compte de démonstration pré-rempli.")
+        self.info.setObjectName("muted")
+        self.info.setWordWrap(True)
+        root.addWidget(self.info)
+
+    # ---- Onglet Connexion ----
+    def _build_login_tab(self):
+        w = QWidget()
+        lay = QVBoxLayout(w)
+        lay.setContentsMargins(2, 12, 2, 6)
+        lay.setSpacing(8)
 
         form = QFormLayout()
         form.setSpacing(10)
@@ -118,25 +166,104 @@ class LoginDialog(QDialog):
         self.password.returnPressed.connect(self._try_login)
         form.addRow("Email", self.email)
         form.addRow("Mot de passe", self.password)
-        root.addLayout(form)
+        lay.addLayout(form)
 
         btn = QPushButton("Se connecter")
         btn.clicked.connect(self._try_login)
-        root.addSpacing(6)
-        root.addWidget(btn)
+        lay.addWidget(btn)
 
-        self.info = QLabel("Compte de démonstration pré-rempli.")
-        self.info.setObjectName("muted")
-        self.info.setWordWrap(True)
-        root.addWidget(self.info)
+        forgot = QPushButton("Mot de passe oublié ?")
+        forgot.setObjectName("linkBtn")
+        forgot.setCursor(Qt.PointingHandCursor)
+        forgot.setFlat(True)
+        forgot.clicked.connect(self._forgot_password)
+        lay.addWidget(forgot, alignment=Qt.AlignRight)
+        return w
 
+    # ---- Onglet Créer un compte ----
+    def _build_register_tab(self):
+        w = QWidget()
+        lay = QVBoxLayout(w)
+        lay.setContentsMargins(2, 12, 2, 6)
+        lay.setSpacing(8)
+
+        form = QFormLayout()
+        form.setSpacing(10)
+        self.r_name = QLineEdit()
+        self.r_name.setPlaceholderText("Nom et prénom")
+        self.r_email = QLineEdit()
+        self.r_email.setPlaceholderText("vous@exemple.com")
+        self.r_phone = QLineEdit()
+        self.r_phone.setPlaceholderText("+243 … (optionnel)")
+        self.r_pass = QLineEdit()
+        self.r_pass.setEchoMode(QLineEdit.Password)
+        self.r_pass.setPlaceholderText("Au moins 6 caractères")
+        self.r_pass2 = QLineEdit()
+        self.r_pass2.setEchoMode(QLineEdit.Password)
+        self.r_pass2.setPlaceholderText("Confirmer le mot de passe")
+        self.r_pass2.returnPressed.connect(self._try_register)
+        form.addRow("Nom", self.r_name)
+        form.addRow("Email", self.r_email)
+        form.addRow("Téléphone", self.r_phone)
+        form.addRow("Mot de passe", self.r_pass)
+        form.addRow("Confirmer", self.r_pass2)
+        lay.addLayout(form)
+
+        btn = QPushButton("Créer le compte (opérateur)")
+        btn.setObjectName("success")
+        btn.clicked.connect(self._try_register)
+        lay.addWidget(btn)
+
+        hint = QLabel("Le compte créé a le rôle « opérateur » (voir/affecter/clôturer les alertes).")
+        hint.setObjectName("muted")
+        hint.setWordWrap(True)
+        lay.addWidget(hint)
+        return w
+
+    # ---- Actions ----
     def _try_login(self):
         try:
             self.user = self.api.login(self.email.text().strip(), self.password.text())
             self.accept()
         except Exception as e:
-            self.info.setText("Échec : " + str(e))
-            self.info.setStyleSheet("color: #ff8181;")
+            self._error("Échec : " + _api_error_message(e))
+
+    def _try_register(self):
+        name = self.r_name.text().strip()
+        email = self.r_email.text().strip()
+        pwd = self.r_pass.text()
+        pwd2 = self.r_pass2.text()
+        if not name or not email or not pwd:
+            self._error("Nom, e-mail et mot de passe sont requis.")
+            return
+        if pwd != pwd2:
+            self._error("Les deux mots de passe ne correspondent pas.")
+            return
+        try:
+            self.user = self.api.register_staff(name, email, pwd, self.r_phone.text().strip())
+            self.accept()
+        except Exception as e:
+            self._error("Création impossible : " + _api_error_message(e))
+
+    def _forgot_password(self):
+        default = self.email.text().strip()
+        email, ok = QInputDialog.getText(
+            self, "Mot de passe oublié",
+            "Entrez l'e-mail de votre compte.\nUn mot de passe temporaire sera "
+            "envoyé dans votre boîte Gmail :",
+            text=default)
+        if not ok or not email.strip():
+            return
+        try:
+            res = self.api.forgot_password(email.strip())
+            QMessageBox.information(self, "Réinitialisation",
+                                    res.get("message", "Demande envoyée. Vérifiez votre boîte Gmail."))
+        except Exception as e:
+            QMessageBox.warning(self, "Réinitialisation impossible", _api_error_message(e))
+
+    def _error(self, msg):
+        self.info.setText(msg)
+        self.info.setStyleSheet("color: #ff8181;")
 
 
 # --------------------------------------------------------------------------- #

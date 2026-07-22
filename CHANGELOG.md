@@ -2,6 +2,27 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [3.3.0] — Comptes & mot de passe oublié (poste opérateur)
+
+### Ajouté
+- **Écran de connexion du poste opérateur repensé** (onglets) :
+  - **« Créer un compte »** : inscription d'un personnel (rôle **opérateur**)
+    directement depuis le bureau — nom, e-mail, téléphone (optionnel), mot de
+    passe. Connexion automatique après création. Endpoint
+    `POST /api/auth/register-staff`.
+  - **« Mot de passe oublié ? »** : l'utilisateur saisit son e-mail et reçoit un
+    **mot de passe temporaire par e-mail (Gmail)**. Endpoint
+    `POST /api/auth/forgot-password` : génère un mot de passe temporaire, l'envoie
+    par SMTP puis ne l'enregistre **que si l'envoi réussit** (pas de
+    verrouillage de compte). Réponse générique (anti-énumération). Si aucun SMTP
+    n'est configuré → message clair `503 email_not_configured`.
+- Envoi d'e-mail générique réutilisable (`notifications.send_email_message`,
+  `notifications.smtp_configured`) basé sur la configuration `SAFECITY_SMTP_*`
+  existante (compatible **Gmail** avec un mot de passe d'application).
+- Nouvelle erreur API `503 service_unavailable` (e-mail non configuré / injoignable).
+- Tests : inscription opérateur, e-mail déjà utilisé, mot de passe oublié sans
+  SMTP (42 tests au total).
+
 ## [3.2.1] — Fronts servis par le backend en développement (même origine)
 
 ### Ajouté
