@@ -2,6 +2,28 @@
   --bg: #0b1220; --panel: rgba(22,34,60,0.72); --ink: #e6ecf5; --muted: #8595b4;
   --line: rgba(88,110,150,0.25); --accent: #3d8bff; --green: #22c55e; --red: #ef4444;
 }
+:root[data-theme="light"] {
+  --bg: #eef2f8; --panel: rgba(255,255,255,0.9); --ink: #16223c; --muted: #5a6b8c;
+  --line: rgba(30,50,90,0.15); --accent: #2563eb;
+}
+:root[data-theme="light"] .app-bg {
+  background:
+    radial-gradient(60% 40% at 80% 0%, rgba(37,99,235,0.10), transparent 60%),
+    radial-gradient(50% 40% at 10% 100%, rgba(239,68,68,0.08), transparent 60%),
+    linear-gradient(180deg,#eef2f8,#e3e9f3);
+}
+:root[data-theme="light"] input,
+:root[data-theme="light"] select { background: rgba(255,255,255,0.9); }
+
+/* Bouton flottant de bascule de thème (visible connexion + app). */
+.theme-toggle {
+  position: fixed; top: 14px; right: 14px; z-index: 200;
+  width: 36px; height: 36px; border-radius: 999px; cursor: pointer;
+  background: var(--panel); border: 1px solid var(--line); color: var(--ink);
+  font-size: 16px; display: flex; align-items: center; justify-content: center;
+}
+.theme-toggle:hover { filter: brightness(1.15); }
+
 * { box-sizing: border-box; }
 body { margin: 0; min-height: 100vh; font-family: system-ui,"Segoe UI",Roboto,sans-serif;
   background: var(--bg); color: var(--ink); }

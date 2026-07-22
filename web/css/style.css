@@ -12,6 +12,26 @@
   --radius: 18px;
 }
 
+/* ---- Thème CLAIR (activé par data-theme="light" sur <html>) ---- */
+:root[data-theme="light"] {
+  --bg: #eef2f8;
+  --bg-2: #ffffff;
+  --panel: rgba(255, 255, 255, 0.9);
+  --ink: #16223c;
+  --muted: #5a6b8c;
+  --line: rgba(30, 50, 90, 0.15);
+  --accent: #2563eb;
+}
+:root[data-theme="light"] .app-bg {
+  background:
+    radial-gradient(60% 40% at 80% 0%, rgba(37, 99, 235, 0.10), transparent 60%),
+    radial-gradient(50% 40% at 10% 100%, rgba(239, 68, 68, 0.08), transparent 60%),
+    linear-gradient(180deg, #eef2f8, #e3e9f3);
+}
+:root[data-theme="light"] .app-header { background: rgba(255, 255, 255, 0.8); }
+:root[data-theme="light"] input,
+:root[data-theme="light"] textarea { background: rgba(255, 255, 255, 0.9); }
+
 * { box-sizing: border-box; }
 
 /* L'attribut [hidden] doit toujours l'emporter sur nos display: flex/block. */
@@ -67,6 +87,13 @@ body {
 .conn-status.offline { color: #f87171; }
 
 .header-right { display: flex; align-items: center; gap: 12px; }
+.theme-toggle {
+  background: var(--panel); border: 1px solid var(--line); color: var(--ink);
+  width: 34px; height: 34px; border-radius: 999px; cursor: pointer;
+  font-size: 15px; line-height: 1; display: flex; align-items: center;
+  justify-content: center; transition: filter 0.2s ease;
+}
+.theme-toggle:hover { filter: brightness(1.15); }
 .user-chip {
   display: inline-flex; align-items: center; gap: 8px;
   font-size: 12px; color: var(--ink);

@@ -10,6 +10,23 @@
   const state = { token: null, agent: null, alerts: {}, map: null, markers: {}, self: null, socket: null };
   const $ = (id) => document.getElementById(id);
 
+  // Thème clair / sombre (préférence mémorisée).
+  (function initTheme() {
+    const KEY = "safecity_theme";
+    const root = document.documentElement;
+    apply(localStorage.getItem(KEY) || "dark");
+    function apply(mode) {
+      root.setAttribute("data-theme", mode);
+      const btn = document.getElementById("theme-toggle");
+      if (btn) btn.textContent = mode === "light" ? "☀️" : "🌙";
+    }
+    const btn = document.getElementById("theme-toggle");
+    if (btn) btn.addEventListener("click", () => {
+      const next = root.getAttribute("data-theme") === "light" ? "dark" : "light";
+      localStorage.setItem(KEY, next); apply(next);
+    });
+  })();
+
   // ---- API helper ----
   async function api(method, path, body) {
     const res = await fetch(API + path, {

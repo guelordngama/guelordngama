@@ -6,6 +6,27 @@
 
   const API = window.SAFECITY_CONFIG.API_BASE;
 
+  // ---------------------------------------------------------------------- //
+  // Thème clair / sombre (préférence mémorisée)
+  // ---------------------------------------------------------------------- //
+  (function initTheme() {
+    const THEME_KEY = "safecity_theme";
+    const root = document.documentElement;
+    const saved = localStorage.getItem(THEME_KEY) || "dark";
+    applyTheme(saved);
+    function applyTheme(mode) {
+      root.setAttribute("data-theme", mode);
+      const btn = document.getElementById("theme-toggle");
+      if (btn) btn.textContent = mode === "light" ? "☀️" : "🌙";
+    }
+    document.addEventListener("click", (e) => {
+      if (!e.target.closest("#theme-toggle")) return;
+      const next = root.getAttribute("data-theme") === "light" ? "dark" : "light";
+      localStorage.setItem(THEME_KEY, next);
+      applyTheme(next);
+    });
+  })();
+
   // État courant de l'alerte en cours de composition.
   const state = {
     lat: null,
