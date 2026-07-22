@@ -706,13 +706,23 @@ class HistoryPage(QWidget):
 
 
 class ChatPage(QWidget):
-    """Messagerie temps réel entre opérateurs et agents (avec pièces jointes)."""
+    """Messagerie temps réel entre opérateurs et agents (style WhatsApp).
+
+    Bulles arrondies : mes messages (opérateur/administrateur) **à droite** (vert),
+    ceux des agents **à gauche** (gris), ajustées au contenu, avec l'heure.
+    """
 
     send = Signal(str, str)  # (texte, pièce jointe data-URL ou "")
 
+    # Couleurs façon WhatsApp
+    BUBBLE_ME = "#005c4b"       # vert (mes messages)
+    BUBBLE_OTHER = "#202c33"    # gris (messages des agents)
+    TEXT_COLOR = "#e9edef"
+    TIME_COLOR = "#aebac1"
+
     def __init__(self, operator, api_base=""):
         super().__init__()
-        from PySide6.QtWidgets import QLineEdit, QTextBrowser
+        from PySide6.QtWidgets import QLineEdit
 
         self.me_id = operator.get("id")
         self.api_base = api_base.rstrip("/")
@@ -725,14 +735,22 @@ class ChatPage(QWidget):
         title.setObjectName("sectionTitle")
         root.addWidget(title)
 
-        self.view = QTextBrowser()
-        self.view.setOpenExternalLinks(True)
-        self.view.setObjectName("card")
-        self.view.setStyleSheet(
-            f"QTextBrowser#card {{ background: {theme.PANEL}; border: 1px solid {theme.BORDER};"
-            f"border-radius: 14px; padding: 12px; }}"
+        # Zone de messages défilante contenant les bulles.
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setObjectName("chatScroll")
+        self.scroll.setStyleSheet(
+            f"QScrollArea#chatScroll {{ background: {theme.BG_ALT}; "
+            f"border: 1px solid {theme.BORDER}; border-radius: 14px; }}"
         )
-        root.addWidget(self.view, 1)
+        self._host = QWidget()
+        self._host.setStyleSheet("background: transparent;")
+        self._msgs = QVBoxLayout(self._host)
+        self._msgs.setContentsMargins(14, 14, 14, 14)
+        self._msgs.setSpacing(8)
+        self._msgs.addStretch()  # garde les bulles collées en haut
+        self.scroll.setWidget(self._host)
+        root.addWidget(self.scroll, 1)
 
         self.attach_label = QLabel("")
         self.attach_label.setObjectName("muted")
@@ -777,62 +795,98 @@ class ChatPage(QWidget):
             self._attachment = None
             self.attach_label.setText("")
 
+    # ---- Rendu des messages ----
     def set_messages(self, msgs, unread_ids=None):
         unread_ids = unread_ids or set()
-        self.view.clear()
+        self._clear_messages()
         divider_done = False
         for m in msgs:
             is_unread = m.get("id") in unread_ids
             if is_unread and not divider_done:
-                self._append_divider("Nouveaux messages")
+                self._add_divider("Nouveaux messages")
                 divider_done = True
-            self._append(m, unread=is_unread)
+            self._add_bubble(m, unread=is_unread)
+        self._scroll_to_bottom()
 
     def add_message(self, m):
-        self._append(m)
+        self._add_bubble(m)
+        self._scroll_to_bottom()
 
-    def _append_divider(self, label):
-        html = (
-            f'<table width="100%" cellspacing="0" cellpadding="0"><tr><td align="center" '
-            f'style="color:{theme.ACCENT_2}; font-size:11px; font-weight:bold; padding:6px;">'
-            f'── {label} ──</td></tr></table>'
-        )
-        self.view.append(html)
+    def _clear_messages(self):
+        # Retire toutes les bulles en gardant le stretch final.
+        while self._msgs.count() > 1:
+            item = self._msgs.takeAt(0)
+            w = item.widget()
+            if w:
+                w.deleteLater()
 
-    def _append(self, m, unread=False):
-        # Affichage type WhatsApp : mes messages (opérateur/administrateur) à
-        # DROITE, ceux des agents à GAUCHE — bulles alignées de côtés opposés.
+    def _add_divider(self, label):
+        lbl = QLabel(f"──  {label}  ──")
+        lbl.setAlignment(Qt.AlignCenter)
+        lbl.setStyleSheet(
+            f"color: {theme.ACCENT_2}; font-size: 11px; font-weight: bold; background: transparent;")
+        self._msgs.insertWidget(self._msgs.count() - 1, lbl)
+
+    def _add_bubble(self, m, unread=False):
         mine = m.get("sender_id") == self.me_id
+        bg = self.BUBBLE_ME if mine else self.BUBBLE_OTHER
+        name_color = "#8fe3cf" if mine else theme.ACCENT_2
+
+        bubble = QFrame()
+        bubble.setObjectName("bubble")
+        border = f"border: 2px solid {theme.ACCENT_2};" if unread else "border: none;"
+        bubble.setStyleSheet(
+            f"QFrame#bubble {{ background: {bg}; border-radius: 12px; {border} }}")
+        bubble.setMaximumWidth(440)
+        bl = QVBoxLayout(bubble)
+        bl.setContentsMargins(12, 7, 12, 6)
+        bl.setSpacing(2)
+
         role = (m.get("sender_role") or "").capitalize()
-        color = theme.ACCENT if mine else theme.ACCENT_2
-        name = "Moi" if mine else f"{m.get('sender_name')} · {role}"
-        if unread:
+        name = "Moi" if mine else f"{m.get('sender_name') or 'Agent'} · {role}"
+        if unread and not mine:
             name = "🔵 " + name
-        bg = f"{color}33" if unread else f"{color}18"  # fond plus marqué si non lu
-        side = "right" if mine else "left"           # bord coloré du bon côté
-        border_w = "5px" if unread else "3px"
-        text = (m.get("text") or "").replace("<", "&lt;").replace(">", "&gt;")
-        body = f'<span style="color:{theme.TEXT};">{text}</span>' if text else ""
+        lbl_name = QLabel(name)
+        lbl_name.setStyleSheet(
+            f"color: {name_color}; font-size: 11px; font-weight: bold; background: transparent;")
+        bl.addWidget(lbl_name)
+
+        if m.get("text"):
+            lbl_text = QLabel(m["text"])
+            lbl_text.setWordWrap(True)
+            lbl_text.setStyleSheet(f"color: {self.TEXT_COLOR}; font-size: 13px; background: transparent;")
+            bl.addWidget(lbl_text)
+
         if m.get("attachment_url"):
             url = self.api_base + m["attachment_url"]
-            body += (f'<br><a href="{url}" style="color:{theme.ACCENT}; font-weight:bold;">'
-                     f'📎 Voir la pièce jointe</a>')
-        cell = (
-            f'<td width="64%" style="border-{side}:{border_w} solid {color}; '
-            f'padding:6px 12px; background:{bg};">'
-            f'<span style="color:{color}; font-size:11px; font-weight:bold;">{name}</span>'
-            f'<span style="color:{theme.MUTED}; font-size:11px;"> · {m.get("time","")}</span><br>'
-            f'{body}</td>'
-        )
-        spacer = '<td width="36%"></td>'
-        # Colonne d'espacement pour pousser la bulle à droite (moi) ou à gauche (agent).
-        inner = (spacer + cell) if mine else (cell + spacer)
-        html = (
-            f'<table width="100%" cellspacing="0" cellpadding="3"><tr>{inner}</tr></table>'
-        )
-        self.view.append(html)
-        sb = self.view.verticalScrollBar()
-        sb.setValue(sb.maximum())
+            link = QLabel(f'<a href="{url}" style="color:#53bdeb;">📎 Voir la pièce jointe</a>')
+            link.setOpenExternalLinks(True)
+            link.setStyleSheet("background: transparent;")
+            bl.addWidget(link)
+
+        lbl_time = QLabel(m.get("time", ""))
+        lbl_time.setAlignment(Qt.AlignRight)
+        lbl_time.setStyleSheet(f"color: {self.TIME_COLOR}; font-size: 10px; background: transparent;")
+        bl.addWidget(lbl_time)
+
+        # Ligne : bulle poussée à droite (moi) ou à gauche (agent).
+        line = QHBoxLayout()
+        line.setContentsMargins(0, 0, 0, 0)
+        if mine:
+            line.addStretch()
+            line.addWidget(bubble)
+        else:
+            line.addWidget(bubble)
+            line.addStretch()
+        wrap = QWidget()
+        wrap.setStyleSheet("background: transparent;")
+        wrap.setLayout(line)
+        self._msgs.insertWidget(self._msgs.count() - 1, wrap)
+
+    def _scroll_to_bottom(self):
+        from PySide6.QtCore import QTimer
+        bar = self.scroll.verticalScrollBar()
+        QTimer.singleShot(0, lambda: bar.setValue(bar.maximum()))
 
 
 # --------------------------------------------------------------------------- #

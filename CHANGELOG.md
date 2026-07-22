@@ -5,10 +5,13 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 ## [3.4.1] — Messagerie type WhatsApp (poste opérateur)
 
 ### Modifié
-- **Messagerie du poste opérateur** : les messages de l'**administrateur/
-  opérateur** s'affichent désormais **à droite** et ceux des **agents à gauche**
-  (bulles de côtés opposés, façon WhatsApp), au lieu d'être tous alignés à
-  gauche. (Le portail agents affichait déjà ses messages de cette manière.)
+- **Messagerie du poste opérateur repensée en bulles façon WhatsApp** : bulles
+  **arrondies** ajustées au contenu, avec l'heure — les messages de
+  l'**administrateur/opérateur** en **vert à droite**, ceux des **agents** en
+  **gris à gauche**. La zone de discussion passe d'un rendu HTML (QTextBrowser)
+  à de vrais widgets bulles (QScrollArea + QFrame) pour permettre les coins
+  arrondis. Le séparateur « Nouveaux messages » et le marquage non lu sont
+  conservés. (Le portail agents affichait déjà ses messages de cette manière.)
 
 ## [3.4.0] — Marquage « non lu » par élément (poste opérateur)
 
