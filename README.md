@@ -38,21 +38,24 @@ interactive (Qt WebEngine + Leaflet), graphiques (Qt Charts), actions
 ## 🚀 Démarrage rapide
 
 ```bash
-# 1. Backend
+# 1. Backend (sert AUSSI l'app citoyenne et le portail en développement)
 pip install -r requirements.txt
-python -m backend.server            # Waitress sur http://localhost:5000
-# (dev : python -m backend.app)
+python -m backend.app               # Flask (dev) sur http://localhost:5000
+# (prod locale : python -m backend.server — Waitress)
 
-# 2. Application citoyenne
-cd web && python -m http.server 8080
+#   → App citoyenne : http://localhost:5000/
+#   → Portail agents : http://localhost:5000/portal/
+#   (page + API sur la même origine : aucun souci de CORS)
 
-# 3. Poste opérateur (dans un autre terminal)
+# 2. Poste opérateur (dans un autre terminal)
 pip install PySide6 "python-socketio[client]>=5.12"
 python -m desktop.main
-
-# 4. Portail web des agents d'intervention
-cd portal && python -m http.server 8090   # connexion : agent1@safecity.local / safecity123
 ```
+
+> Astuce : en développement, **inutile de lancer un second serveur** pour le web.
+> Le backend sert l'app citoyenne (`/`) et le portail (`/portal/`). Vous pouvez
+> quand même les servir séparément si vous préférez :
+> `cd web && python -m http.server 8080` (et `portal` sur 8090).
 Compte opérateur de démo : `operateur@safecity.local` / `safecity123`
 
 > Le **backend doit tourner** avant le poste opérateur. Les fichiers `web/`

@@ -2,6 +2,17 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [3.2.1] — Fronts servis par le backend en développement (même origine)
+
+### Ajouté
+- En **développement**, le backend sert directement l'**app citoyenne** sur
+  `http://localhost:5000/` et le **portail agents** sur
+  `http://localhost:5000/portal/` (blueprint `frontend`). Page et API partagent
+  ainsi la **même origine** : plus aucun problème de CORS ni de communication
+  entre deux serveurs/ports (il suffit de lancer le backend et d'ouvrir
+  `http://localhost:5000/`). En production, Nginx continue de servir les fronts
+  (ces routes ne sont pas enregistrées).
+
 ## [3.2.0] — Comptes citoyens (inscription / connexion)
 
 ### Ajouté
