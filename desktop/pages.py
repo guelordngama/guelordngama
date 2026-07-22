@@ -800,6 +800,8 @@ class ChatPage(QWidget):
         self.view.append(html)
 
     def _append(self, m, unread=False):
+        # Affichage type WhatsApp : mes messages (opérateur/administrateur) à
+        # DROITE, ceux des agents à GAUCHE — bulles alignées de côtés opposés.
         mine = m.get("sender_id") == self.me_id
         role = (m.get("sender_role") or "").capitalize()
         color = theme.ACCENT if mine else theme.ACCENT_2
@@ -807,19 +809,26 @@ class ChatPage(QWidget):
         if unread:
             name = "🔵 " + name
         bg = f"{color}33" if unread else f"{color}18"  # fond plus marqué si non lu
-        border = "5px" if unread else "3px"
+        side = "right" if mine else "left"           # bord coloré du bon côté
+        border_w = "5px" if unread else "3px"
         text = (m.get("text") or "").replace("<", "&lt;").replace(">", "&gt;")
         body = f'<span style="color:{theme.TEXT};">{text}</span>' if text else ""
         if m.get("attachment_url"):
             url = self.api_base + m["attachment_url"]
             body += (f'<br><a href="{url}" style="color:{theme.ACCENT}; font-weight:bold;">'
                      f'📎 Voir la pièce jointe</a>')
-        html = (
-            f'<table width="100%" cellspacing="0" cellpadding="0"><tr><td '
-            f'style="border-left:{border} solid {color}; padding:5px 12px; background:{bg};">'
+        cell = (
+            f'<td width="64%" style="border-{side}:{border_w} solid {color}; '
+            f'padding:6px 12px; background:{bg};">'
             f'<span style="color:{color}; font-size:11px; font-weight:bold;">{name}</span>'
             f'<span style="color:{theme.MUTED}; font-size:11px;"> · {m.get("time","")}</span><br>'
-            f'{body}</td></tr></table>'
+            f'{body}</td>'
+        )
+        spacer = '<td width="36%"></td>'
+        # Colonne d'espacement pour pousser la bulle à droite (moi) ou à gauche (agent).
+        inner = (spacer + cell) if mine else (cell + spacer)
+        html = (
+            f'<table width="100%" cellspacing="0" cellpadding="3"><tr>{inner}</tr></table>'
         )
         self.view.append(html)
         sb = self.view.verticalScrollBar()

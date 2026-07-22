@@ -2,6 +2,14 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [3.4.1] — Messagerie type WhatsApp (poste opérateur)
+
+### Modifié
+- **Messagerie du poste opérateur** : les messages de l'**administrateur/
+  opérateur** s'affichent désormais **à droite** et ceux des **agents à gauche**
+  (bulles de côtés opposés, façon WhatsApp), au lieu d'être tous alignés à
+  gauche. (Le portail agents affichait déjà ses messages de cette manière.)
+
 ## [3.4.0] — Marquage « non lu » par élément (poste opérateur)
 
 ### Ajouté
