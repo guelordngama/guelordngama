@@ -113,6 +113,8 @@ input:focus, select:focus { outline: none; border-color: var(--accent); }
 .chat-msg .who { font-size: 10px; color: var(--muted); display: block; margin-bottom: 2px; }
 .chat-msg.mine { align-self: flex-end; background: rgba(61,139,255,0.18); border: 1px solid rgba(61,139,255,0.4); }
 .chat-msg.other { align-self: flex-start; background: rgba(94,234,212,0.12); border: 1px solid rgba(94,234,212,0.3); }
+.chat-date { align-self: center; margin: 6px 0; padding: 3px 12px; border-radius: 10px;
+  background: rgba(0,0,0,0.35); color: var(--muted); font-size: 11px; font-weight: 600; }
 .chat-input { display: flex; gap: 8px; align-items: center; }
 .chat-input input[type=text] { flex: 1; padding: 10px 12px; }
 .chat-attach { cursor: pointer; font-size: 18px; padding: 8px 10px; border: 1px solid var(--line);

@@ -34,7 +34,7 @@ surveillance). Elle consolide tout le développement décrit ci-dessous (version
 
 Voir le détail des évolutions dans les entrées ci-dessous.
 
-## [3.14.0] — Séparateurs de date dans la messagerie (poste opérateur)
+## [3.14.0] — Séparateurs de date dans la messagerie (poste opérateur + portail agents)
 
 ### Ajouté
 - **Pastilles de date façon WhatsApp** dans la messagerie : une étiquette
@@ -42,7 +42,8 @@ Voir le détail des évolutions dans les entrées ci-dessous.
   derniers jours, sinon la **date complète** « 24 juillet 2026 ») s'affiche avant
   le premier message de chaque journée. L'heure de chaque message reste indiquée
   sous la bulle. Fonctionne aussi bien au chargement qu'à l'arrivée d'un nouveau
-  message en temps réel.
+  message en temps réel. Présent à la fois sur le **poste opérateur** (bureau) et
+  sur le **portail agents** (web), pour une expérience cohérente.
 
 ## [3.13.0] — Tableau de bord peaufiné (poste opérateur)
 

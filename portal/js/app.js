@@ -156,6 +156,8 @@
   }
 
   async function loadMessages() {
+    state.lastChatDay = null;
+    $("chat-messages").innerHTML = "";
     try { (await api("GET", "/api/messages?limit=40")).forEach(addMessage); } catch (e) {}
     state.chatReady = true;  // les messages suivants déclencheront un bip
   }
@@ -183,6 +185,42 @@
     document.querySelector(".chat-attach").classList.remove("armed");
     try { await api("POST", "/api/messages", body); } catch (e) { alert("Échec : " + e.message); }
   }
+  // Séparateur de date façon WhatsApp : Aujourd'hui / Hier / jour de la
+  // semaine (moins de 7 j) / date complète (« 24 juillet 2026 »).
+  const JOURS_FR = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
+  const MOIS_FR = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet",
+                   "août", "septembre", "octobre", "novembre", "décembre"];
+
+  function msgDay(m) {
+    const raw = m.created_at || "";
+    if (!raw) return null;
+    const d = new Date(raw);
+    if (isNaN(d.getTime())) return null;
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  }
+
+  function dayLabel(day) {
+    const today = new Date();
+    const t0 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const diff = Math.round((t0 - day) / 86400000);
+    if (diff === 0) return "Aujourd'hui";
+    if (diff === 1) return "Hier";
+    if (diff > 1 && diff < 7) return JOURS_FR[day.getDay()].replace(/^./, c => c.toUpperCase());
+    return day.getDate() + " " + MOIS_FR[day.getMonth()] + " " + day.getFullYear();
+  }
+
+  function maybeAddDateDivider(box, m) {
+    const day = msgDay(m);
+    if (!day) return;
+    const key = day.getTime();
+    if (state.lastChatDay === key) return;
+    state.lastChatDay = key;
+    const sep = document.createElement("div");
+    sep.className = "chat-date";
+    sep.textContent = dayLabel(day);
+    box.appendChild(sep);
+  }
+
   function addMessage(m) {
     const box = $("chat-messages");
     const mine = state.agent && m.sender_id === state.agent.id;
@@ -191,6 +229,7 @@
       notify("💬 Nouveau message — SafeCity",
              (m.sender_name || "Centre") + " : " + (m.text || "pièce jointe"));
     }
+    maybeAddDateDivider(box, m);
     const div = document.createElement("div");
     div.className = "chat-msg " + (mine ? "mine" : "other");
     const who = document.createElement("span");
