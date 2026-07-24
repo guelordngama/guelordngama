@@ -296,6 +296,8 @@ class LiveAlertsPage(QWidget):
         _fill_alert_table(self.table, alerts, with_citizen=True, unread_ids=self._unread)
         if searching:
             self.result_label.setText(f"🔎 {len(alerts)} résultat(s) pour la recherche")
+        elif not alerts:
+            self.result_label.setText("🕊️  Aucune alerte en cours pour le moment.")
         else:
             self.result_label.setText("")
 

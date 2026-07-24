@@ -167,6 +167,10 @@ QScrollBar::handle:vertical {{ background: {p['BORDER']}; border-radius: 5px; mi
 QScrollBar::handle:vertical:hover {{ background: {p['MUTED']}; }}
 QScrollBar::add-line, QScrollBar::sub-line {{ height: 0; }}
 
+/* --- Barre d'état --- */
+QFrame#statusbar {{ background: {p['BG_ALT']}; border-top: 1px solid {p['BORDER']}; }}
+QFrame#statusbar QLabel {{ color: {p['MUTED']}; font-size: 12px; }}
+
 QDialog {{ background: {p['BG']}; }}
 QMessageBox {{ background: {p['BG_ALT']}; }}
 """

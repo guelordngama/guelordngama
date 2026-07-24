@@ -55,9 +55,13 @@ class SoundPlayer:
     """Joue les sons de l'application ; robuste si QtMultimedia est indisponible."""
 
     def __init__(self):
+        self.enabled = True
         self._alarm = self._make(_alarm_wav(), 0.6)
         self._ack = self._make(_ack_wav(), 0.4)
         self._notify = self._make(_notify_wav(), 0.4)
+
+    def set_enabled(self, on):
+        self.enabled = bool(on)
 
     def _make(self, path, volume):
         try:
@@ -72,6 +76,8 @@ class SoundPlayer:
             return None
 
     def _play(self, effect):
+        if not self.enabled:
+            return
         if effect is not None:
             try:
                 effect.play()

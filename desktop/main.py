@@ -60,6 +60,28 @@ from widgets import AgentDialog, IncidentPopup, Toast
 API_BASE = os.environ.get("SAFECITY_API", "http://127.0.0.1:5000")
 
 
+def app_icon():
+    """Icône d'application (bouclier SafeCity) rendue à la volée, sans fichier."""
+    from PySide6.QtGui import QColor, QFont, QIcon, QLinearGradient, QPainter, QPixmap
+
+    pm = QPixmap(64, 64)
+    pm.fill(Qt.transparent)
+    p = QPainter(pm)
+    p.setRenderHint(QPainter.Antialiasing)
+    grad = QLinearGradient(0, 0, 0, 64)
+    grad.setColorAt(0, QColor("#3d8bff"))
+    grad.setColorAt(1, QColor("#1e40af"))
+    p.setBrush(grad)
+    p.setPen(Qt.NoPen)
+    p.drawRoundedRect(10, 8, 44, 48, 12, 12)
+    f = QFont(); f.setPointSize(24); f.setBold(True)
+    p.setFont(f)
+    p.setPen(QColor("white"))
+    p.drawText(pm.rect(), Qt.AlignCenter, "🛡")
+    p.end()
+    return QIcon(pm)
+
+
 # --------------------------------------------------------------------------- #
 # Pont temps réel Socket.IO -> signaux Qt
 # --------------------------------------------------------------------------- #
@@ -114,6 +136,7 @@ class LoginDialog(QDialog):
         self.api = api
         self.user = None
         self.setWindowTitle("SafeCity — Connexion")
+        self.setWindowIcon(app_icon())
         self.setMinimumWidth(400)
         self.setStyleSheet(theme.QSS + f"""
             QDialog {{ background: {theme.BG}; }}
@@ -436,10 +459,17 @@ class MainWindow(QWidget):
         self._unread_agent_ids = set()
 
         self.setObjectName("root")
-        self.setWindowTitle("SafeCity — Centre de commandement")
+        self.setWindowTitle(
+            f"SafeCity — Centre de commandement · {operator.get('name', '')}".strip(" ·"))
+        self.setWindowIcon(app_icon())
+        self.setMinimumSize(1040, 640)
         self.resize(1320, 860)
         self.setStyleSheet(theme.QSS)
         self.alarm = AlarmPlayer()
+        # Préférence son (activé par défaut), mémorisée entre sessions.
+        from PySide6.QtCore import QSettings
+        self.alarm.set_enabled(
+            str(QSettings("SafeCity", "Operateur").value("sound", "true")).lower() != "false")
 
         self._build_ui()
         self._load_initial()
@@ -479,6 +509,14 @@ class MainWindow(QWidget):
         self.clock.setObjectName("clock")
         tl.addWidget(self.clock)
         tl.addSpacing(12)
+        self.btn_sound = QPushButton("🔊" if self.alarm.enabled else "🔇")
+        self.btn_sound.setObjectName("ghost")
+        self.btn_sound.setFixedWidth(46)
+        self.btn_sound.setToolTip("Activer / couper le son des notifications")
+        self.btn_sound.setCursor(Qt.PointingHandCursor)
+        self.btn_sound.clicked.connect(self._toggle_sound)
+        tl.addWidget(self.btn_sound)
+        tl.addSpacing(8)
         self.btn_theme = QPushButton("☀️" if theme.current_mode() == "light" else "🌙")
         self.btn_theme.setObjectName("ghost")
         self.btn_theme.setFixedWidth(46)
@@ -519,7 +557,29 @@ class MainWindow(QWidget):
         ):
             self.stack.addWidget(p)
         right.addWidget(self.stack, 1)
+
+        # Barre d'état (connexion · compteurs · dernière mise à jour).
+        statusbar = QFrame()
+        statusbar.setObjectName("statusbar")
+        statusbar.setFixedHeight(30)
+        sl = QHBoxLayout(statusbar)
+        sl.setContentsMargins(18, 0, 18, 0)
+        self.status_conn = QLabel("● Connexion…")
+        self.status_conn.setObjectName("muted")
+        sl.addWidget(self.status_conn)
+        sl.addStretch()
+        self.status_counts = QLabel("")
+        self.status_counts.setObjectName("muted")
+        sl.addWidget(self.status_counts)
+        sl.addSpacing(18)
+        self.status_updated = QLabel("")
+        self.status_updated.setObjectName("muted")
+        sl.addWidget(self.status_updated)
+        right.addWidget(statusbar)
+
         root.addLayout(right, 1)
+
+        self._install_shortcuts()
 
         # Connexions inter-pages
         self.page_dashboard.go_to_map.connect(lambda: self._navigate(2))
@@ -548,6 +608,46 @@ class MainWindow(QWidget):
         from datetime import datetime
 
         self.clock.setText(datetime.now().strftime("%A %d %B %Y · %H:%M:%S"))
+
+    def _toggle_sound(self):
+        from PySide6.QtCore import QSettings
+
+        on = not self.alarm.enabled
+        self.alarm.set_enabled(on)
+        QSettings("SafeCity", "Operateur").setValue("sound", "true" if on else "false")
+        self.btn_sound.setText("🔊" if on else "🔇")
+        if on:
+            self.alarm.play_notify()  # aperçu sonore quand on réactive
+        Toast(self, "🔊 Son activé" if on else "🔇 Son coupé", theme.ACCENT).show_for(1500)
+
+    def _install_shortcuts(self):
+        """Raccourcis clavier (navigation, rafraîchir, recherche)."""
+        from PySide6.QtGui import QKeySequence, QShortcut
+
+        # Ctrl+1..9 et Ctrl+0 → sections du menu.
+        for i in range(1, 10):
+            QShortcut(QKeySequence(f"Ctrl+{i}"), self,
+                      activated=lambda idx=i - 1: self._navigate(idx))
+        QShortcut(QKeySequence("Ctrl+0"), self, activated=lambda: self._navigate(9))
+        QShortcut(QKeySequence("F5"), self, activated=self._refresh_now)
+        QShortcut(QKeySequence("Ctrl+F"), self, activated=self._focus_search)
+        QShortcut(QKeySequence("Ctrl+M"), self, activated=self._toggle_sound)
+
+    def _refresh_now(self):
+        self._refresh_all()
+        idx = self.stack.currentIndex()
+        if idx == self.IDX_AGENTS:
+            self._load_agents()
+        elif idx == self.IDX_CHAT:
+            self._load_messages()
+        Toast(self, "🔄 Données actualisées", theme.ACCENT).show_for(1200)
+
+    def _focus_search(self):
+        self._navigate(self.IDX_ALERTS)
+        try:
+            self.page_live.search_bar.q.setFocus()
+        except Exception:
+            pass
 
     def _toggle_theme(self):
         from PySide6.QtCore import QSettings
@@ -639,7 +739,7 @@ class MainWindow(QWidget):
         self.bridge = RealtimeBridge(self.api)
         self.bridge.new_alert.connect(self._on_new_alert)
         self.bridge.alert_updated.connect(self._on_alert_updated)
-        self.bridge.connection_changed.connect(self.sidebar.set_online)
+        self.bridge.connection_changed.connect(self._set_online)
         self.bridge.agent_updated.connect(self._on_agent_updated)
         self.bridge.start()
 
@@ -869,6 +969,10 @@ class MainWindow(QWidget):
         self.page_map.set_alerts(alerts)
         self._refresh_stats()
 
+    def _set_online(self, ok):
+        self.sidebar.set_online(ok)
+        self.status_conn.setText("🟢 Connecté au serveur" if ok else "🔴 Hors ligne")
+
     def _refresh_stats(self):
         try:
             stats = self.api.get_stats()
@@ -877,6 +981,14 @@ class MainWindow(QWidget):
         self.page_dashboard.set_stats(stats)
         self.page_stats.set_stats(stats)
         self.page_reports.set_stats(stats)
+        # Barre d'état : compteurs + heure de dernière mise à jour.
+        from datetime import datetime
+        self.status_counts.setText(
+            f"🚨 {stats.get('today_count', 0)} aujourd'hui   ·   "
+            f"🚔 {stats.get('in_progress_count', 0)} en cours   ·   "
+            f"✅ {stats.get('resolved_today', 0)} résolues   ·   "
+            f"👮 {stats.get('agents_connected', 0)} agents")
+        self.status_updated.setText("Maj " + datetime.now().strftime("%H:%M:%S"))
 
     # ---- Incident pop-up ----
     def _open_incident(self, alert):
@@ -1029,6 +1141,8 @@ def main():
     from PySide6.QtCore import QSettings
 
     app = QApplication(sys.argv)
+    app.setApplicationName("SafeCity")
+    app.setWindowIcon(app_icon())
     # Applique le thème mémorisé (clair / sombre) avant de construire l'UI.
     saved_theme = QSettings("SafeCity", "Operateur").value("theme", "dark")
     theme.set_mode(saved_theme if saved_theme in ("light", "dark") else "dark")

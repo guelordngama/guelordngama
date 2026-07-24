@@ -2,6 +2,20 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [3.11.0] — Finitions professionnelles du poste opérateur
+
+### Ajouté
+- **Barre d'état** en bas de fenêtre : état de connexion, compteurs en direct
+  (alertes du jour · en cours · résolues · agents connectés) et heure de
+  **dernière mise à jour**.
+- **Bouton couper/activer le son** 🔊/🔇 dans la barre supérieure (préférence
+  mémorisée) ; les notifications sonores respectent ce réglage.
+- **Raccourcis clavier** : `Ctrl+1…9`/`Ctrl+0` (naviguer entre les sections),
+  `F5` (actualiser), `Ctrl+F` (recherche d'alertes), `Ctrl+M` (couper le son).
+- **Icône d'application** SafeCity (bouclier) sur la fenêtre et la barre des tâches.
+- **État vide** clair sur la liste des alertes (« Aucune alerte en cours »).
+- Titre de fenêtre personnalisé (nom de l'opérateur) et **taille minimale**.
+
 ## [3.10.1] — Sons de notification fiabilisés (portail agents)
 
 ### Corrigé / Ajouté
