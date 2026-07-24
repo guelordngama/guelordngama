@@ -22,6 +22,9 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
   **afficher/masquer le mot de passe**, **spinner de chargement**, et **mot de
   passe oublié par e-mail** (`POST /api/auth/forgot-password`, les agents ayant
   une adresse e-mail) avec écran dédié et retour à la connexion.
+- **Poste opérateur** : bouton **œil afficher/masquer** sur les champs mot de
+  passe (connexion et création de compte) et **état « chargement »** des boutons
+  (« Connexion… » / « Création… ») pendant l'appel réseau.
 
 ## [3.9.1] — PostgreSQL comme base de données standard
 

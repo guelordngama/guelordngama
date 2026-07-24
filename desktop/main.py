@@ -165,12 +165,12 @@ class LoginDialog(QDialog):
         self.password.setEchoMode(QLineEdit.Password)
         self.password.returnPressed.connect(self._try_login)
         form.addRow("Email", self.email)
-        form.addRow("Mot de passe", self.password)
+        form.addRow("Mot de passe", self._pw_field(self.password))
         lay.addLayout(form)
 
-        btn = QPushButton("Se connecter")
-        btn.clicked.connect(self._try_login)
-        lay.addWidget(btn)
+        self.btn_login = QPushButton("Se connecter")
+        self.btn_login.clicked.connect(self._try_login)
+        lay.addWidget(self.btn_login)
 
         forgot = QPushButton("Mot de passe oublié ?")
         forgot.setObjectName("linkBtn")
@@ -207,15 +207,15 @@ class LoginDialog(QDialog):
         form.addRow("Nom", self.r_name)
         form.addRow("Email", self.r_email)
         form.addRow("Téléphone", self.r_phone)
-        form.addRow("Mot de passe", self.r_pass)
-        form.addRow("Confirmer", self.r_pass2)
+        form.addRow("Mot de passe", self._pw_field(self.r_pass))
+        form.addRow("Confirmer", self._pw_field(self.r_pass2))
         form.addRow("Code d'invitation", self.r_invite)
         lay.addLayout(form)
 
-        btn = QPushButton("Créer le compte (opérateur)")
-        btn.setObjectName("success")
-        btn.clicked.connect(self._try_register)
-        lay.addWidget(btn)
+        self.btn_register = QPushButton("Créer le compte (opérateur)")
+        self.btn_register.setObjectName("success")
+        self.btn_register.clicked.connect(self._try_register)
+        lay.addWidget(self.btn_register)
 
         hint = QLabel("Compte de rôle « opérateur ». Un code d'invitation "
                       "(fourni par l'administrateur) est requis.")
@@ -224,13 +224,53 @@ class LoginDialog(QDialog):
         lay.addWidget(hint)
         return w
 
+    # ---- Helpers ----
+    @staticmethod
+    def _pw_field(field):
+        """Enveloppe un champ mot de passe avec un bouton œil (afficher/masquer)."""
+        eye = QPushButton("👁️")
+        eye.setObjectName("ghost")
+        eye.setFixedWidth(42)
+        eye.setCheckable(True)
+        eye.setCursor(Qt.PointingHandCursor)
+        eye.setToolTip("Afficher / masquer le mot de passe")
+
+        def toggle():
+            on = eye.isChecked()
+            field.setEchoMode(QLineEdit.Normal if on else QLineEdit.Password)
+            eye.setText("🙈" if on else "👁️")
+
+        eye.clicked.connect(toggle)
+        row = QHBoxLayout()
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(6)
+        row.addWidget(field, 1)
+        row.addWidget(eye)
+        wrap = QWidget()
+        wrap.setLayout(row)
+        return wrap
+
+    def _set_busy(self, btn, busy, label=None):
+        """État « chargement » d'un bouton pendant un appel réseau (bloquant)."""
+        if busy:
+            btn._orig_text = btn.text()
+            btn.setText(label or "Veuillez patienter…")
+            btn.setEnabled(False)
+        else:
+            btn.setText(getattr(btn, "_orig_text", btn.text()))
+            btn.setEnabled(True)
+        QApplication.processEvents()  # force le repaint avant l'appel bloquant
+
     # ---- Actions ----
     def _try_login(self):
+        self._set_busy(self.btn_login, True, "Connexion…")
         try:
             self.user = self.api.login(self.email.text().strip(), self.password.text())
             self.accept()
         except Exception as e:
             self._error("Échec : " + _api_error_message(e))
+        finally:
+            self._set_busy(self.btn_login, False)
 
     def _try_register(self):
         name = self.r_name.text().strip()
@@ -243,6 +283,7 @@ class LoginDialog(QDialog):
         if pwd != pwd2:
             self._error("Les deux mots de passe ne correspondent pas.")
             return
+        self._set_busy(self.btn_register, True, "Création…")
         try:
             self.user = self.api.register_staff(
                 name, email, pwd, self.r_phone.text().strip(),
@@ -250,6 +291,8 @@ class LoginDialog(QDialog):
             self.accept()
         except Exception as e:
             self._error("Création impossible : " + _api_error_message(e))
+        finally:
+            self._set_busy(self.btn_register, False)
 
     def _forgot_password(self):
         default = self.email.text().strip()
