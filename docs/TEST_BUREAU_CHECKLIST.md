@@ -25,8 +25,15 @@ améliorations (tableau de bord, séparateurs de date, bulles de messagerie).
 Les colonnes `messages.voice_path` et `messages.voice_duration` ont été ajoutées :
 il faut appliquer les migrations.
 
-- [ ] **En développement (SQLite)** : rien à faire, la table est créée
-      automatiquement au démarrage.
+- [ ] **En développement (SQLite)** :
+  - **Base neuve** : rien à faire, la table est créée automatiquement au
+    démarrage.
+  - **⚠️ Base de dev *existante*** (créée avant la 1.1.0) : `create_all()`
+    n'ajoute **pas** les nouvelles colonnes à une table déjà présente. Le plus
+    simple est de **supprimer la base de dev** (`backend/safecity.db`) pour
+    qu'elle soit recréée au prochain démarrage (les comptes de démonstration
+    sont régénérés). Sinon, l'envoi d'un vocal échoue avec
+    « no such column: messages.voice_path ».
 - [ ] **En production / PostgreSQL** : appliquer les migrations
   - Sans Docker : `flask db upgrade`
   - Avec Docker :
