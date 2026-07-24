@@ -18,6 +18,10 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
   - **Saisie du code en 6 cases** (avance/retour automatiques, collage, envoi
     auto quand complet) + **compte à rebours** avant de pouvoir renvoyer le code.
 - Tests backend étendus (réinitialisation par SMS) — 52 au total.
+- **Portail agents** : mêmes finitions professionnelles sur la connexion —
+  **afficher/masquer le mot de passe**, **spinner de chargement**, et **mot de
+  passe oublié par e-mail** (`POST /api/auth/forgot-password`, les agents ayant
+  une adresse e-mail) avec écran dédié et retour à la connexion.
 
 ## [3.9.1] — PostgreSQL comme base de données standard
 

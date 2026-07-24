@@ -21,11 +21,34 @@
         <h1>SafeCity</h1>
         <p class="tagline">Portail des agents d'intervention</p>
       </div>
-      <label class="field-label" for="email">Email</label>
-      <input id="email" type="email" value="agent1@safecity.local" />
-      <label class="field-label" for="password">Mot de passe</label>
-      <input id="password" type="password" value="safecity123" />
-      <button id="btn-login" class="btn-primary">Se connecter</button>
+      <!-- Connexion -->
+      <div id="login-form">
+        <label class="field-label" for="email">Email</label>
+        <input id="email" type="email" autocomplete="username" value="agent1@safecity.local" />
+        <label class="field-label" for="password">Mot de passe</label>
+        <div class="pw-field">
+          <input id="password" type="password" autocomplete="current-password" value="safecity123" />
+          <button type="button" class="pw-eye" data-target="password"
+                  aria-label="Afficher le mot de passe">👁️</button>
+        </div>
+        <button id="btn-login" class="btn-primary">
+          <span class="btn-label">Se connecter</span><span class="spinner" hidden></span>
+        </button>
+        <p class="login-switch"><a href="#" id="go-forgot">Mot de passe oublié ?</a></p>
+      </div>
+
+      <!-- Mot de passe oublié (par e-mail) -->
+      <div id="forgot-form" hidden>
+        <p class="forgot-intro">🔑 Entrez l'e-mail de votre compte. Un mot de passe
+          temporaire vous sera envoyé par e-mail.</p>
+        <label class="field-label" for="forgot-email">Email</label>
+        <input id="forgot-email" type="email" autocomplete="username" placeholder="vous@exemple.com" />
+        <button id="btn-forgot" class="btn-primary">
+          <span class="btn-label">Envoyer</span><span class="spinner" hidden></span>
+        </button>
+        <p class="login-switch"><a href="#" id="forgot-back">← Retour à la connexion</a></p>
+      </div>
+
       <p id="login-error" class="login-error"></p>
     </div>
   </section>

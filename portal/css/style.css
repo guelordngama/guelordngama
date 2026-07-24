@@ -35,6 +35,7 @@ body { margin: 0; min-height: 100vh; font-family: system-ui,"Segoe UI",Roboto,sa
 .glass { background: var(--panel); border: 1px solid var(--line);
   backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
 .hidden { display: none !important; }
+[hidden] { display: none !important; }
 .brand-mark { font-size: 26px; }
 .tagline { margin: 0; font-size: 12px; color: var(--muted); }
 .field-label { display: block; font-weight: 700; margin: 14px 0 6px; font-size: 13px; color: var(--muted); }
@@ -45,6 +46,27 @@ input:focus, select:focus { outline: none; border-color: var(--accent); }
 /* --- Connexion --- */
 .login-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
 .login-card { width: 100%; max-width: 380px; border-radius: 20px; padding: 28px; }
+.login-switch { text-align: center; font-size: 13px; margin: 12px 0 0; }
+.login-switch a { color: var(--accent); font-weight: 700; text-decoration: none; }
+.forgot-intro { color: var(--muted); font-size: 13px; line-height: 1.5; margin: 0 0 12px; }
+
+/* Champ mot de passe (afficher/masquer) */
+.pw-field { position: relative; }
+.pw-field input { padding-right: 44px; }
+.pw-eye {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  background: transparent; border: none; cursor: pointer; font-size: 16px;
+  padding: 6px; opacity: 0.7; line-height: 1;
+}
+.pw-eye:hover { opacity: 1; }
+
+/* Spinner des boutons */
+.spinner {
+  display: inline-block; width: 15px; height: 15px; margin-left: 8px;
+  vertical-align: -2px; border: 2px solid rgba(255,255,255,0.4);
+  border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 .login-brand { text-align: center; margin-bottom: 10px; }
 .login-brand h1 { margin: 8px 0 2px; font-size: 26px; font-weight: 800; }
 .btn-primary { width: 100%; margin-top: 20px; padding: 14px; border: none; border-radius: 12px;

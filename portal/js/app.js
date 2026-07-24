@@ -46,11 +46,34 @@
   }
 
   // ---- Connexion ----
+  function setLoading(btn, on) {
+    btn.disabled = on;
+    const sp = btn.querySelector(".spinner");
+    if (sp) sp.hidden = !on;
+  }
+  function loginError(msg, ok) {
+    const el = $("login-error");
+    el.textContent = msg || "";
+    el.style.color = ok ? "var(--green)" : "";
+  }
+
+  // Afficher / masquer les mots de passe (délégation).
+  document.addEventListener("click", (e) => {
+    const eye = e.target.closest(".pw-eye");
+    if (!eye) return;
+    const inp = $(eye.dataset.target); if (!inp) return;
+    const reveal = inp.type === "password";
+    inp.type = reveal ? "text" : "password";
+    eye.textContent = reveal ? "🙈" : "👁️";
+  });
+
   $("btn-login").addEventListener("click", login);
   $("password").addEventListener("keydown", (e) => { if (e.key === "Enter") login(); });
 
   async function login() {
-    $("login-error").textContent = "";
+    loginError("");
+    const btn = $("btn-login");
+    setLoading(btn, true);
     try {
       const data = await api("POST", "/api/auth/login",
         { email: $("email").value.trim(), password: $("password").value });
@@ -61,9 +84,40 @@
       $("app").classList.remove("hidden");
       startApp();
     } catch (e) {
-      $("login-error").textContent = "Échec : " + e.message;
+      loginError("Échec : " + e.message);
+    } finally {
+      setLoading(btn, false);
     }
   }
+
+  // ---- Mot de passe oublié (par e-mail) ----
+  $("go-forgot").addEventListener("click", (e) => {
+    e.preventDefault();
+    $("forgot-email").value = $("email").value.trim();
+    $("login-form").hidden = true;
+    $("forgot-form").hidden = false;
+    loginError("");
+  });
+  $("forgot-back").addEventListener("click", (e) => {
+    e.preventDefault();
+    $("forgot-form").hidden = true;
+    $("login-form").hidden = false;
+    loginError("");
+  });
+  $("btn-forgot").addEventListener("click", async () => {
+    const email = $("forgot-email").value.trim();
+    if (!email || !email.includes("@")) { loginError("Entrez un e-mail valide."); return; }
+    const btn = $("btn-forgot");
+    setLoading(btn, true); loginError("");
+    try {
+      const data = await api("POST", "/api/auth/forgot-password", { email });
+      loginError(data.message || "Si un compte existe, un e-mail a été envoyé.", true);
+    } catch (e) {
+      loginError("Échec : " + e.message);
+    } finally {
+      setLoading(btn, false);
+    }
+  });
 
   $("btn-logout").addEventListener("click", () => location.reload());
 
