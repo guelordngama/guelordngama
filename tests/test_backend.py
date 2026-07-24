@@ -452,6 +452,9 @@ def _register_and_verify_citizen(app, client, name, phone, password):
 
 def test_register_requires_otp_then_login_by_phone():
     app, client = make_client()
+    app.config["SMS_HTTP_URL"] = "http://sms.local/send"  # SMS configuré → e-mail non requis
+    from backend.services import notifications
+    notifications.send_sms = lambda to, text: None
     # L'inscription n'ouvre pas de session : vérification requise.
     r = client.post("/api/auth/register", json={
         "name": "Citoyen Test", "phone": "+243 810 000 111", "password": "secret1",
@@ -492,7 +495,10 @@ def test_otp_wrong_code_rejected():
 
 
 def test_register_duplicate_phone_conflict():
-    _, client = make_client()
+    app, client = make_client()
+    app.config["SMS_HTTP_URL"] = "http://sms.local/send"  # SMS configuré → e-mail non requis
+    from backend.services import notifications
+    notifications.send_sms = lambda to, text: None
     client.post("/api/auth/register", json={
         "name": "A", "phone": "+243810000111", "password": "secret1", "consent": True})
     # Même numéro sans « + » : doit être rejeté (409) avec le champ 'phone'.
@@ -724,6 +730,32 @@ def test_otp_email_fallback_when_sms_unavailable():
         assert v.status_code == 200
     finally:
         notifications.send_email_message = original
+
+
+def test_email_required_when_no_sms_gateway():
+    """Sans passerelle SMS, l'e-mail devient obligatoire à l'inscription (c'est
+    le seul canal pour recevoir le code) ; avec e-mail, l'inscription passe."""
+    from backend.services import notifications
+    app, client = make_client()  # config de test : aucune passerelle SMS
+
+    # Sans e-mail → refus 400 avec le champ 'email'.
+    r = client.post("/api/auth/register", json={
+        "name": "Sans Mail", "phone": "+243830000111", "password": "secret1",
+        "consent": True})
+    assert r.status_code == 400
+    assert r.get_json()["error"]["details"]["field"] == "email"
+
+    # Avec e-mail + SMTP configuré → inscription acceptée (code par e-mail).
+    app.config["SMTP_HOST"] = "smtp.local"
+    notifications.send_email_message = lambda to, subject, body: None
+    ok = client.post("/api/auth/register", json={
+        "name": "Avec Mail", "phone": "+243830000222", "password": "secret1",
+        "email": "avec@exemple.cd", "consent": True})
+    assert ok.status_code == 201, ok.get_json()
+
+    # /api/meta annonce email_required = True quand aucun SMS n'est configuré.
+    meta = client.get("/api/meta").get_json()
+    assert meta["email_required"] is True
 
 
 def test_sms_gateway_detection_and_twilio_removed():

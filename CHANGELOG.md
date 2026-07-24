@@ -2,6 +2,18 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.2.2] — 2026-07-24 — E-mail obligatoire à l'inscription sans SMS
+
+### Modifié
+- **E-mail requis à l'inscription citoyenne tant qu'aucune passerelle SMS n'est
+  configurée** : c'est alors le seul canal pour transmettre le code de
+  vérification, donc l'inscription l'exige (message clair, champ `email`).
+  Dès qu'un SMS est configuré, l'e-mail redevient optionnel.
+- `/api/meta` expose `email_required` ; le formulaire citoyen **adapte
+  automatiquement** le libellé (« requis »), rend le champ obligatoire et valide
+  côté client.
+- Ordre de validation : le **consentement** est vérifié avant la règle e-mail.
+
 ## [1.2.1] — 2026-07-24 — Configuration e-mail Gmail (envoi des codes aux citoyens)
 
 ### Ajouté

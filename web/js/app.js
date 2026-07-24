@@ -6,6 +6,23 @@
 
   const API = window.SAFECITY_CONFIG.API_BASE;
 
+  // E-mail requis à l'inscription ? (vrai si aucun SMS n'est configuré côté
+  // serveur : le code de vérification ne peut alors être envoyé que par e-mail).
+  let emailRequired = false;
+  (function fetchMeta() {
+    fetch(API + "/api/meta").then((r) => r.json()).then((m) => {
+      emailRequired = !!m.email_required;
+      if (!emailRequired) return;
+      const label = document.getElementById("reg-email-label");
+      const hint = document.getElementById("reg-email-hint");
+      const input = document.getElementById("reg-email");
+      if (label) label.innerHTML = "✉️ E-mail <strong>(requis)</strong>";
+      if (input) input.setAttribute("required", "required");
+      if (hint) hint.textContent =
+        "Votre code de vérification vous sera envoyé à cette adresse.";
+    }).catch(() => {});
+  })();
+
   // ---------------------------------------------------------------------- //
   // Thème clair / sombre (préférence mémorisée)
   // ---------------------------------------------------------------------- //
@@ -268,25 +285,37 @@
     const phone = $("reg-phone").value.trim();
     const password = $("reg-password").value;
 
+    const email = $("reg-email").value.trim();
+
     // Validations côté client (retour immédiat, par champ).
     let bad = false;
     if (!name) { fieldErr("err-name", "Votre nom est requis."); bad = true; } else fieldErr("err-name", "");
     if (!validPhone(phone)) { fieldErr("err-phone", "Numéro invalide (au moins 8 chiffres)."); bad = true; } else fieldErr("err-phone", "");
+    if (emailRequired && !email) {
+      fieldErr("err-email", "Un e-mail est requis pour recevoir votre code de vérification."); bad = true;
+    } else if (email && !email.includes("@")) {
+      fieldErr("err-email", "Adresse e-mail invalide."); bad = true;
+    } else fieldErr("err-email", "");
     if (password.length < 6) { authError("Le mot de passe doit contenir au moins 6 caractères."); bad = true; }
     if (password !== $("reg-password2").value) { fieldErr("err-password2", "Les mots de passe ne correspondent pas."); bad = true; } else fieldErr("err-password2", "");
     if (!$("reg-consent").checked) { authError("Vous devez accepter la politique de confidentialité."); bad = true; }
     if (bad) { setLoading(btn, false); return; }
 
-    const body = { name, phone, email: $("reg-email").value.trim(), password, consent: true };
+    const body = { name, phone, email, password, consent: true };
     try {
       const { ok, status, data } = await authRequest("/api/auth/register", body);
       if (!ok) {
+        const field = data.error && data.error.details && data.error.details.field;
+        if (field === "email") {
+          fieldErr("err-email", (data.error && data.error.message) ||
+            "Un e-mail est requis pour recevoir votre code de vérification.");
+          return;
+        }
         const msg = (data.error && data.error.message) ||
           (status === 409 ? "Ce numéro existe déjà. Connectez-vous ou utilisez un autre numéro."
                           : "Inscription impossible.");
         authError(msg);
-        if (status === 409 && data.error && data.error.details &&
-            data.error.details.field === "phone") {
+        if (status === 409 && field === "phone") {
           $("login-identifier").value = body.phone;
         }
         return;

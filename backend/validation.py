@@ -129,13 +129,23 @@ def validate_register_payload(data):
     if len(password) < 6:
         raise ValidationError("Le mot de passe doit contenir au moins 6 caractères.")
 
+    if not bool(data.get("consent")):
+        raise ValidationError(
+            "Vous devez accepter la politique de confidentialité pour créer un compte.")
+
     email = clean_text(data.get("email"), 160).lower() or None
     if email and "@" not in email:
         raise ValidationError("Email invalide.")
 
-    if not bool(data.get("consent")):
-        raise ValidationError(
-            "Vous devez accepter la politique de confidentialité pour créer un compte.")
+    # Si aucune passerelle SMS n'est configurée, l'e-mail est le seul canal pour
+    # transmettre le code de vérification : il devient alors obligatoire.
+    if not email:
+        from .services import notifications
+        if not notifications.sms_configured():
+            raise ValidationError(
+                "Un e-mail est requis pour recevoir votre code de vérification "
+                "(aucun service SMS n'est configuré pour le moment).",
+                details={"field": "email"})
 
     return {"name": name, "phone": phone, "password": password, "email": email}
 

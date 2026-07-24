@@ -18,5 +18,13 @@ def health():
 
 @bp.get("/meta")
 def meta():
-    """Métadonnées utiles au front (types de danger, statuts)."""
-    return jsonify({"danger_types": DANGER_TYPES, "statuses": ALERT_STATUSES})
+    """Métadonnées utiles au front (types de danger, statuts, canal OTP)."""
+    from ..services import notifications
+
+    # E-mail obligatoire à l'inscription si aucun SMS n'est configuré (le code
+    # de vérification ne peut alors être envoyé que par e-mail).
+    return jsonify({
+        "danger_types": DANGER_TYPES,
+        "statuses": ALERT_STATUSES,
+        "email_required": not notifications.sms_configured(),
+    })
