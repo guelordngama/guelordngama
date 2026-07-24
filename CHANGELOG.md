@@ -2,6 +2,18 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [3.12.0] — Pop-up d'incident repensé (poste opérateur)
+
+### Modifié
+- **Pop-up d'incident plus professionnel et opérationnel** :
+  - **Minuteur en direct** « Reçue il y a MM:SS — délai de réponse en cours »
+    (sensibilise au temps de réponse), heure de réception dans le bandeau.
+  - **Miniature de la photo** jointe, chargée en arrière-plan (non bloquant).
+  - Mise en page soignée : infos à gauche / photo à droite, description en carte,
+    action **« Accepter l'intervention »** mise en avant, puis patrouille / agent /
+    appeler / carte / clôturer.
+  - Fenêtre autonome (applique son propre thème) — cohérente en clair et sombre.
+
 ## [3.11.0] — Finitions professionnelles du poste opérateur
 
 ### Ajouté

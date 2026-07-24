@@ -142,34 +142,59 @@ class IncidentPopup(QDialog):
     open_on_map = Signal(dict)
     close_incident = Signal(dict)
 
-    def __init__(self, alert, parent=None):
+    def __init__(self, alert, parent=None, api_base=""):
         super().__init__(parent)
         self.alert = alert
+        self.api_base = (api_base or "").rstrip("/")
         self.setWindowTitle("🚨 Nouvelle alerte")
-        self.setMinimumWidth(460)
-        self.setStyleSheet(f"background: {theme.BG};")
+        self.setMinimumWidth(520)
+        self.setStyleSheet(theme.QSS + f"QDialog {{ background: {theme.BG}; }}")
 
         color = theme.urgency_color(alert.get("urgency"))
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
 
-        # Bandeau supérieur coloré selon l'urgence.
+        # Bandeau supérieur coloré selon l'urgence (+ heure de réception).
         header = QFrame()
-        header.setStyleSheet(f"background: {color}; border-top-left-radius: 6px; border-top-right-radius: 6px;")
-        hl = QVBoxLayout(header)
+        header.setStyleSheet(f"background: {color};")
+        hl = QHBoxLayout(header)
         hl.setContentsMargins(20, 16, 20, 16)
+        htext = QVBoxLayout()
+        htext.setSpacing(2)
         title = QLabel(f"🚨  {(alert.get('type') or '').upper()}")
         title.setStyleSheet("color: white; font-size: 22px; font-weight: 800;")
         sub = QLabel(f"Niveau d'urgence : {theme.urgency_label(alert.get('urgency'))}")
-        sub.setStyleSheet("color: rgba(255,255,255,0.9); font-weight: 600;")
-        hl.addWidget(title)
-        hl.addWidget(sub)
+        sub.setStyleSheet("color: rgba(255,255,255,0.92); font-weight: 600;")
+        htext.addWidget(title)
+        htext.addWidget(sub)
+        hl.addLayout(htext)
+        hl.addStretch()
+        recv = QLabel(f"Reçue à\n{alert.get('time') or '—'}")
+        recv.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        recv.setStyleSheet("color: rgba(255,255,255,0.95); font-weight: 800; font-size: 15px;")
+        hl.addWidget(recv)
         root.addWidget(header)
+
+        # Minuteur « reçue il y a … » (sensibilise au temps de réponse).
+        self.timer_label = QLabel("")
+        self.timer_label.setAlignment(Qt.AlignCenter)
+        self.timer_label.setStyleSheet(
+            f"background: {color}22; color: {color}; font-weight: 800; "
+            f"padding: 7px; font-size: 13px;")
+        root.addWidget(self.timer_label)
+        self._elapsed_timer = QTimer(self)
+        self._elapsed_timer.timeout.connect(self._tick_elapsed)
+        self._elapsed_timer.start(1000)
+        self._tick_elapsed()
 
         body = QVBoxLayout()
         body.setContentsMargins(20, 16, 20, 20)
-        body.setSpacing(10)
+        body.setSpacing(12)
 
+        # Infos (gauche) + miniature photo (droite).
+        content = QHBoxLayout()
+        content.setSpacing(16)
         info = QGridLayout()
         info.setVerticalSpacing(8)
         info.setHorizontalSpacing(14)
@@ -178,30 +203,47 @@ class IncidentPopup(QDialog):
             ("📞 Téléphone", alert.get("reporter_phone") or "Non communiqué"),
             ("🕒 Heure", alert.get("time") or "—"),
             ("📍 Quartier", alert.get("neighborhood") or "—"),
-            ("🌐 Position GPS", f"{alert.get('lat'):.5f}, {alert.get('lng'):.5f}"),
-            ("📏 Distance", f"{round(alert['distance_m'])} m" if alert.get("distance_m") is not None else "—"),
-            ("📝 Description", alert.get("description") or "—"),
+            ("🌐 Position", f"{alert.get('lat'):.5f}, {alert.get('lng'):.5f}"),
+            ("📏 Distance équipe", f"{round(alert['distance_m'])} m" if alert.get("distance_m") is not None else "—"),
         ]
         for i, (k, v) in enumerate(rows):
             kl = QLabel(k)
             kl.setStyleSheet(f"color: {theme.MUTED}; font-weight: 600;")
             vl = QLabel(str(v))
             vl.setWordWrap(True)
-            vl.setStyleSheet("font-weight: 600;")
+            vl.setStyleSheet("font-weight: 700;")
             info.addWidget(kl, i, 0, Qt.AlignTop)
             info.addWidget(vl, i, 1)
-        body.addLayout(info)
+        content.addLayout(info, 1)
 
         if alert.get("photo_url"):
-            media = QLabel("📷 Photo jointe disponible (voir la carte / le détail)")
-            media.setStyleSheet(f"color: {theme.ACCENT_2}; font-weight: 600;")
-            body.addWidget(media)
+            self.photo_label = QLabel("📷\nChargement…")
+            self.photo_label.setFixedSize(190, 140)
+            self.photo_label.setAlignment(Qt.AlignCenter)
+            self.photo_label.setStyleSheet(
+                f"background: {theme.PANEL}; border: 1px solid {theme.BORDER}; "
+                f"border-radius: 10px; color: {theme.MUTED};")
+            content.addWidget(self.photo_label, 0, Qt.AlignTop)
+            self._load_photo(alert["photo_url"])
+        body.addLayout(content)
 
-        # Boutons d'action
+        # Description (pleine largeur).
+        if alert.get("description"):
+            desc = QLabel("📝  " + alert["description"])
+            desc.setWordWrap(True)
+            desc.setStyleSheet(
+                f"background: {theme.PANEL}; border: 1px solid {theme.BORDER}; "
+                f"border-radius: 10px; padding: 10px 12px; font-weight: 600;")
+            body.addWidget(desc)
+
+        # Boutons d'action — « Accepter » mis en avant sur toute la largeur.
+        b_accept = QPushButton("✅  Accepter l'intervention")
+        b_accept.setObjectName("success")
+        b_accept.setMinimumHeight(42)
+        body.addWidget(b_accept)
+
         actions = QGridLayout()
         actions.setSpacing(8)
-        b_accept = QPushButton("✅ Accepter")
-        b_accept.setObjectName("success")
         b_patrol = QPushButton("🚔 Envoyer une patrouille")
         b_patrol.setObjectName("warn")
         b_agent = QPushButton("👮 Affecter un agent")
@@ -212,13 +254,11 @@ class IncidentPopup(QDialog):
         b_map.setObjectName("ghost")
         b_close = QPushButton("🏁 Clôturer l'incident")
         b_close.setObjectName("danger")
-
-        actions.addWidget(b_accept, 0, 0)
-        actions.addWidget(b_patrol, 0, 1)
-        actions.addWidget(b_agent, 1, 0)
-        actions.addWidget(b_call, 1, 1)
-        actions.addWidget(b_map, 2, 0, 1, 2)
-        actions.addWidget(b_close, 3, 0, 1, 2)
+        actions.addWidget(b_patrol, 0, 0)
+        actions.addWidget(b_agent, 0, 1)
+        actions.addWidget(b_call, 1, 0)
+        actions.addWidget(b_map, 1, 1)
+        actions.addWidget(b_close, 2, 0, 1, 2)
         body.addLayout(actions)
         root.addLayout(body)
 
@@ -228,6 +268,51 @@ class IncidentPopup(QDialog):
         b_call.clicked.connect(self._call)
         b_map.clicked.connect(lambda: (self.open_on_map.emit(self.alert), self.accept()))
         b_close.clicked.connect(lambda: (self.close_incident.emit(self.alert), self.accept()))
+
+    def _tick_elapsed(self):
+        from datetime import datetime
+
+        created = self.alert.get("created_at")
+        text = "⏱  Intervention en attente"
+        try:
+            if created:
+                dt = datetime.fromisoformat(created.replace("Z", ""))
+                secs = max(0, int((datetime.utcnow() - dt).total_seconds()))
+                h, rem = divmod(secs, 3600)
+                m, s = divmod(rem, 60)
+                hms = (f"{h:02d}:" if h else "") + f"{m:02d}:{s:02d}"
+                text = f"⏱  Reçue il y a {hms} — délai de réponse en cours"
+        except Exception:
+            pass
+        self.timer_label.setText(text)
+
+    def _load_photo(self, rel_url):
+        """Charge la miniature de la photo en arrière-plan (non bloquant)."""
+        try:
+            from PySide6.QtCore import QUrl
+            from PySide6.QtGui import QPixmap
+            from PySide6.QtNetwork import QNetworkAccessManager, QNetworkRequest
+
+            url = self.api_base + rel_url if rel_url.startswith("/") else rel_url
+            self._nam = QNetworkAccessManager(self)
+            reply = self._nam.get(QNetworkRequest(QUrl(url)))
+
+            def done():
+                try:
+                    pix = QPixmap()
+                    pix.loadFromData(bytes(reply.readAll().data()))
+                    if not pix.isNull():
+                        self.photo_label.setPixmap(pix.scaled(
+                            190, 140, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+                    else:
+                        self.photo_label.setText("📷 Photo\n(voir le détail)")
+                except Exception:
+                    self.photo_label.setText("📷 Photo jointe")
+                reply.deleteLater()
+
+            reply.finished.connect(done)
+        except Exception:
+            self.photo_label.setText("📷 Photo jointe")
 
     def _call(self):
         from PySide6.QtWidgets import QMessageBox

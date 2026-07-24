@@ -994,8 +994,7 @@ class MainWindow(QWidget):
     def _open_incident(self, alert):
         if alert["id"] in self._open_popups:
             return
-        popup = IncidentPopup(alert, self)
-        popup.setStyleSheet(theme.QSS)
+        popup = IncidentPopup(alert, self, api_base=API_BASE)
         popup.accept_incident.connect(self._acknowledge_incident)
         popup.send_patrol.connect(self._assign_alert)
         popup.assign_agent.connect(lambda a: self._assign_agent_to_alert(a["id"]))
