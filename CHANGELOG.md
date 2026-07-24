@@ -46,6 +46,14 @@ Voir le détail des évolutions dans les entrées ci-dessous.
   navigateurs. Repli web : lecture de la durée via l'élément `<audio>` si elle
   n'a pas été fournie.
 
+### Vérifié
+- **Migrations testées sur PostgreSQL 16** : `flask db upgrade` applique la
+  chaîne complète sans erreur (baseline → `consent_at` → `voice_path`
+  `b3d7e1f2a9c4` → `voice_duration` `c4e8f2a1b6d7`). Colonnes créées avec les
+  bons types (`voice_path` `varchar(255)`, `voice_duration` `integer`),
+  `downgrade` et ré-`upgrade` idempotents, et écriture/lecture des colonnes
+  vocales validée via l'ORM.
+
 ## [3.15.0] — Messages vocaux dans la messagerie
 
 ### Ajouté
