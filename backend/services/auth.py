@@ -68,7 +68,9 @@ def register_citizen(payload):
     db.session.add(user)
     db.session.commit()
     log.info("Nouveau compte citoyen #%s (%s) — vérification requise", user.id, phone)
-    send_otp(user)  # envoie le code de vérification par SMS
+    # Envoie le code de vérification (SMS, avec repli e-mail). On expose le canal
+    # utilisé pour que le frontend affiche le bon message.
+    user.otp_channel = send_otp(user)
     return user
 
 
@@ -80,10 +82,16 @@ def _generate_otp(length):
 
 
 def send_otp(user):
-    """Génère et envoie un code de vérification par SMS au numéro de l'utilisateur.
+    """Génère et envoie un code de vérification à l'utilisateur.
 
-    Repli : si aucune passerelle SMS n'est configurée, on échoue en production
-    (503) mais on journalise le code en développement pour permettre les tests.
+    Canaux, dans l'ordre :
+      1. **SMS** vers le numéro (si une passerelle SMS est configurée) ;
+      2. **repli e-mail** vers l'adresse du compte (si fournie et SMTP configuré)
+         — l'inscription continue de fonctionner même si le SMS est indisponible.
+
+    En production, échoue (503/502) si aucun canal n'aboutit ; en développement,
+    journalise le code pour permettre les tests. Renvoie le canal utilisé
+    (« sms », « email » ou « dev »).
     """
     from flask import current_app
 
@@ -98,23 +106,38 @@ def send_otp(user):
 
     text = (f"SafeCity : votre code de vérification est {code}. "
             f"Valable {cfg['OTP_TTL_MIN']} minutes.")
+
+    # 1) SMS (canal principal)
     if notifications.sms_configured():
         try:
             notifications.send_sms(user.phone, text)
             log.info("OTP envoyé par SMS au compte #%s", user.id)
+            return "sms"
         except Exception as e:  # pragma: no cover - dépend du réseau/passerelle
-            log.warning("Échec envoi OTP (#%s) : %s", user.id, e)
-            raise ServiceUnavailableError(
-                "Impossible d'envoyer le code de vérification par SMS. Réessayez "
-                "plus tard ou contactez l'administrateur.",
-                code="sms_send_failed", status_code=502)
-    elif str(cfg.get("ENV", "development")).lower() == "production":
+            log.warning("Échec envoi OTP par SMS (#%s) : %s — tentative de repli e-mail", user.id, e)
+
+    # 2) Repli e-mail (si le citoyen a fourni une adresse et le SMTP est configuré)
+    if user.email and notifications.smtp_configured():
+        try:
+            notifications.send_email_message(
+                [user.email], "SafeCity — code de vérification",
+                f"Bonjour,\n\n{text}\n\n"
+                "Saisissez ce code dans l'application pour activer votre compte.\n"
+                "Si vous n'êtes pas à l'origine de cette demande, ignorez ce message.")
+            log.info("OTP envoyé par e-mail (repli) au compte #%s", user.id)
+            return "email"
+        except Exception as e:  # pragma: no cover - dépend du réseau/SMTP
+            log.warning("Échec envoi OTP par e-mail (#%s) : %s", user.id, e)
+
+    # 3) Aucun canal n'a abouti
+    if str(cfg.get("ENV", "development")).lower() == "production":
         raise ServiceUnavailableError(
-            "La vérification par SMS n'est pas configurée sur le serveur.",
-            code="sms_not_configured")
-    else:
-        # Développement : aucun SMS configuré → code visible dans les logs serveur.
-        log.warning("SMS non configuré — CODE OTP (DEV) pour %s : %s", user.phone, code)
+            "Impossible d'envoyer le code de vérification (SMS et e-mail "
+            "indisponibles). Réessayez plus tard ou contactez l'administrateur.",
+            code="otp_send_failed", status_code=502)
+    # Développement : code visible dans les logs serveur.
+    log.warning("Aucun canal OTP configuré — CODE OTP (DEV) pour %s : %s", user.phone, code)
+    return "dev"
 
 
 def verify_otp(phone, code):

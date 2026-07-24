@@ -2,6 +2,31 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.2.0] — 2026-07-24 — Passerelle SMS RDC (Orange) & repli e-mail pour l'OTP
+
+### Modifié
+- **Twilio retiré** (coûteux et couverture RDC limitée). La passerelle SMS
+  sélectionne désormais, par priorité : **Orange RD Congo** (API officielle de
+  l'opérateur, recommandée), **passerelle HTTP générique** (tout agrégateur/
+  opérateur local), puis **Africa's Talking** (régional).
+- Les **alertes par SMS** aux superviseurs passent par cette passerelle unifiée
+  (`SAFECITY_SMS_ALERT_TO`) au lieu de Twilio.
+
+### Ajouté
+- **Connecteur Orange SMS** (OAuth2 `client_credentials` + envoi), configurable
+  via `SAFECITY_ORANGE_CLIENT_ID` / `_CLIENT_SECRET` / `_SENDER`.
+- **Repli e-mail pour la vérification (OTP)** : si le SMS est indisponible ou
+  échoue et que le citoyen a fourni un e-mail (SMTP configuré), le code de
+  vérification est envoyé **par e-mail** — l'inscription continue de fonctionner
+  même en cas de panne SMS. Le canal utilisé (`sms` / `email` / `dev`) est
+  renvoyé par l'API et **affiché au citoyen** (texte adapté sur l'écran de code).
+- Champ e-mail d'inscription marqué **« optionnel, recommandé »** avec une note
+  expliquant son rôle de secours.
+
+### Vérifié
+- 54 tests (dont repli e-mail et détection de passerelle) ; suppression de
+  Twilio confirmée dans toute la configuration.
+
 ## [1.1.0] — 2026-07-24 — Messagerie enrichie & tableau de bord
 
 Version **rétro-compatible** avec la 1.0.0 (aucun changement cassant). Elle

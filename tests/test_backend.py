@@ -701,6 +701,49 @@ def test_forgot_password_without_smtp_returns_503():
     assert r.get_json()["error"]["code"] == "email_not_configured"
 
 
+def test_otp_email_fallback_when_sms_unavailable():
+    """Si aucun SMS n'est disponible mais que le citoyen a un e-mail (et le SMTP
+    est configuré), le code de vérification part par e-mail : l'inscription
+    continue de fonctionner."""
+    from backend.services import notifications
+    app, client = make_client()
+    app.config["SMTP_HOST"] = "smtp.local"  # SMTP « configuré » (envoi simulé)
+    original = notifications.send_email_message
+    sent = {}
+    notifications.send_email_message = lambda to, subject, body: sent.update(to=to, body=body)
+    try:
+        r = client.post("/api/auth/register", json={
+            "name": "Citoyen Mail", "phone": "+243820000222", "password": "secret1",
+            "email": "cit@exemple.cd", "consent": True})
+        assert r.status_code == 201, r.get_json()
+        assert r.get_json()["channel"] == "email"
+        assert sent.get("to") == ["cit@exemple.cd"]
+        import re as _re
+        code = _re.search(r"est (\d+)\.", sent["body"]).group(1)
+        v = client.post("/api/auth/verify-otp", json={"phone": "+243820000222", "code": code})
+        assert v.status_code == 200
+    finally:
+        notifications.send_email_message = original
+
+
+def test_sms_gateway_detection_and_twilio_removed():
+    """Orange est détecté comme passerelle SMS ; Twilio a bien été retiré."""
+    from backend.config import get_config
+    from backend.services import notifications
+    app, _ = make_client()
+    with app.app_context():
+        assert notifications.sms_configured() is False
+        app.config["ORANGE_CLIENT_ID"] = "id"
+        app.config["ORANGE_CLIENT_SECRET"] = "secret"
+        app.config["ORANGE_SENDER"] = "tel:+243999999999"
+        assert notifications.sms_configured() is True
+    assert "TWILIO_SID" not in app.config
+    cfg = get_config("testing")
+    assert not hasattr(cfg, "TWILIO_SID")
+    assert not hasattr(cfg, "TWILIO_FROM")
+    assert hasattr(cfg, "ORANGE_CLIENT_ID")
+
+
 # --------------------------------------------------------------------------- #
 # Exécution directe (sans pytest)
 # --------------------------------------------------------------------------- #

@@ -121,4 +121,5 @@ Rapport PDF de synthèse.
 
 ## Notifications
 À l'arrivée d'une alerte (urgences configurées), envoi optionnel d'**e-mail**
-(SMTP) et **SMS** (Twilio) si les variables correspondantes sont définies.
+(SMTP) et **SMS** (passerelle Orange RDC / HTTP générique / Africa's Talking) si
+les variables correspondantes sont définies.

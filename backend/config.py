@@ -100,21 +100,24 @@ class Config:
     SMTP_FROM = os.environ.get("SAFECITY_SMTP_FROM", "alertes@safecity.local")
     SMTP_TLS = _env_bool("SAFECITY_SMTP_TLS", True)
     SMTP_TO = [e.strip() for e in os.environ.get("SAFECITY_SMTP_TO", "").split(",") if e.strip()]
-    # SMS (Twilio) — actif si SAFECITY_TWILIO_SID est défini.
-    TWILIO_SID = os.environ.get("SAFECITY_TWILIO_SID")
-    TWILIO_TOKEN = os.environ.get("SAFECITY_TWILIO_TOKEN")
-    TWILIO_FROM = os.environ.get("SAFECITY_TWILIO_FROM")
-    TWILIO_TO = [n.strip() for n in os.environ.get("SAFECITY_TWILIO_TO", "").split(",") if n.strip()]
+    # Destinataires SMS des alertes (superviseurs sur le terrain), envoyés via la
+    # passerelle SMS configurée ci-dessous. Vide = pas d'alerte par SMS.
+    SMS_ALERT_TO = [n.strip() for n in os.environ.get("SAFECITY_SMS_ALERT_TO", "").split(",") if n.strip()]
 
-    # --- SMS via Africa's Talking (agrégateur, couverture RDC) ---
-    # Actif si SAFECITY_AT_USERNAME et SAFECITY_AT_API_KEY sont définis.
-    # Bac à sable : username=sandbox (ou SAFECITY_AT_SANDBOX=true).
-    AT_USERNAME = os.environ.get("SAFECITY_AT_USERNAME")
-    AT_API_KEY = os.environ.get("SAFECITY_AT_API_KEY")
-    AT_SENDER = os.environ.get("SAFECITY_AT_SENDER")  # sender ID / short code (optionnel)
-    AT_SANDBOX = _env_bool("SAFECITY_AT_SANDBOX", False)
+    # --- SMS via l'API Orange (opérateur majeur en RDC) ---
+    # Recommandé pour la RDC : Orange RD Congo dispose d'une API SMS officielle.
+    # Actif si SAFECITY_ORANGE_CLIENT_ID et SAFECITY_ORANGE_CLIENT_SECRET sont
+    # définis. Le jeton OAuth2 est obtenu automatiquement (client_credentials).
+    ORANGE_CLIENT_ID = os.environ.get("SAFECITY_ORANGE_CLIENT_ID")
+    ORANGE_CLIENT_SECRET = os.environ.get("SAFECITY_ORANGE_CLIENT_SECRET")
+    # Adresse expéditrice déclarée chez Orange (ex "tel:+243999999999" ou un nom court).
+    ORANGE_SENDER = os.environ.get("SAFECITY_ORANGE_SENDER", "")
+    ORANGE_TOKEN_URL = os.environ.get(
+        "SAFECITY_ORANGE_TOKEN_URL", "https://api.orange.com/oauth/v3/token")
+    ORANGE_SMS_URL = os.environ.get(
+        "SAFECITY_ORANGE_SMS_URL", "https://api.orange.com/smsmessaging/v1/outbound")
 
-    # --- Passerelle SMS HTTP générique (autre fournisseur local RDC) ---
+    # --- Passerelle SMS HTTP générique (autre agrégateur/opérateur local RDC) ---
     # Active si SAFECITY_SMS_HTTP_URL est défini. Convient à la plupart des
     # agrégateurs (Vodacom/Airtel/Orange via une API HTTP) : on mappe les noms
     # de champs « destinataire » et « message », plus des paramètres statiques.
@@ -125,6 +128,14 @@ class Config:
     SMS_HTTP_JSON = _env_bool("SAFECITY_SMS_HTTP_JSON", False)
     SMS_HTTP_EXTRA = os.environ.get("SAFECITY_SMS_HTTP_EXTRA", "")  # "api_key=xxx&sender=SafeCity"
     SMS_HTTP_AUTH_HEADER = os.environ.get("SAFECITY_SMS_HTTP_AUTH_HEADER")  # ex "Bearer xxx"
+
+    # --- SMS via Africa's Talking (agrégateur régional) ---
+    # Actif si SAFECITY_AT_USERNAME et SAFECITY_AT_API_KEY sont définis.
+    # Bac à sable : username=sandbox (ou SAFECITY_AT_SANDBOX=true).
+    AT_USERNAME = os.environ.get("SAFECITY_AT_USERNAME")
+    AT_API_KEY = os.environ.get("SAFECITY_AT_API_KEY")
+    AT_SENDER = os.environ.get("SAFECITY_AT_SENDER")  # sender ID / short code (optionnel)
+    AT_SANDBOX = _env_bool("SAFECITY_AT_SANDBOX", False)
 
     # --- Vérification du téléphone (OTP) ---
     OTP_LENGTH = int(os.environ.get("SAFECITY_OTP_LENGTH", "6"))

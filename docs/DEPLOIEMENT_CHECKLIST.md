@@ -14,9 +14,12 @@ Suivez les étapes **dans l'ordre**. Cochez au fur et à mesure. Temps estimé :
   - **sslip.io** (aucun réglage) : `169-58-47-76.sslip.io`.
 - [ ] **Un compte Gmail + « mot de passe d'application »** (pour « mot de passe
   oublié ») — [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords).
-- [ ] **Un compte SMS Africa's Talking** ([africastalking.com](https://africastalking.com))
-  pour la vérification des numéros (OTP) : notez votre **username** et votre
-  **API key**. Testez d'abord avec `username=sandbox`. *(Peut être ajouté plus tard.)*
+- [ ] **Une passerelle SMS** pour la vérification des numéros (OTP). Pour la RDC,
+  **Orange RD Congo** est recommandé ([developer.orange.com](https://developer.orange.com/apis/sms)) :
+  créez une application, souscrivez à l'API SMS, notez **client_id** / **client_secret**
+  et déclarez votre **adresse expéditrice**. Alternatives : passerelle HTTP d'un
+  autre opérateur/agrégateur local, ou Africa's Talking. *(Peut être ajouté plus
+  tard : sans SMS, si le citoyen fournit un e-mail, le code OTP part par e-mail.)*
 - [ ] **Générer deux secrets** (gardez-les de côté) :
   ```bash
   python3 -c "import secrets; print(secrets.token_hex(32))"   # SECRET_KEY
@@ -82,10 +85,9 @@ SAFECITY_SMTP_TLS=true
 SAFECITY_SMTP_USER=<votre-gmail>
 SAFECITY_SMTP_PASSWORD=<mot-de-passe-application-16-car>
 SAFECITY_SMTP_FROM=<votre-gmail>
-SAFECITY_AT_USERNAME=<votre-username-africastalking>     # OTP (vérif. téléphone)
-SAFECITY_AT_API_KEY=<votre-clé-api-africastalking>
-SAFECITY_AT_SENDER=SafeCity                               # sender ID (optionnel)
-SAFECITY_AT_SANDBOX=false                                 # true pour tester d'abord
+SAFECITY_ORANGE_CLIENT_ID=<client_id-orange>             # OTP (vérif. téléphone)
+SAFECITY_ORANGE_CLIENT_SECRET=<client_secret-orange>
+SAFECITY_ORANGE_SENDER=tel:+243999999999                 # adresse expéditrice Orange
 SAFECITY_SENTRY_DSN=<dsn-sentry>                          # (optionnel) alertes d'erreurs
 SAFECITY_RETENTION_DAYS=365                               # conservation des alertes
 ```
@@ -155,7 +157,7 @@ Les **migrations s'appliquent automatiquement** — aucune perte de données.
 |---|---|
 | Certificat HTTPS non émis | DNS ne pointe pas sur l'IP / ports 80-443 fermés |
 | « no such column » | reconstruire l'image : `up -d --build` (migrations) |
-| SMS/OTP non reçu | Vérifier `SAFECITY_AT_USERNAME`/`AT_API_KEY` + solde Africa's Talking ; logs `… logs -f backend` |
+| SMS/OTP non reçu | Vérifier les identifiants de la passerelle SMS (Orange `CLIENT_ID`/`CLIENT_SECRET`/`SENDER`) + solde/quota ; logs `… logs -f backend`. Repli : si le citoyen a un e-mail et le SMTP est configuré, le code part par e-mail |
 | E-mail non envoyé | mot de passe **d'application** Gmail requis (pas le mot de passe habituel) |
 | Voir les logs | `docker compose --env-file deploy/.env.prod -f docker-compose.prod.yml logs -f backend` |
 

@@ -126,6 +126,7 @@ body {
 .auth-tab.active { background: var(--accent); color: #fff; }
 .auth-intro { color: var(--muted); font-size: 13px; line-height: 1.55; margin: 0 0 16px; }
 .otp-intro { color: var(--ink); font-size: 13px; line-height: 1.55; margin: 0 0 8px; }
+.field-hint { color: var(--muted); font-size: 11.5px; line-height: 1.45; margin: 2px 0 6px; }
 .otp-intro strong { color: var(--accent); }
 
 .consent-row {

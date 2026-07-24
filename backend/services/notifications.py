@@ -1,10 +1,18 @@
-"""Notifications push à l'arrivée d'une alerte : e-mail (SMTP) et SMS (Twilio).
+"""Notifications : e-mail (SMTP) et SMS via une passerelle adaptée à la RDC.
 
-Non bloquant (envoi dans un thread) et **optionnel** : si aucun canal n'est
-configuré, la fonction ne fait rien. Aucune dépendance externe (smtplib +
-urllib de la bibliothèque standard).
+Passerelles SMS prises en charge (par ordre de priorité si plusieurs
+configurées) :
+  1. **Orange RD Congo** — API SMS officielle de l'opérateur (recommandé RDC).
+  2. **Passerelle HTTP générique** — tout agrégateur/opérateur local exposant
+     une API HTTP (Vodacom, Airtel, revendeurs…).
+  3. **Africa's Talking** — agrégateur régional.
+
+Aucune dépendance externe (smtplib + urllib de la bibliothèque standard).
+L'envoi des notifications d'alerte est non bloquant (thread) et **optionnel** :
+si aucun canal n'est configuré, la fonction ne fait rien.
 """
 import base64
+import json as _json
 import logging
 import smtplib
 import ssl
@@ -20,6 +28,9 @@ log = logging.getLogger("safecity")
 URGENCY_LABELS = {"faible": "Faible", "moyenne": "Moyen", "haute": "Élevé", "critique": "Critique"}
 
 
+# --------------------------------------------------------------------------- #
+# E-mail
+# --------------------------------------------------------------------------- #
 def smtp_configured():
     """Vrai si un serveur SMTP est configuré (envoi d'e-mail possible)."""
     return bool(current_app.config.get("SMTP_HOST"))
@@ -42,36 +53,117 @@ def send_email_message(to_addrs, subject, body):
         server.send_message(msg)
 
 
-def sms_configured():
-    """Vrai si une passerelle SMS est configurée (Africa's Talking, HTTP, Twilio)."""
-    cfg = current_app.config
+# --------------------------------------------------------------------------- #
+# SMS
+# --------------------------------------------------------------------------- #
+def _sms_gateway_configured(cfg):
     return bool(
-        (cfg.get("AT_USERNAME") and cfg.get("AT_API_KEY"))
+        (cfg.get("ORANGE_CLIENT_ID") and cfg.get("ORANGE_CLIENT_SECRET") and cfg.get("ORANGE_SENDER"))
         or cfg.get("SMS_HTTP_URL")
-        or (cfg.get("TWILIO_SID") and cfg.get("TWILIO_FROM"))
+        or (cfg.get("AT_USERNAME") and cfg.get("AT_API_KEY"))
     )
 
 
+def sms_configured():
+    """Vrai si une passerelle SMS est configurée (Orange, HTTP générique, AT)."""
+    return _sms_gateway_configured(current_app.config)
+
+
 def send_sms(to, text):
-    """Envoie un SMS à un destinataire via la passerelle configurée. Lève en cas d'échec."""
+    """Envoie un SMS via la passerelle configurée (par priorité). Lève en cas d'échec."""
     cfg = current_app.config
-    if cfg.get("AT_USERNAME") and cfg.get("AT_API_KEY"):
-        _send_sms_africastalking(to, text, cfg)
+    if cfg.get("ORANGE_CLIENT_ID") and cfg.get("ORANGE_CLIENT_SECRET") and cfg.get("ORANGE_SENDER"):
+        _send_sms_orange(to, text, cfg)
     elif cfg.get("SMS_HTTP_URL"):
         _send_sms_http(to, text, cfg)
-    elif cfg.get("TWILIO_SID") and cfg.get("TWILIO_FROM"):
-        _send_sms_twilio(to, text, cfg)
+    elif cfg.get("AT_USERNAME") and cfg.get("AT_API_KEY"):
+        _send_sms_africastalking(to, text, cfg)
     else:
         raise RuntimeError("Aucune passerelle SMS configurée.")
 
 
+def _tel(number):
+    """Normalise un numéro au format « tel:+243… » attendu par l'API Orange."""
+    n = str(number).strip()
+    if n.startswith("tel:"):
+        return n
+    if not n.startswith("+"):
+        n = "+" + n.lstrip("+")
+    return "tel:" + n
+
+
+def _orange_token(cfg):
+    """Obtient un jeton OAuth2 (client_credentials) auprès d'Orange."""
+    creds = base64.b64encode(
+        f"{cfg['ORANGE_CLIENT_ID']}:{cfg['ORANGE_CLIENT_SECRET']}".encode()).decode()
+    req = urllib.request.Request(
+        cfg["ORANGE_TOKEN_URL"], data=b"grant_type=client_credentials", method="POST")
+    req.add_header("Authorization", "Basic " + creds)
+    req.add_header("Content-Type", "application/x-www-form-urlencoded")
+    req.add_header("Accept", "application/json")
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        data = _json.loads(resp.read().decode("utf-8", "ignore"))
+    token = data.get("access_token")
+    if not token:
+        raise RuntimeError("Orange : jeton d'accès non obtenu.")
+    return token
+
+
+def _send_sms_orange(to, text, cfg):
+    """Envoi d'un SMS via l'API Orange SMS (couverture RDC).
+
+    Doc : https://developer.orange.com/apis/sms
+    """
+    token = _orange_token(cfg)
+    sender_addr = cfg["ORANGE_SENDER"]
+    url = (cfg["ORANGE_SMS_URL"].rstrip("/") + "/"
+           + urllib.parse.quote(sender_addr, safe="") + "/requests")
+    body = {"outboundSMSMessageRequest": {
+        "address": _tel(to),
+        "senderAddress": sender_addr,
+        "outboundSMSTextMessage": {"message": text},
+    }}
+    req = urllib.request.Request(url, data=_json.dumps(body).encode(), method="POST")
+    req.add_header("Authorization", "Bearer " + token)
+    req.add_header("Content-Type", "application/json")
+    req.add_header("Accept", "application/json")
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        resp.read()
+
+
+def _send_sms_http(to, text, cfg):
+    """Passerelle SMS HTTP générique (fournisseur local paramétrable)."""
+    params = {cfg["SMS_HTTP_TO_PARAM"]: to, cfg["SMS_HTTP_TEXT_PARAM"]: text}
+    for pair in (cfg.get("SMS_HTTP_EXTRA") or "").split("&"):
+        if "=" in pair:
+            k, v = pair.split("=", 1)
+            params[k.strip()] = v.strip()
+    headers = {}
+    if cfg.get("SMS_HTTP_AUTH_HEADER"):
+        headers["Authorization"] = cfg["SMS_HTTP_AUTH_HEADER"]
+
+    url = cfg["SMS_HTTP_URL"]
+    method = (cfg.get("SMS_HTTP_METHOD") or "POST").upper()
+    if method == "GET":
+        full = url + ("&" if "?" in url else "?") + urllib.parse.urlencode(params)
+        req = urllib.request.Request(full, headers=headers, method="GET")
+    elif cfg.get("SMS_HTTP_JSON"):
+        headers["Content-Type"] = "application/json"
+        req = urllib.request.Request(
+            url, data=_json.dumps(params).encode(), headers=headers, method="POST")
+    else:
+        headers["Content-Type"] = "application/x-www-form-urlencoded"
+        req = urllib.request.Request(
+            url, data=urllib.parse.urlencode(params).encode(), headers=headers, method="POST")
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        resp.read()
+
+
 def _send_sms_africastalking(to, text, cfg):
-    """Envoi d'un SMS via l'API Africa's Talking (couverture RDC).
+    """Envoi d'un SMS via l'API Africa's Talking (agrégateur régional).
 
     Doc : https://developers.africastalking.com/docs/sms/sending/bulk
     """
-    import json as _json
-
     username = cfg["AT_USERNAME"]
     sandbox = cfg.get("AT_SANDBOX") or username == "sandbox"
     base = "https://api.sandbox.africastalking.com" if sandbox else "https://api.africastalking.com"
@@ -99,68 +191,25 @@ def _send_sms_africastalking(to, text, cfg):
             f"Africa's Talking a refusé l'envoi : {recipients[0].get('status')}")
 
 
-def _send_sms_http(to, text, cfg):
-    """Passerelle SMS HTTP générique (fournisseur local paramétrable)."""
-    import json as _json
-
-    params = {cfg["SMS_HTTP_TO_PARAM"]: to, cfg["SMS_HTTP_TEXT_PARAM"]: text}
-    for pair in (cfg.get("SMS_HTTP_EXTRA") or "").split("&"):
-        if "=" in pair:
-            k, v = pair.split("=", 1)
-            params[k.strip()] = v.strip()
-    headers = {}
-    if cfg.get("SMS_HTTP_AUTH_HEADER"):
-        headers["Authorization"] = cfg["SMS_HTTP_AUTH_HEADER"]
-
-    url = cfg["SMS_HTTP_URL"]
-    method = (cfg.get("SMS_HTTP_METHOD") or "POST").upper()
-    if method == "GET":
-        full = url + ("&" if "?" in url else "?") + urllib.parse.urlencode(params)
-        req = urllib.request.Request(full, headers=headers, method="GET")
-    elif cfg.get("SMS_HTTP_JSON"):
-        headers["Content-Type"] = "application/json"
-        req = urllib.request.Request(
-            url, data=_json.dumps(params).encode(), headers=headers, method="POST")
-    else:
-        headers["Content-Type"] = "application/x-www-form-urlencoded"
-        req = urllib.request.Request(
-            url, data=urllib.parse.urlencode(params).encode(), headers=headers, method="POST")
-    with urllib.request.urlopen(req, timeout=15) as resp:
-        resp.read()
-
-
-def _send_sms_twilio(to, text, cfg):
-    """Envoi d'un SMS unique via l'API Twilio."""
-    url = f"https://api.twilio.com/2010-04-01/Accounts/{cfg['TWILIO_SID']}/Messages.json"
-    data = urllib.parse.urlencode({"From": cfg["TWILIO_FROM"], "To": to, "Body": text}).encode()
-    auth = base64.b64encode(f"{cfg['TWILIO_SID']}:{cfg['TWILIO_TOKEN']}".encode()).decode()
-    req = urllib.request.Request(url, data=data, method="POST")
-    req.add_header("Authorization", f"Basic {auth}")
-    req.add_header("Content-Type", "application/x-www-form-urlencoded")
-    with urllib.request.urlopen(req, timeout=15) as resp:
-        resp.read()
-
-
+# --------------------------------------------------------------------------- #
+# Notifications d'alerte (e-mail + SMS aux superviseurs)
+# --------------------------------------------------------------------------- #
 def dispatch_alert_notifications(alert):
     """Décide et lance l'envoi des notifications pour une alerte (non bloquant)."""
     cfg = current_app.config
     if alert.get("urgency") not in cfg["NOTIFY_URGENCY_LEVELS"]:
         return
 
-    email_cfg = {
-        "host": cfg["SMTP_HOST"], "port": cfg["SMTP_PORT"], "user": cfg["SMTP_USER"],
-        "password": cfg["SMTP_PASSWORD"], "sender": cfg["SMTP_FROM"], "tls": cfg["SMTP_TLS"],
-        "to": cfg["SMTP_TO"],
-    }
-    sms_cfg = {
-        "sid": cfg["TWILIO_SID"], "token": cfg["TWILIO_TOKEN"],
-        "sender": cfg["TWILIO_FROM"], "to": cfg["TWILIO_TO"],
-    }
-    if not (email_cfg["host"] and email_cfg["to"]) and not (sms_cfg["sid"] and sms_cfg["to"]):
+    email_to = cfg["SMTP_TO"]
+    sms_to = cfg["SMS_ALERT_TO"]
+    has_email = bool(cfg.get("SMTP_HOST") and email_to)
+    has_sms = bool(sms_to) and _sms_gateway_configured(cfg)
+    if not has_email and not has_sms:
         return  # aucun canal configuré
 
+    app = current_app._get_current_object()
     threading.Thread(
-        target=_send_all, args=(alert, email_cfg, sms_cfg), daemon=True
+        target=_send_all, args=(app, alert, email_to, sms_to, has_email, has_sms), daemon=True
     ).start()
 
 
@@ -191,45 +240,19 @@ def _sms_text(alert):
     )[:300]
 
 
-def _send_all(alert, email_cfg, sms_cfg):
-    if email_cfg["host"] and email_cfg["to"]:
-        try:
-            _send_email(alert, email_cfg)
-            log.info("Notification e-mail envoyée pour l'alerte #%s", alert.get("id"))
-        except Exception as e:  # pragma: no cover - dépend du réseau/SMTP
-            log.warning("Échec e-mail alerte #%s : %s", alert.get("id"), e)
-    if sms_cfg["sid"] and sms_cfg["to"]:
-        try:
-            _send_sms(alert, sms_cfg)
-            log.info("Notification SMS envoyée pour l'alerte #%s", alert.get("id"))
-        except Exception as e:  # pragma: no cover
-            log.warning("Échec SMS alerte #%s : %s", alert.get("id"), e)
-
-
-def _send_email(alert, cfg):
-    msg = EmailMessage()
-    msg["Subject"] = _subject(alert)
-    msg["From"] = cfg["sender"]
-    msg["To"] = ", ".join(cfg["to"])
-    msg.set_content(_body_text(alert))
-
-    with smtplib.SMTP(cfg["host"], cfg["port"], timeout=15) as server:
-        if cfg["tls"]:
-            server.starttls(context=ssl.create_default_context())
-        if cfg["user"]:
-            server.login(cfg["user"], cfg["password"])
-        server.send_message(msg)
-
-
-def _send_sms(alert, cfg):
-    """Envoi SMS via l'API REST Twilio (sans dépendance)."""
-    url = f"https://api.twilio.com/2010-04-01/Accounts/{cfg['sid']}/Messages.json"
-    auth = base64.b64encode(f"{cfg['sid']}:{cfg['token']}".encode()).decode()
-    for to in cfg["to"]:
-        data = urllib.parse.urlencode({
-            "From": cfg["sender"], "To": to, "Body": _sms_text(alert),
-        }).encode()
-        req = urllib.request.Request(url, data=data, method="POST")
-        req.add_header("Authorization", "Basic " + auth)
-        req.add_header("Content-Type", "application/x-www-form-urlencoded")
-        urllib.request.urlopen(req, timeout=15).read()
+def _send_all(app, alert, email_to, sms_to, has_email, has_sms):
+    with app.app_context():
+        if has_email:
+            try:
+                send_email_message(email_to, _subject(alert), _body_text(alert))
+                log.info("Notification e-mail envoyée pour l'alerte #%s", alert.get("id"))
+            except Exception as e:  # pragma: no cover - dépend du réseau/SMTP
+                log.warning("Échec e-mail alerte #%s : %s", alert.get("id"), e)
+        if has_sms:
+            text = _sms_text(alert)
+            for to in sms_to:
+                try:
+                    send_sms(to, text)
+                    log.info("Notification SMS envoyée à %s pour l'alerte #%s", to, alert.get("id"))
+                except Exception as e:  # pragma: no cover
+                    log.warning("Échec SMS (%s) alerte #%s : %s", to, alert.get("id"), e)

@@ -46,11 +46,20 @@ def _do_register():
     payload = validate_register_payload(request.get_json(silent=True))
     user = register_citizen(payload)
     audit.record("citizen_registered", detail=user.phone, user_id=user.id, user_name=user.name)
-    # Pas de jeton tant que le téléphone n'est pas vérifié par code SMS.
+    channel = getattr(user, "otp_channel", "sms")
+    messages = {
+        "sms": "Un code de vérification a été envoyé par SMS à votre numéro.",
+        "email": "Le SMS étant indisponible, un code de vérification a été envoyé "
+                 "à votre adresse e-mail.",
+        "dev": "Un code de vérification a été généré (voir les journaux du serveur "
+               "en développement).",
+    }
+    # Pas de jeton tant que le téléphone n'est pas vérifié.
     return jsonify({
         "verification_required": True,
         "phone": user.phone,
-        "message": "Un code de vérification a été envoyé par SMS à votre numéro.",
+        "channel": channel,
+        "message": messages.get(channel, messages["sms"]),
     }), 201
 
 

@@ -194,10 +194,21 @@
     }, 1000);
   }
 
-  // Affiche l'écran de saisie du code SMS (vérification du téléphone).
-  function showOtp(phone) {
+  // Affiche l'écran de saisie du code (vérification du téléphone).
+  // `channel` = "sms" | "email" | "dev" : adapte le texte d'explication.
+  function showOtp(phone, channel) {
     pendingOtpPhone = phone;
     $("otp-phone").textContent = phone;
+    const intro = $("otp-intro");
+    if (intro) {
+      if (channel === "email") {
+        intro.innerHTML = "📧 Le SMS étant indisponible, un code de vérification a été " +
+          "envoyé à <strong>votre adresse e-mail</strong>. Saisissez-le pour activer votre compte.";
+      } else {
+        intro.innerHTML = "📲 Un code de vérification a été envoyé par SMS au " +
+          "<strong id=\"otp-phone\">" + phone + "</strong>. Saisissez-le pour activer votre compte.";
+      }
+    }
     showForm("form-otp");
     otpBoxes.clear(); otpBoxes.focus();
     startResendTimer("otp-resend", "otp-timer", 45);
@@ -280,7 +291,7 @@
         }
         return;
       }
-      if (data.verification_required) { showOtp(data.phone || body.phone); return; }
+      if (data.verification_required) { showOtp(data.phone || body.phone, data.channel); return; }
       onAuthenticated(data);
     } catch (err) {
       authError("Réseau indisponible. Vérifiez votre connexion.");
@@ -294,7 +305,7 @@
     e.preventDefault();
     const btn = e.target.querySelector("button[type=submit]");
     const code = $("otp-code").value.trim();
-    if (code.length !== 6) { authError("Entrez le code à 6 chiffres reçu par SMS."); return; }
+    if (code.length !== 6) { authError("Entrez le code à 6 chiffres reçu par SMS ou e-mail."); return; }
     setLoading(btn, true); authError("");
     try {
       const { ok, data } = await authRequest("/api/auth/verify-otp",

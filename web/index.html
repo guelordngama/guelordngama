@@ -83,9 +83,11 @@
                  placeholder="+243 812 345 678" required />
           <p class="field-error" id="err-phone" hidden></p>
 
-          <label class="field-label" for="reg-email">✉️ E-mail (optionnel)</label>
+          <label class="field-label" for="reg-email">✉️ E-mail (optionnel, recommandé)</label>
           <input id="reg-email" type="email" autocomplete="email"
                  placeholder="vous@exemple.com" />
+          <p class="field-hint">Sert de secours : si le SMS est indisponible, votre
+            code de vérification vous sera envoyé par e-mail.</p>
 
           <label class="field-label" for="reg-password">🔒 Mot de passe (min. 6 caractères)</label>
           <div class="pw-field">
@@ -122,7 +124,7 @@
 
         <!-- Formulaire de VÉRIFICATION (code SMS / OTP) -->
         <form id="form-otp" class="auth-form" hidden novalidate>
-          <p class="otp-intro">📲 Un code de vérification a été envoyé par SMS au
+          <p class="otp-intro" id="otp-intro">📲 Un code de vérification a été envoyé par SMS au
             <strong id="otp-phone">votre numéro</strong>. Saisissez-le pour activer
             votre compte.</p>
 
