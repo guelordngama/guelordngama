@@ -34,6 +34,16 @@ surveillance). Elle consolide tout le développement décrit ci-dessous (version
 
 Voir le détail des évolutions dans les entrées ci-dessous.
 
+## [3.14.0] — Séparateurs de date dans la messagerie (poste opérateur)
+
+### Ajouté
+- **Pastilles de date façon WhatsApp** dans la messagerie : une étiquette
+  centrée (**Aujourd'hui**, **Hier**, le **jour de la semaine** pour les 6
+  derniers jours, sinon la **date complète** « 24 juillet 2026 ») s'affiche avant
+  le premier message de chaque journée. L'heure de chaque message reste indiquée
+  sous la bulle. Fonctionne aussi bien au chargement qu'à l'arrivée d'un nouveau
+  message en temps réel.
+
 ## [3.13.0] — Tableau de bord peaufiné (poste opérateur)
 
 ### Ajouté

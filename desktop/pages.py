@@ -62,6 +62,42 @@ def _pill_style(color):
     )
 
 
+_JOURS_FR = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
+_MOIS_FR = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet",
+            "août", "septembre", "octobre", "novembre", "décembre"]
+
+
+def _msg_day(created_at):
+    """Renvoie la date (``date``) d'un message à partir de son ``created_at``
+    ISO, ou ``None`` si absent/illisible."""
+    if not created_at:
+        return None
+    from datetime import datetime
+
+    txt = str(created_at).replace("Z", "").split(".")[0]
+    for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(txt, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+def _day_label(day):
+    """Libellé de séparateur façon WhatsApp : Aujourd'hui / Hier / jour de la
+    semaine (moins de 7 j) / date complète (« 24 juillet 2026 »)."""
+    from datetime import date, timedelta
+
+    today = date.today()
+    if day == today:
+        return "Aujourd'hui"
+    if day == today - timedelta(days=1):
+        return "Hier"
+    if today - timedelta(days=6) <= day < today:
+        return _JOURS_FR[day.weekday()]
+    return f"{day.day} {_MOIS_FR[day.month - 1]} {day.year}"
+
+
 # --------------------------------------------------------------------------- #
 # Tableau de bord
 # --------------------------------------------------------------------------- #
@@ -888,8 +924,10 @@ class ChatPage(QWidget):
     def set_messages(self, msgs, unread_ids=None):
         unread_ids = unread_ids or set()
         self._clear_messages()
+        self._last_day = None  # séparateur de date façon WhatsApp
         divider_done = False
         for m in msgs:
+            self._maybe_add_date_divider(m)
             is_unread = m.get("id") in unread_ids
             if is_unread and not divider_done:
                 self._add_divider("Nouveaux messages")
@@ -898,8 +936,19 @@ class ChatPage(QWidget):
         self._scroll_to_bottom()
 
     def add_message(self, m):
+        self._maybe_add_date_divider(m)
         self._add_bubble(m)
         self._scroll_to_bottom()
+
+    def _maybe_add_date_divider(self, m):
+        """Insère une pastille de date (Aujourd'hui / Hier / 24 juillet 2026)
+        avant le premier message d'un nouveau jour, comme sur WhatsApp."""
+        day = _msg_day(m.get("created_at"))
+        if day is None:
+            return
+        if day != getattr(self, "_last_day", None):
+            self._add_date_divider(_day_label(day))
+            self._last_day = day
 
     def _clear_messages(self):
         # Retire toutes les bulles en gardant le stretch final.
@@ -915,6 +964,23 @@ class ChatPage(QWidget):
         lbl.setStyleSheet(
             f"color: {theme.ACCENT_2}; font-size: 11px; font-weight: bold; background: transparent;")
         self._msgs.insertWidget(self._msgs.count() - 1, lbl)
+
+    def _add_date_divider(self, label):
+        """Pastille de date centrée (style WhatsApp) séparant les jours."""
+        chip = QLabel(label)
+        chip.setAlignment(Qt.AlignCenter)
+        chip.setStyleSheet(
+            "QLabel { background: rgba(0,0,0,0.35); color: #e9edef; font-size: 11px;"
+            "font-weight: 600; border-radius: 10px; padding: 4px 12px; }")
+        line = QHBoxLayout()
+        line.setContentsMargins(0, 4, 0, 4)
+        line.addStretch()
+        line.addWidget(chip)
+        line.addStretch()
+        wrap = QWidget()
+        wrap.setStyleSheet("background: transparent;")
+        wrap.setLayout(line)
+        self._msgs.insertWidget(self._msgs.count() - 1, wrap)
 
     def _add_bubble(self, m, unread=False):
         mine = m.get("sender_id") == self.me_id
