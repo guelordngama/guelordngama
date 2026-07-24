@@ -23,9 +23,18 @@ OpenStreetMap.
 des incidents (scikit-learn), calcul de distance (Haversine) et d'ETA,
 authentification bcrypt + JWT, base **PostgreSQL** (SQLite en repli local / tests).
 
-**Poste opérateur** (`desktop/`) — tableau de bord, alertes en direct, carte
-interactive (Qt WebEngine + Leaflet), graphiques (Qt Charts), actions
-**Voir sur la carte / Affecter une équipe / Clôturer**.
+**Poste opérateur** (`desktop/`) — **tableau de bord** (en-tête d'accueil,
+pastille de situation, tuiles cliquables), alertes en direct avec marquage
+**non lu**, carte interactive (Qt WebEngine + Leaflet), graphiques (Qt Charts),
+sons de notification, actions **Voir sur la carte / Affecter une équipe /
+Clôturer**.
+
+**Portail agents** (`portal/`) — vue web temps réel pour les agents de terrain :
+alertes, carte, prise en charge, messagerie et sons de notification.
+
+**Messagerie** (poste opérateur ↔ agents) — style **WhatsApp** : bulles gauche
+(agents) / droite (moi), **séparateurs de date** (Aujourd'hui / Hier / …),
+images et **messages vocaux** (enregistrement + écoute, avec durée affichée).
 
 ## 🏗️ Architecture professionnelle
 
@@ -35,7 +44,8 @@ interactive (Qt WebEngine + Leaflet), graphiques (Qt Charts), actions
   uploads, en-têtes de sécurité, CORS restreignable, refus de démarrage en
   production non sûre ([docs/SECURITY.md](docs/SECURITY.md)).
 - **Optimisations** : index BDD, pagination, stats SQL + cache.
-- **Qualité** : 21 tests, CI GitHub Actions, Docker.
+- **Qualité** : 52 tests, migrations Alembic (vérifiées sur PostgreSQL 16),
+  CI GitHub Actions, Docker.
 
 ## 🚀 Démarrage rapide
 
