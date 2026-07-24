@@ -8,7 +8,8 @@ Usage :
 from .config import get_config
 from .extensions import cors, db, migrate, socketio
 
-__all__ = ["create_app", "socketio", "db"]
+__version__ = "1.0.0"
+__all__ = ["create_app", "socketio", "db", "__version__"]
 
 
 def create_app(config=None):

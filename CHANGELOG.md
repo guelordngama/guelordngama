@@ -2,6 +2,38 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.0.0] — 2026-07-24 — 🎉 Première version de production
+
+Première version **prête pour un déploiement réel** (mairie / centre de
+surveillance). Elle consolide tout le développement décrit ci-dessous (versions
+2.x et 3.x) en un produit cohérent et professionnel.
+
+**Plateforme complète**
+- **App citoyenne** (web/PWA) : compte + vérification du téléphone par **SMS
+  (OTP)**, bouton d'alerte, GPS, type de danger, photo, message vocal, mode
+  hors-ligne, thème clair/sombre, mot de passe oublié par SMS.
+- **Poste opérateur** (bureau, PySide6) : tableau de bord, alertes en direct,
+  carte, gestion des agents, messagerie type WhatsApp, pop-up d'incident avec
+  minuteur, sons, marquage non lu, barre d'état, raccourcis, thèmes.
+- **Portail agents** (web) : alertes temps réel, carte, prise en charge,
+  messagerie, sons de notification fiabilisés, thèmes.
+- **Backend** (Flask) : API REST + temps réel Socket.IO, **classification IA**,
+  distance/ETA, **PostgreSQL**, **migrations Alembic**.
+
+**Sécurité & conformité**
+- bcrypt + JWT, limitation anti force brute, journal d'**audit**, création de
+  comptes personnels par **code d'invitation**, changement de mot de passe.
+- **Vérification du téléphone par SMS** (Africa's Talking / passerelle générique).
+- **Politique de confidentialité**, consentement, **droit à l'effacement**,
+  purge de conservation des données.
+
+**Exploitation**
+- Déploiement Docker (Nginx + HTTPS Let's Encrypt + PostgreSQL + sauvegardes),
+  **script d'installation unique**, **suivi d'erreurs (Sentry)**, restauration
+  testée, **checklist de déploiement** pas à pas.
+
+Voir le détail des évolutions dans les entrées ci-dessous.
+
 ## [3.12.0] — Pop-up d'incident repensé (poste opérateur)
 
 ### Modifié

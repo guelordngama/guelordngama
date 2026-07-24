@@ -10,7 +10,10 @@ bp = Blueprint("health", __name__, url_prefix="/api")
 
 @bp.get("/health")
 def health():
-    return jsonify({"status": "ok", "time": datetime.utcnow().isoformat()})
+    from .. import __version__
+
+    return jsonify({"status": "ok", "version": __version__,
+                    "time": datetime.utcnow().isoformat()})
 
 
 @bp.get("/meta")
