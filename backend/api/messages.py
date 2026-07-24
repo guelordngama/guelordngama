@@ -28,6 +28,12 @@ def post_message():
     voice = data.get("voice")
     if not text and not attachment and not voice:
         raise ValidationError("Le message ne peut pas être vide.")
+    duration = data.get("voice_duration")
+    try:
+        duration = max(0, min(7200, int(duration))) if duration is not None else None
+    except (TypeError, ValueError):
+        duration = None
     result = messages_service.create_message(
-        g.user, text, data.get("alert_id"), attachment=attachment, voice=voice)
+        g.user, text, data.get("alert_id"), attachment=attachment, voice=voice,
+        voice_duration=duration)
     return jsonify(result), 201

@@ -34,6 +34,18 @@ surveillance). Elle consolide tout le développement décrit ci-dessous (version
 
 Voir le détail des évolutions dans les entrées ci-dessous.
 
+## [3.15.1] — Durée affichée sur les messages vocaux
+
+### Ajouté
+- **Durée du vocal** affichée dans la bulle : « ▶ Message vocal · 0:12 » sur le
+  **poste opérateur** et « 🎤 Message vocal · 0:12 » sur le **portail agents**.
+- La durée est mesurée à l'enregistrement et transmise au serveur
+  (nouveau champ `voice_duration`, colonne `messages.voice_duration` +
+  **migration Alembic** `c4e8f2a1b6d7`), ce qui garantit un affichage exact et
+  évite le défaut connu des fichiers WebM (durée « Infinity ») dans les
+  navigateurs. Repli web : lecture de la durée via l'élément `<audio>` si elle
+  n'a pas été fournie.
+
 ## [3.15.0] — Messages vocaux dans la messagerie
 
 ### Ajouté

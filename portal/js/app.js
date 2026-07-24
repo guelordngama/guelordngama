@@ -177,10 +177,12 @@
   }
   // ---- Message vocal (MediaRecorder) ----
   let chatVoice = null;         // data URL de l'enregistrement prêt à envoyer
+  let chatVoiceDur = 0;         // durée (s) de l'enregistrement prêt à envoyer
   let voiceRecorder = null;
   let voiceChunks = [];
   let voiceTimer = null;
   let voiceStream = null;
+  let voiceStarted = 0;
 
   function initChatVoice() {
     const mic = $("chat-mic");
@@ -210,6 +212,7 @@
     voiceRecorder = new MediaRecorder(voiceStream);
     voiceRecorder.ondataavailable = (ev) => { if (ev.data.size) voiceChunks.push(ev.data); };
     voiceRecorder.onstop = () => {
+      chatVoiceDur = Math.round((Date.now() - voiceStarted) / 1000);
       const blob = new Blob(voiceChunks, { type: "audio/webm" });
       const reader = new FileReader();
       reader.onload = () => {
@@ -227,13 +230,18 @@
     voiceRecorder.start();
     $("chat-mic").classList.add("recording");
     $("chat-rec").hidden = false;
-    const started = Date.now();
+    voiceStarted = Date.now();
     $("chat-rec-time").textContent = "0:00";
     voiceTimer = setInterval(() => {
-      const s = Math.floor((Date.now() - started) / 1000);
+      const s = Math.floor((Date.now() - voiceStarted) / 1000);
       $("chat-rec-time").textContent = Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
       if (s >= 120) voiceRecorder.stop();  // limite de sécurité : 2 min
     }, 250);
+  }
+
+  function fmtDur(s) {
+    s = Math.max(0, Math.round(s || 0));
+    return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
   }
 
   function stopVoiceStream() {
@@ -242,6 +250,7 @@
 
   function clearVoice() {
     chatVoice = null;
+    chatVoiceDur = 0;
     voiceChunks = [];
     const p = $("chat-voice-preview");
     if (p) p.hidden = true;
@@ -254,7 +263,7 @@
     if (!t && !chatAttachment && !chatVoice) return;
     const body = { text: t };
     if (chatAttachment) body.attachment = chatAttachment;
-    if (chatVoice) body.voice = chatVoice;
+    if (chatVoice) { body.voice = chatVoice; if (chatVoiceDur) body.voice_duration = chatVoiceDur; }
     $("chat-text").value = "";
     chatAttachment = null;
     $("chat-file").value = "";
@@ -315,10 +324,21 @@
     div.appendChild(who);
     if (m.text) { const txt = document.createElement("span"); txt.textContent = m.text; div.appendChild(txt); }
     if (m.voice_url) {
+      const cap = document.createElement("span");
+      cap.className = "chat-voice-cap";
+      cap.textContent = "🎤 Message vocal" + (m.voice_duration ? " · " + fmtDur(m.voice_duration) : "");
+      div.appendChild(cap);
       const audio = document.createElement("audio");
       audio.controls = true;
       audio.className = "chat-voice";
       audio.src = API + m.voice_url;
+      // Repli : si la durée n'a pas été fournie, l'afficher dès que connue.
+      if (!m.voice_duration) {
+        audio.addEventListener("loadedmetadata", () => {
+          const d = audio.duration;
+          if (isFinite(d) && d > 0) cap.textContent = "🎤 Message vocal · " + fmtDur(d);
+        });
+      }
       div.appendChild(audio);
     }
     if (m.attachment_url) {

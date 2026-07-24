@@ -136,7 +136,8 @@ input:focus, select:focus { outline: none; border-color: var(--accent); }
 .chat-voice-preview audio { flex: 1; height: 34px; }
 .chat-voice-preview button { border: 1px solid var(--line); border-radius: 8px; background: rgba(11,18,32,0.5);
   color: var(--muted); cursor: pointer; padding: 4px 10px; }
-.chat-msg audio.chat-voice { display: block; margin-top: 6px; max-width: 220px; height: 36px; }
+.chat-msg audio.chat-voice { display: block; margin-top: 4px; max-width: 220px; height: 36px; }
+.chat-msg .chat-voice-cap { display: block; margin-top: 4px; font-size: 12px; color: var(--muted); }
 
 /* Toast de notification */
 .portal-toast {
