@@ -584,6 +584,7 @@ class MainWindow(QWidget):
         # Connexions inter-pages
         self.page_dashboard.go_to_map.connect(lambda: self._navigate(2))
         self.page_dashboard.request_focus.connect(self._focus_on_map)
+        self.page_dashboard.navigate.connect(self._navigate)
         self.page_live.request_assign.connect(self._assign)
         self.page_live.request_assign_agent.connect(self._assign_agent_to_alert)
         self.page_live.request_close.connect(self._close)

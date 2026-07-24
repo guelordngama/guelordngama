@@ -31,12 +31,20 @@ def _shadow(widget, blur=24, alpha=90):
 
 
 class StatCard(QFrame):
-    """Tuile de statistique : icône, grande valeur, libellé, accent coloré."""
+    """Tuile de statistique : icône, grande valeur, libellé, accent coloré.
+
+    Optionnellement cliquable (émet ``clicked``) et pourvue d'un sous-titre
+    contextuel (``set_subtitle``).
+    """
+
+    clicked = Signal()
 
     def __init__(self, icon, label, color=theme.ACCENT):
         super().__init__()
         self.setObjectName("card")
         self.setMinimumHeight(110)
+        self._color = color
+        self._clickable = False
         _shadow(self)
         lay = QHBoxLayout(self)
         lay.setContentsMargins(18, 16, 18, 16)
@@ -57,15 +65,39 @@ class StatCard(QFrame):
         self.value.setStyleSheet(f"color: {color};")
         lbl = QLabel(label)
         lbl.setObjectName("cardLabel")
+        self.subtitle = QLabel("")
+        self.subtitle.setObjectName("muted")
+        self.subtitle.setStyleSheet("font-size: 11px;")
+        self.subtitle.hide()
         col.addStretch()
         col.addWidget(self.value)
         col.addWidget(lbl)
+        col.addWidget(self.subtitle)
         col.addStretch()
         lay.addLayout(col)
         lay.addStretch()
 
     def set_value(self, v):
         self.value.setText(str(v))
+
+    def set_subtitle(self, text):
+        """Affiche (ou masque) une ligne d'information contextuelle."""
+        if text:
+            self.subtitle.setText(str(text))
+            self.subtitle.show()
+        else:
+            self.subtitle.clear()
+            self.subtitle.hide()
+
+    def set_clickable(self, on=True):
+        """Rend la tuile interactive (curseur main + émission de ``clicked``)."""
+        self._clickable = on
+        self.setCursor(Qt.PointingHandCursor if on else Qt.ArrowCursor)
+
+    def mousePressEvent(self, event):  # noqa: N802 (API Qt)
+        if self._clickable and event.button() == Qt.LeftButton:
+            self.clicked.emit()
+        super().mousePressEvent(event)
 
 
 class Card(QFrame):

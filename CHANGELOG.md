@@ -34,6 +34,22 @@ surveillance). Elle consolide tout le développement décrit ci-dessous (version
 
 Voir le détail des évolutions dans les entrées ci-dessous.
 
+## [3.13.0] — Tableau de bord peaufiné (poste opérateur)
+
+### Ajouté
+- **En-tête d'accueil** : salutation contextuelle selon l'heure
+  (Bonjour / Bon après-midi / Bonsoir) et **date du jour** en clair.
+- **Pastille de situation** en haut à droite : 🟢 « Situation calme »,
+  🟠 « N intervention(s) en cours » ou 🔴 « N alertes actives » selon le nombre
+  d'alertes en cours — état opérationnel visible d'un coup d'œil.
+- **Sous-titres contextuels** sous chaque tuile de statistique (ex. taux de cas
+  traités, « Aucun agent en ligne », « À suivre en priorité »).
+
+### Modifié
+- **Tuiles de statistique cliquables** : cliquer sur « Alertes … » ouvre la vue
+  « Alertes en direct », « Agents connectés » ouvre la gestion des agents
+  (curseur main au survol).
+
 ## [3.12.0] — Pop-up d'incident repensé (poste opérateur)
 
 ### Modifié

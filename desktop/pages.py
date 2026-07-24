@@ -54,12 +54,25 @@ def _item(text, color=None, bold=False):
     return it
 
 
+def _pill_style(color):
+    """Feuille de style pour une pastille de situation colorée."""
+    return (
+        f"background: {color}22; color: {color}; border: 1px solid {color}55;"
+        "border-radius: 14px; padding: 6px 14px; font-weight: 600;"
+    )
+
+
 # --------------------------------------------------------------------------- #
 # Tableau de bord
 # --------------------------------------------------------------------------- #
 class DashboardPage(QWidget):
-    request_focus = Signal(int)
+    request_focus = Signal(int)   # centrer une alerte sur la carte (id)
+    navigate = Signal(int)        # aller vers une section (index de menu)
     go_to_map = Signal()
+
+    # Index de menu latéral (miroir de MainWindow.IDX_*)
+    NAV_ALERTS = 1
+    NAV_AGENTS = 3
 
     def __init__(self):
         super().__init__()
@@ -76,7 +89,26 @@ class DashboardPage(QWidget):
         root.setContentsMargins(24, 20, 24, 24)
         root.setSpacing(18)
 
-        # Rangée de tuiles
+        # En-tête d'accueil : salutation + date, et pastille de situation
+        head = QHBoxLayout()
+        head.setSpacing(12)
+        htext = QVBoxLayout()
+        htext.setSpacing(2)
+        self.greeting = QLabel("Tableau de bord")
+        self.greeting.setObjectName("pageTitle")
+        self.subhead = QLabel("")
+        self.subhead.setObjectName("muted")
+        htext.addWidget(self.greeting)
+        htext.addWidget(self.subhead)
+        head.addLayout(htext)
+        head.addStretch()
+        self.situation = QLabel("")
+        self.situation.setObjectName("pill")
+        self.situation.setAlignment(Qt.AlignCenter)
+        head.addWidget(self.situation, 0, Qt.AlignVCenter)
+        root.addLayout(head)
+
+        # Rangée de tuiles (cliquables → navigation)
         cards = QHBoxLayout()
         cards.setSpacing(16)
         self.card_today = StatCard("🚨", "Alertes aujourd'hui", theme.ACCENT)
@@ -84,7 +116,13 @@ class DashboardPage(QWidget):
         self.card_resolved = StatCard("✅", "Alertes résolues", "#22c55e")
         self.card_agents = StatCard("👮", "Agents connectés", theme.ACCENT_2)
         for c in (self.card_today, self.card_progress, self.card_resolved, self.card_agents):
+            c.set_clickable(True)
             cards.addWidget(c)
+        # Les alertes mènent à la vue « Alertes en direct », les agents à leur page.
+        self.card_today.clicked.connect(lambda: self.navigate.emit(self.NAV_ALERTS))
+        self.card_progress.clicked.connect(lambda: self.navigate.emit(self.NAV_ALERTS))
+        self.card_resolved.clicked.connect(lambda: self.navigate.emit(self.NAV_ALERTS))
+        self.card_agents.clicked.connect(lambda: self.navigate.emit(self.NAV_AGENTS))
         root.addLayout(cards)
 
         # Graphiques (2 colonnes)
@@ -125,10 +163,39 @@ class DashboardPage(QWidget):
         self._chart_zones = None
 
     def set_stats(self, stats):
-        self.card_today.set_value(stats.get("today_count", 0))
-        self.card_progress.set_value(stats.get("in_progress_count", 0))
-        self.card_resolved.set_value(stats.get("resolved_count", 0))
-        self.card_agents.set_value(stats.get("agents_connected", 0))
+        today = stats.get("today_count", 0)
+        in_progress = stats.get("in_progress_count", 0)
+        resolved = stats.get("resolved_count", 0)
+        agents = stats.get("agents_connected", 0)
+
+        self.card_today.set_value(today)
+        self.card_progress.set_value(in_progress)
+        self.card_resolved.set_value(resolved)
+        self.card_agents.set_value(agents)
+
+        # En-tête : salutation selon l'heure + date du jour
+        self._update_header()
+
+        # Pastille de situation opérationnelle
+        if in_progress <= 0:
+            self.situation.setText("🟢  Situation calme")
+            self.situation.setStyleSheet(_pill_style("#22c55e"))
+        elif in_progress <= 3:
+            self.situation.setText(f"🟠  {in_progress} intervention(s) en cours")
+            self.situation.setStyleSheet(_pill_style("#f97316"))
+        else:
+            self.situation.setText(f"🔴  {in_progress} alertes actives")
+            self.situation.setStyleSheet(_pill_style("#ef4444"))
+
+        # Sous-titres contextuels des tuiles
+        total_done = resolved + in_progress
+        rate = round(100 * resolved / total_done) if total_done else 0
+        self.card_today.set_subtitle("Cliquer pour voir les alertes")
+        self.card_progress.set_subtitle(
+            "Aucune en attente" if in_progress == 0 else "À suivre en priorité")
+        self.card_resolved.set_subtitle(f"{rate}% des cas traités")
+        self.card_agents.set_subtitle(
+            "Aucun agent en ligne" if agents == 0 else "Disponibles sur le terrain")
 
         # (Re)construit les graphiques
         _clear(self._types_holder)
@@ -148,6 +215,20 @@ class DashboardPage(QWidget):
     def set_alerts(self, alerts):
         rows = alerts[:8]
         _fill_alert_table(self.recent_table, rows)
+
+    def _update_header(self):
+        from datetime import datetime
+
+        now = datetime.now()
+        h = now.hour
+        if h < 12:
+            salut = "Bonjour"
+        elif h < 18:
+            salut = "Bon après-midi"
+        else:
+            salut = "Bonsoir"
+        self.greeting.setText(f"{salut}, centre de supervision")
+        self.subhead.setText(now.strftime("%A %d %B %Y").capitalize())
 
     def _on_double(self, row, _col):
         it = self.recent_table.item(row, 0)
