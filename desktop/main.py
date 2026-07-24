@@ -781,9 +781,9 @@ class MainWindow(QWidget):
         except Exception as e:
             QMessageBox.warning(self, "Messagerie", str(e))
 
-    def _send_message(self, text, attachment=""):
+    def _send_message(self, text, attachment="", voice=""):
         try:
-            self.api.send_message(text, attachment=attachment or None)
+            self.api.send_message(text, attachment=attachment or None, voice=voice or None)
         except Exception as e:
             QMessageBox.warning(self, "Messagerie", str(e))
 

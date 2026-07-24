@@ -149,6 +149,7 @@
 
     // Messagerie
     initChatFile();
+    initChatVoice();
     loadMessages();
     $("chat-send").addEventListener("click", sendMessage);
     $("chat-text").addEventListener("keydown", (e) => { if (e.key === "Enter") sendMessage(); });
@@ -174,15 +175,91 @@
       reader.readAsDataURL(file);
     });
   }
+  // ---- Message vocal (MediaRecorder) ----
+  let chatVoice = null;         // data URL de l'enregistrement prêt à envoyer
+  let voiceRecorder = null;
+  let voiceChunks = [];
+  let voiceTimer = null;
+  let voiceStream = null;
+
+  function initChatVoice() {
+    const mic = $("chat-mic");
+    if (!mic) return;
+    if (!navigator.mediaDevices || typeof MediaRecorder === "undefined") {
+      mic.style.display = "none";  // navigateur sans capture audio
+      return;
+    }
+    mic.addEventListener("click", toggleVoice);
+    const cancel = $("chat-voice-cancel");
+    if (cancel) cancel.addEventListener("click", clearVoice);
+  }
+
+  async function toggleVoice() {
+    if (voiceRecorder && voiceRecorder.state === "recording") {
+      voiceRecorder.stop();
+      return;
+    }
+    clearVoice();
+    try {
+      voiceStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (e) {
+      alert("Micro indisponible ou permission refusée.");
+      return;
+    }
+    voiceChunks = [];
+    voiceRecorder = new MediaRecorder(voiceStream);
+    voiceRecorder.ondataavailable = (ev) => { if (ev.data.size) voiceChunks.push(ev.data); };
+    voiceRecorder.onstop = () => {
+      const blob = new Blob(voiceChunks, { type: "audio/webm" });
+      const reader = new FileReader();
+      reader.onload = () => {
+        chatVoice = reader.result;
+        const audio = $("chat-voice-audio");
+        if (audio) audio.src = chatVoice;
+        $("chat-voice-preview").hidden = false;
+      };
+      reader.readAsDataURL(blob);
+      stopVoiceStream();
+      $("chat-mic").classList.remove("recording");
+      $("chat-rec").hidden = true;
+      clearInterval(voiceTimer);
+    };
+    voiceRecorder.start();
+    $("chat-mic").classList.add("recording");
+    $("chat-rec").hidden = false;
+    const started = Date.now();
+    $("chat-rec-time").textContent = "0:00";
+    voiceTimer = setInterval(() => {
+      const s = Math.floor((Date.now() - started) / 1000);
+      $("chat-rec-time").textContent = Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+      if (s >= 120) voiceRecorder.stop();  // limite de sécurité : 2 min
+    }, 250);
+  }
+
+  function stopVoiceStream() {
+    if (voiceStream) { voiceStream.getTracks().forEach((t) => t.stop()); voiceStream = null; }
+  }
+
+  function clearVoice() {
+    chatVoice = null;
+    voiceChunks = [];
+    const p = $("chat-voice-preview");
+    if (p) p.hidden = true;
+    const a = $("chat-voice-audio");
+    if (a) a.removeAttribute("src");
+  }
+
   async function sendMessage() {
     const t = $("chat-text").value.trim();
-    if (!t && !chatAttachment) return;
+    if (!t && !chatAttachment && !chatVoice) return;
     const body = { text: t };
     if (chatAttachment) body.attachment = chatAttachment;
+    if (chatVoice) body.voice = chatVoice;
     $("chat-text").value = "";
     chatAttachment = null;
     $("chat-file").value = "";
     document.querySelector(".chat-attach").classList.remove("armed");
+    clearVoice();
     try { await api("POST", "/api/messages", body); } catch (e) { alert("Échec : " + e.message); }
   }
   // Séparateur de date façon WhatsApp : Aujourd'hui / Hier / jour de la
@@ -237,6 +314,13 @@
     who.textContent = (mine ? "Moi" : (m.sender_name || "Centre")) + " · " + (m.time || "");
     div.appendChild(who);
     if (m.text) { const txt = document.createElement("span"); txt.textContent = m.text; div.appendChild(txt); }
+    if (m.voice_url) {
+      const audio = document.createElement("audio");
+      audio.controls = true;
+      audio.className = "chat-voice";
+      audio.src = API + m.voice_url;
+      div.appendChild(audio);
+    }
     if (m.attachment_url) {
       const img = document.createElement("img");
       img.src = API + m.attachment_url;

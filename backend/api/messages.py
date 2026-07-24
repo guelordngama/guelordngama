@@ -25,8 +25,9 @@ def post_message():
     data = request.get_json(silent=True) or {}
     text = clean_text(data.get("text"), 1000)
     attachment = data.get("attachment")
-    if not text and not attachment:
+    voice = data.get("voice")
+    if not text and not attachment and not voice:
         raise ValidationError("Le message ne peut pas être vide.")
     result = messages_service.create_message(
-        g.user, text, data.get("alert_id"), attachment=attachment)
+        g.user, text, data.get("alert_id"), attachment=attachment, voice=voice)
     return jsonify(result), 201

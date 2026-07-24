@@ -83,8 +83,18 @@
           <label class="chat-attach" title="Joindre une image">📎
             <input id="chat-file" type="file" accept="image/*" hidden />
           </label>
+          <button id="chat-mic" class="chat-mic" type="button" title="Enregistrer un message vocal">🎤</button>
           <input id="chat-text" type="text" placeholder="Message au centre…" />
           <button id="chat-send">➤</button>
+        </div>
+        <div id="chat-rec" class="chat-rec" hidden>
+          <span class="rec-dot"></span>
+          <span id="chat-rec-time" class="rec-time">0:00</span>
+          <span class="rec-hint">Enregistrement… appuyez sur 🎤 pour arrêter</span>
+        </div>
+        <div id="chat-voice-preview" class="chat-voice-preview" hidden>
+          <audio id="chat-voice-audio" controls></audio>
+          <button id="chat-voice-cancel" type="button" title="Supprimer">✕</button>
         </div>
       </aside>
       <main class="map-panel">

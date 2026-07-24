@@ -9,11 +9,12 @@ from ..models import Message
 log = logging.getLogger("safecity")
 
 
-def create_message(sender, text, alert_id=None, attachment=None):
+def create_message(sender, text, alert_id=None, attachment=None, voice=None):
     """Enregistre et diffuse un message. `sender` est le payload JWT (g.user)."""
     from ..security import save_data_url
 
     attachment_path = save_data_url(attachment, "image") if attachment else None
+    voice_path = save_data_url(voice, "audio") if voice else None
     msg = Message(
         sender_id=sender.get("uid"),
         sender_name=sender.get("name") or "Inconnu",
@@ -21,6 +22,7 @@ def create_message(sender, text, alert_id=None, attachment=None):
         text=text,
         alert_id=alert_id,
         attachment_path=attachment_path,
+        voice_path=voice_path,
     )
     db.session.add(msg)
     db.session.commit()

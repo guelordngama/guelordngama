@@ -34,6 +34,24 @@ surveillance). Elle consolide tout le développement décrit ci-dessous (version
 
 Voir le détail des évolutions dans les entrées ci-dessous.
 
+## [3.15.0] — Messages vocaux dans la messagerie
+
+### Ajouté
+- **Messages vocaux** dans la messagerie interne (opérateurs ↔ agents), en plus
+  du texte et des images :
+  - **Portail agents (web)** : bouton 🎤 pour enregistrer (indicateur rouge +
+    minuteur, limite de 2 min), pré-écoute avant envoi, et lecture intégrée des
+    vocaux reçus (`<audio controls>`). Le bouton se masque si le navigateur ne
+    gère pas la capture audio.
+  - **Poste opérateur (bureau)** : bouton 🎤 (via QtMultimedia) pour enregistrer
+    et envoyer un vocal, et bouton **« ▶ Message vocal »** pour écouter les
+    vocaux reçus. Le bouton d'enregistrement n'apparaît que si un micro est
+    disponible sur la machine.
+- **Backend** : les messages acceptent désormais un champ `voice` (data URL
+  audio, formats `webm/ogg/mp3/wav/m4a`), stocké comme fichier et exposé via
+  `voice_url`. Nouvelle colonne `messages.voice_path` + **migration Alembic**
+  (`b3d7e1f2a9c4`). Un message peut ne contenir qu'un vocal.
+
 ## [3.14.0] — Séparateurs de date dans la messagerie (poste opérateur + portail agents)
 
 ### Ajouté

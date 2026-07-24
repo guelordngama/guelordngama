@@ -831,7 +831,7 @@ class ChatPage(QWidget):
     ceux des agents **à gauche** (gris), ajustées au contenu, avec l'heure.
     """
 
-    send = Signal(str, str)  # (texte, pièce jointe data-URL ou "")
+    send = Signal(str, str, str)  # (texte, pièce jointe data-URL, message vocal data-URL)
 
     # Couleurs façon WhatsApp
     BUBBLE_ME = "#005c4b"       # vert (mes messages)
@@ -846,6 +846,10 @@ class ChatPage(QWidget):
         self.me_id = operator.get("id")
         self.api_base = api_base.rstrip("/")
         self._attachment = None
+        self._voice = None          # data URL du message vocal prêt à envoyer
+        self._recorder = None       # VoiceRecorder actif
+        self._rec_timer = None      # minuteur d'affichage de la durée
+        self._player = None         # lecteur pour écouter les vocaux reçus
         root = QVBoxLayout(self)
         root.setContentsMargins(24, 20, 24, 24)
         root.setSpacing(12)
@@ -877,15 +881,31 @@ class ChatPage(QWidget):
         b_attach.setObjectName("ghost")
         b_attach.setFixedWidth(46)
         b_attach.clicked.connect(self._pick_attachment)
+
+        self.btn_mic = QPushButton("🎤")
+        self.btn_mic.setObjectName("ghost")
+        self.btn_mic.setFixedWidth(46)
+        self.btn_mic.setToolTip("Enregistrer un message vocal")
+        self.btn_mic.clicked.connect(self._toggle_record)
+
         self.input = QLineEdit()
         self.input.setPlaceholderText("Écrire un message aux agents…")
         self.input.returnPressed.connect(self._send)
         btn = QPushButton("Envoyer")
         btn.clicked.connect(self._send)
         row.addWidget(b_attach)
+        row.addWidget(self.btn_mic)
         row.addWidget(self.input, 1)
         row.addWidget(btn)
         root.addLayout(row)
+
+        # Le bouton micro n'apparaît que si l'enregistrement est possible.
+        try:
+            import voice_recorder
+            if not voice_recorder.available():
+                self.btn_mic.hide()
+        except Exception:
+            self.btn_mic.hide()
 
     def _apply_scroll_style(self):
         self.scroll.setStyleSheet(
@@ -912,12 +932,65 @@ class ChatPage(QWidget):
         self._attachment = f"data:image/{ext};base64,{data}"
         self.attach_label.setText(f"📎 Pièce jointe : {os.path.basename(path)}  (sera envoyée)")
 
+    # ---- Message vocal ----
+    def _toggle_record(self):
+        import voice_recorder
+
+        if self._recorder is not None:  # enregistrement en cours → on arrête
+            self._recorder.stop()
+            return
+        try:
+            self._recorder = voice_recorder.VoiceRecorder(self)
+        except Exception as e:
+            self.attach_label.setText(f"🎤 Micro indisponible : {e}")
+            self._recorder = None
+            return
+        self._recorder.finished.connect(self._on_voice_ready)
+        self._recorder.failed.connect(self._on_voice_failed)
+        self._recorder.start()
+        self.btn_mic.setText("⏹")
+        self.btn_mic.setStyleSheet("color: #ef4444;")
+        self._rec_seconds = 0
+        from PySide6.QtCore import QTimer
+        self._rec_timer = QTimer(self)
+        self._rec_timer.timeout.connect(self._tick_record)
+        self._rec_timer.start(1000)
+        self._tick_record(first=True)
+
+    def _tick_record(self, first=False):
+        if not first:
+            self._rec_seconds += 1
+        s = self._rec_seconds
+        self.attach_label.setText(f"🔴 Enregistrement… {s // 60}:{s % 60:02d}  (🎤 pour arrêter)")
+        if s >= 120 and self._recorder:   # limite de sécurité : 2 min
+            self._recorder.stop()
+
+    def _reset_mic_button(self):
+        if self._rec_timer:
+            self._rec_timer.stop()
+            self._rec_timer = None
+        self.btn_mic.setText("🎤")
+        self.btn_mic.setStyleSheet("")
+
+    def _on_voice_ready(self, data_url):
+        self._reset_mic_button()
+        self._recorder = None
+        self._voice = data_url
+        self.attach_label.setText("🎤 Message vocal prêt — cliquez sur « Envoyer ».")
+
+    def _on_voice_failed(self, msg):
+        self._reset_mic_button()
+        self._recorder = None
+        self._voice = None
+        self.attach_label.setText(f"🎤 Échec de l'enregistrement : {msg}")
+
     def _send(self):
         text = self.input.text().strip()
-        if text or self._attachment:
-            self.send.emit(text, self._attachment or "")
+        if text or self._attachment or self._voice:
+            self.send.emit(text, self._attachment or "", self._voice or "")
             self.input.clear()
             self._attachment = None
+            self._voice = None
             self.attach_label.setText("")
 
     # ---- Rendu des messages ----
@@ -1012,6 +1085,9 @@ class ChatPage(QWidget):
             lbl_text.setStyleSheet(f"color: {self.TEXT_COLOR}; font-size: 13px; background: transparent;")
             bl.addWidget(lbl_text)
 
+        if m.get("voice_url"):
+            bl.addWidget(self._voice_player(self.api_base + m["voice_url"]))
+
         if m.get("attachment_url"):
             url = self.api_base + m["attachment_url"]
             link = QLabel(f'<a href="{url}" style="color:#53bdeb;">📎 Voir la pièce jointe</a>')
@@ -1037,6 +1113,49 @@ class ChatPage(QWidget):
         wrap.setStyleSheet("background: transparent;")
         wrap.setLayout(line)
         self._msgs.insertWidget(self._msgs.count() - 1, wrap)
+
+    def _voice_player(self, url):
+        """Petit lecteur « ▶ Message vocal » pour écouter un vocal reçu."""
+        btn = QPushButton("▶  Message vocal")
+        btn.setCursor(Qt.PointingHandCursor)
+        btn.setStyleSheet(
+            "QPushButton { background: rgba(255,255,255,0.12); color: #e9edef;"
+            "border: none; border-radius: 8px; padding: 6px 12px; text-align: left; }"
+            "QPushButton:hover { background: rgba(255,255,255,0.2); }")
+        btn.clicked.connect(lambda: self._play_voice(url, btn))
+        return btn
+
+    def _play_voice(self, url, btn):
+        try:
+            from PySide6.QtCore import QUrl
+            from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
+        except Exception:
+            self.attach_label.setText("🔊 Lecture audio non disponible sur ce poste.")
+            return
+
+        if self._player is None:
+            self._audio_out = QAudioOutput()
+            self._player = QMediaPlayer()
+            self._player.setAudioOutput(self._audio_out)
+            self._player.playbackStateChanged.connect(self._on_play_state)
+
+        # Bascule lecture / pause sur le même bouton.
+        if self._player.source() == QUrl(url) and \
+                self._player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
+            self._player.pause()
+            btn.setText("▶  Message vocal")
+            return
+
+        self._playing_btn = btn
+        self._player.setSource(QUrl(url))
+        self._player.play()
+        btn.setText("⏸  Lecture…")
+
+    def _on_play_state(self, state):
+        from PySide6.QtMultimedia import QMediaPlayer
+        btn = getattr(self, "_playing_btn", None)
+        if btn and state == QMediaPlayer.PlaybackState.StoppedState:
+            btn.setText("▶  Message vocal")
 
     def _scroll_to_bottom(self):
         from PySide6.QtCore import QTimer

@@ -202,6 +202,7 @@ class Message(TimestampMixin, db.Model):
     text = db.Column(db.Text)
     alert_id = db.Column(db.Integer)  # rattachement optionnel à une alerte
     attachment_path = db.Column(db.String(255))  # pièce jointe (image)
+    voice_path = db.Column(db.String(255))  # message vocal (audio)
 
     def to_dict(self):
         return {
@@ -212,6 +213,7 @@ class Message(TimestampMixin, db.Model):
             "text": self.text,
             "alert_id": self.alert_id,
             "attachment_url": f"/uploads/{self.attachment_path}" if self.attachment_path else None,
+            "voice_url": f"/uploads/{self.voice_path}" if self.voice_path else None,
             "created_at": _iso(self.created_at),
             "time": self.created_at.strftime("%H:%M") if self.created_at else None,
         }
