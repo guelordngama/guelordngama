@@ -3,6 +3,7 @@
 Usage :
     python -m backend.manage create-admin --email admin@ex.org --password '...' --name 'Nom'
     python -m backend.manage list-staff
+    python -m backend.manage test-email --to destinataire@example.com
 """
 import argparse
 import sys
@@ -54,6 +55,34 @@ def _purge_old(args):
         print(f"Purge terminée : {n} alerte(s) clôturée(s) de plus de {days} jours supprimée(s).")
 
 
+def _test_email(args):
+    """Envoie un e-mail de test pour vérifier la configuration SMTP (Gmail)."""
+    from .services import notifications
+
+    app = create_app()
+    with app.app_context():
+        if not notifications.smtp_configured():
+            print("SMTP non configuré : définissez SAFECITY_SMTP_HOST / _USER / "
+                  "_PASSWORD / _FROM (voir .env.example).")
+            sys.exit(1)
+        cfg = app.config
+        print(f"Envoi d'un e-mail de test via {cfg['SMTP_HOST']}:{cfg['SMTP_PORT']} "
+              f"(expéditeur {cfg['SMTP_FROM']}) → {args.to} …")
+        try:
+            notifications.send_email_message(
+                [args.to], "SafeCity — e-mail de test",
+                "Ceci est un e-mail de test SafeCity.\n\n"
+                "Si vous le recevez, la configuration Gmail/SMTP fonctionne : les "
+                "citoyens recevront leurs codes de vérification par e-mail.")
+        except Exception as e:
+            print(f"ÉCHEC : {e}")
+            print("Piste : pour Gmail, activez la validation en 2 étapes puis "
+                  "utilisez un « mot de passe d'application » (16 caractères), pas "
+                  "le mot de passe habituel du compte.")
+            sys.exit(1)
+        print("OK : e-mail envoyé. Vérifiez la boîte de réception (et les spams).")
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="backend.manage")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -71,6 +100,10 @@ def main(argv=None):
     pg.add_argument("--days", type=int, default=None,
                     help="Âge en jours (défaut : SAFECITY_RETENTION_DAYS)")
     pg.set_defaults(func=_purge_old)
+
+    te = sub.add_parser("test-email", help="Envoyer un e-mail de test (vérifie le SMTP/Gmail)")
+    te.add_argument("--to", required=True, help="Adresse destinataire de l'e-mail de test")
+    te.set_defaults(func=_test_email)
 
     args = parser.parse_args(argv)
     args.func(args)

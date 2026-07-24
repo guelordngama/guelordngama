@@ -2,6 +2,24 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.2.1] — 2026-07-24 — Configuration e-mail Gmail (envoi des codes aux citoyens)
+
+### Ajouté
+- **Commande `python -m backend.manage test-email --to <adresse>`** : envoie un
+  e-mail de test pour vérifier la configuration SMTP/Gmail avant la mise en
+  service (message d'aide clair si le SMTP n'est pas configuré ou si Gmail refuse
+  le mot de passe).
+- **`.env.example`** : bloc **Gmail prêt à l'emploi** (smtp.gmail.com + étapes du
+  « mot de passe d'application ») pour que les citoyens reçoivent leurs codes de
+  vérification par e-mail.
+
+### Sécurité / qualité
+- **`deploy/.env.prod` et `.env.*` ajoutés au `.gitignore`** : les fichiers de
+  secrets de production ne peuvent plus être commités par erreur.
+- **Tests hermétiques** : la configuration de test ignore désormais toute
+  passerelle e-mail/SMS d'un `.env` local (les tests ne dépendent plus de la
+  machine).
+
 ## [1.2.0] — 2026-07-24 — Passerelle SMS RDC (Orange) & repli e-mail pour l'OTP
 
 ### Modifié

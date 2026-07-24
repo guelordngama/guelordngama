@@ -8,6 +8,9 @@ env/
 
 # Secrets / configuration locale
 .env
+.env.*
+!.env.example
+deploy/.env.prod
 
 # Base de données & uploads (données locales)
 backend/safecity.db

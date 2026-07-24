@@ -188,6 +188,14 @@ class TestingConfig(Config):
     SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
     SEED_DEMO_OPERATOR = True
     LOGIN_RATE_MAX = 1000  # ne pas gêner les tests
+    # Tests hermétiques : on ignore toute passerelle e-mail/SMS issue d'un .env
+    # local, pour que les tests ne dépendent pas de la configuration de la machine.
+    SMTP_HOST = None
+    SMS_HTTP_URL = None
+    ORANGE_CLIENT_ID = None
+    ORANGE_CLIENT_SECRET = None
+    AT_USERNAME = None
+    AT_API_KEY = None
 
 
 _CONFIGS = {
