@@ -22,7 +22,8 @@ améliorations (tableau de bord, séparateurs de date, bulles de messagerie).
 
 ## 1. Mettre à jour la base de données (migration du vocal)
 
-La colonne `messages.voice_path` a été ajoutée : il faut appliquer la migration.
+Les colonnes `messages.voice_path` et `messages.voice_duration` ont été ajoutées :
+il faut appliquer les migrations.
 
 - [ ] **En développement (SQLite)** : rien à faire, la table est créée
       automatiquement au démarrage.
@@ -30,8 +31,9 @@ La colonne `messages.voice_path` a été ajoutée : il faut appliquer la migrati
   - Sans Docker : `flask db upgrade`
   - Avec Docker :
     `docker compose --env-file deploy/.env.prod -f docker-compose.prod.yml exec backend flask db upgrade`
-- [ ] Vérifier qu'aucune erreur n'apparaît et que la migration `b3d7e1f2a9c4`
-      (*add voice_path to messages*) est bien appliquée.
+- [ ] Vérifier qu'aucune erreur n'apparaît et que les migrations `b3d7e1f2a9c4`
+      (*add voice_path to messages*) **et** `c4e8f2a1b6d7`
+      (*add voice_duration to messages*) sont bien appliquées.
 
 ---
 
@@ -99,15 +101,18 @@ Comptes de démonstration (si `SAFECITY_SEED_DEMO=true`) — mot de passe
 - [ ] Cliquer sur **🎤** : le bouton passe en **⏹ (rouge)** et un indicateur
       « 🔴 Enregistrement… m:ss » s'affiche avec un **minuteur** qui avance.
 - [ ] Parler quelques secondes, puis cliquer **⏹** pour arrêter.
-- [ ] Le message **« 🎤 Message vocal prêt — cliquez sur Envoyer »** apparaît.
-- [ ] Cliquer **Envoyer** : une bulle **« ▶ Message vocal »** apparaît **à droite**
-      (côté « Moi »).
-- [ ] Cliquer sur **▶ Message vocal** : le son enregistré se lit (le bouton passe à
-      **⏸**, puis revient à ▶ à la fin).
+- [ ] Le message **« 🎤 Message vocal prêt (m:ss) — cliquez sur Envoyer »**
+      apparaît, avec la **durée** enregistrée entre parenthèses.
+- [ ] Cliquer **Envoyer** : une bulle **« ▶ Message vocal · m:ss »** apparaît
+      **à droite** (côté « Moi »), avec la **durée affichée** après le titre.
+- [ ] La **durée affichée correspond** à la longueur réelle de l'enregistrement
+      (ex. ~8 s → « · 0:08 » ; ~1 min 15 → « · 1:15 »).
+- [ ] Cliquer sur **▶ Message vocal · m:ss** : le son enregistré se lit (le bouton
+      passe à **⏸ Lecture…**, puis **revient au libellé avec la durée** à la fin).
 - [ ] **Limite de durée** : laisser tourner un enregistrement > 2 min → il s'arrête
-      automatiquement.
+      automatiquement (la bulle affiche alors « · 2:00 »).
 - [ ] **Envoi vocal + texte** : enregistrer un vocal, taper aussi du texte, puis
-      Envoyer → la bulle contient le texte **et** le lecteur vocal.
+      Envoyer → la bulle contient le texte **et** le lecteur vocal avec sa durée.
 
 ---
 
@@ -117,14 +122,15 @@ Comptes de démonstration (si `SAFECITY_SEED_DEMO=true`) — mot de passe
       messagerie, cliquer **🎤**, enregistrer, écouter la pré-écoute, puis
       **Envoyer**.
 - [ ] Sur le **poste opérateur**, le vocal de l'agent arrive **en temps réel** :
-  - [ ] une bulle **« ▶ Message vocal » à gauche** (côté agent) ;
+  - [ ] une bulle **« ▶ Message vocal · m:ss » à gauche** (côté agent), avec la
+        **durée** affichée ;
   - [ ] un **son de notification** se joue (si le son n'est pas coupé) ;
   - [ ] si l'on n'est **pas** sur la page Messagerie : **badge « non lu »** sur le
         menu + mise en évidence à l'ouverture.
-- [ ] Cliquer **▶ Message vocal** sur le poste opérateur → le vocal de l'agent se
-      **lit correctement**.
+- [ ] Cliquer **▶ Message vocal · m:ss** sur le poste opérateur → le vocal de
+      l'agent se **lit correctement**.
 - [ ] Inversement, le vocal envoyé par le bureau (§6) est **audible sur le portail
-      agents** (lecteur `<audio>`).
+      agents**, et le portail affiche **« 🎤 Message vocal · m:ss »** avec la durée.
 
 ---
 
