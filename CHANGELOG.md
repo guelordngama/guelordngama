@@ -2,6 +2,32 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.1.0] — 2026-07-24 — Messagerie enrichie & tableau de bord
+
+Version **rétro-compatible** avec la 1.0.0 (aucun changement cassant). Elle
+enrichit la messagerie et le tableau de bord du poste opérateur. Le détail
+figure dans les entrées `3.13.x`–`3.15.x` ci-dessous ; récapitulatif :
+
+### Ajouté
+- **Messages vocaux** dans la messagerie interne (opérateurs ↔ agents) :
+  enregistrement et écoute sur le **portail agents** (web) comme sur le **poste
+  opérateur** (bureau, QtMultimedia), avec **durée affichée** dans la bulle
+  (« ▶ Message vocal · 0:12 »).
+- **Séparateurs de date façon WhatsApp** dans la messagerie (Aujourd'hui / Hier /
+  jour de la semaine / date complète), sur le bureau et le portail.
+- **Tableau de bord peaufiné** (bureau) : en-tête d'accueil (salutation + date),
+  pastille de situation (🟢/🟠/🔴), tuiles cliquables et sous-titres contextuels.
+
+### Base de données
+- Nouvelles colonnes `messages.voice_path` et `messages.voice_duration`
+  (**migrations Alembic** `b3d7e1f2a9c4` et `c4e8f2a1b6d7`). Appliquer
+  `flask db upgrade` au déploiement. **Vérifié sur PostgreSQL 16**
+  (upgrade/downgrade/re-upgrade idempotents, lecture/écriture ORM OK).
+
+### Documentation
+- `docs/TEST_BUREAU_CHECKLIST.md` : checklist de test du poste opérateur (dont
+  les messages vocaux et l'affichage de la durée).
+
 ## [1.0.0] — 2026-07-24 — 🎉 Première version de production
 
 Première version **prête pour un déploiement réel** (mairie / centre de
