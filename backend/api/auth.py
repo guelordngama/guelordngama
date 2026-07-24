@@ -11,6 +11,8 @@ from ..services.auth import (
     register_citizen,
     register_staff,
     request_password_reset,
+    request_password_reset_sms,
+    reset_password_sms,
     resend_otp,
     verify_otp,
 )
@@ -21,6 +23,7 @@ from ..validation import (
     validate_login_payload,
     validate_phone_only,
     validate_register_payload,
+    validate_reset_sms_payload,
     validate_staff_register_payload,
     validate_verify_otp_payload,
 )
@@ -87,6 +90,46 @@ def _do_resend_otp():
         "message": "Si un compte non vérifié existe pour ce numéro, un nouveau "
                    "code vient d'être envoyé par SMS.",
     })
+
+
+@bp.post("/forgot-password-sms")
+def forgot_password_sms():
+    """Mot de passe oublié (citoyen) : envoie un code de réinitialisation par SMS."""
+    limiter = rate_limit(
+        current_app.config["LOGIN_RATE_MAX"],
+        current_app.config["LOGIN_RATE_WINDOW"],
+        scope="forgot",
+    )
+    return limiter(_do_forgot_password_sms)()
+
+
+def _do_forgot_password_sms():
+    phone = validate_phone_only(request.get_json(silent=True))
+    request_password_reset_sms(phone)
+    audit.record("password_reset_sms_requested", detail=phone, user_name=phone)
+    return jsonify({
+        "message": "Si un compte existe pour ce numéro, un code de réinitialisation "
+                   "vient d'être envoyé par SMS.",
+    })
+
+
+@bp.post("/reset-password-sms")
+def reset_password_sms_route():
+    """Fixe un nouveau mot de passe après vérification du code SMS (citoyen)."""
+    limiter = rate_limit(
+        current_app.config["LOGIN_RATE_MAX"],
+        current_app.config["LOGIN_RATE_WINDOW"],
+        scope="otp",
+    )
+    return limiter(_do_reset_password_sms)()
+
+
+def _do_reset_password_sms():
+    phone, code, new_password = validate_reset_sms_payload(request.get_json(silent=True))
+    user = reset_password_sms(phone, code, new_password)
+    audit.record("password_reset_sms_done", detail=user.phone,
+                 user_id=user.id, user_name=user.name)
+    return jsonify({"token": generate_token(user), "user": user.to_dict()})
 
 
 @bp.post("/register-staff")

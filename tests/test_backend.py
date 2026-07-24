@@ -548,6 +548,31 @@ def test_delete_own_account_anonymises_alerts():
         assert "supprimé" in a.reporter_name
 
 
+def test_password_reset_by_sms():
+    app, client = make_client()
+    _register_and_verify_citizen(app, client, "Citoyen", "+243810000111", "ancien1")
+    # Le SMS simulé de la vérif est déjà branché par le helper ; on le réutilise.
+    import re as _re
+
+    from backend.services import notifications
+    captured = {}
+    notifications.send_sms = lambda to, text: captured.update(text=text)
+    assert client.post("/api/auth/forgot-password-sms", json={
+        "phone": "243810000111"}).status_code == 200
+    code = _re.search(r"est (\d+)\.", captured["text"]).group(1)
+    # Mauvais code → 401.
+    assert client.post("/api/auth/reset-password-sms", json={
+        "phone": "243810000111", "code": "000000", "new_password": "nouveau1"}).status_code == 401
+    # Bon code → 200, l'ancien mot de passe ne marche plus.
+    ok = client.post("/api/auth/reset-password-sms", json={
+        "phone": "243810000111", "code": code, "new_password": "nouveau1"})
+    assert ok.status_code == 200 and ok.get_json()["token"]
+    assert client.post("/api/auth/login", json={
+        "identifier": "243810000111", "password": "ancien1"}).status_code == 401
+    assert client.post("/api/auth/login", json={
+        "identifier": "243810000111", "password": "nouveau1"}).status_code == 200
+
+
 def test_purge_old_alerts():
     from datetime import datetime, timedelta
 

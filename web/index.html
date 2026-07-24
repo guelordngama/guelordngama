@@ -48,37 +48,63 @@
         <div id="auth-error" class="auth-error" hidden></div>
 
         <!-- Formulaire de CONNEXION -->
-        <form id="form-login" class="auth-form">
+        <form id="form-login" class="auth-form" novalidate>
           <label class="field-label" for="login-identifier">📱 Téléphone ou e-mail</label>
           <input id="login-identifier" type="text" autocomplete="username"
                  placeholder="+243 … ou vous@exemple.com" required />
 
           <label class="field-label" for="login-password">🔒 Mot de passe</label>
-          <input id="login-password" type="password" autocomplete="current-password"
-                 placeholder="Votre mot de passe" required />
+          <div class="pw-field">
+            <input id="login-password" type="password" autocomplete="current-password"
+                   placeholder="Votre mot de passe" required />
+            <button type="button" class="pw-eye" data-target="login-password"
+                    aria-label="Afficher le mot de passe">👁️</button>
+          </div>
 
-          <button class="btn-primary auth-submit" type="submit">Se connecter</button>
+          <button class="btn-primary auth-submit" type="submit">
+            <span class="btn-label">Se connecter</span><span class="spinner" hidden></span>
+          </button>
+          <p class="auth-switch">
+            <a href="#" id="go-forgot">Mot de passe oublié ?</a>
+          </p>
           <p class="auth-switch">Pas encore de compte ?
             <a href="#" id="go-register">Créez-en un</a>.</p>
         </form>
 
         <!-- Formulaire d'INSCRIPTION -->
-        <form id="form-register" class="auth-form" hidden>
+        <form id="form-register" class="auth-form" hidden novalidate>
           <label class="field-label" for="reg-name">👤 Nom complet</label>
           <input id="reg-name" type="text" autocomplete="name"
                  placeholder="Nom et prénom" required />
+          <p class="field-error" id="err-name" hidden></p>
 
           <label class="field-label" for="reg-phone">📱 Numéro de téléphone</label>
           <input id="reg-phone" type="tel" autocomplete="tel"
-                 placeholder="+243 …" required />
+                 placeholder="+243 812 345 678" required />
+          <p class="field-error" id="err-phone" hidden></p>
 
           <label class="field-label" for="reg-email">✉️ E-mail (optionnel)</label>
           <input id="reg-email" type="email" autocomplete="email"
                  placeholder="vous@exemple.com" />
 
           <label class="field-label" for="reg-password">🔒 Mot de passe (min. 6 caractères)</label>
-          <input id="reg-password" type="password" autocomplete="new-password"
-                 placeholder="Choisissez un mot de passe" required />
+          <div class="pw-field">
+            <input id="reg-password" type="password" autocomplete="new-password"
+                   placeholder="Choisissez un mot de passe" required />
+            <button type="button" class="pw-eye" data-target="reg-password"
+                    aria-label="Afficher le mot de passe">👁️</button>
+          </div>
+          <div class="pw-strength"><div class="pw-strength-bar" id="reg-strength"></div></div>
+          <span class="pw-strength-label" id="reg-strength-label"></span>
+
+          <label class="field-label" for="reg-password2">🔒 Confirmer le mot de passe</label>
+          <div class="pw-field">
+            <input id="reg-password2" type="password" autocomplete="new-password"
+                   placeholder="Retapez le mot de passe" required />
+            <button type="button" class="pw-eye" data-target="reg-password2"
+                    aria-label="Afficher le mot de passe">👁️</button>
+          </div>
+          <p class="field-error" id="err-password2" hidden></p>
 
           <label class="consent-row">
             <input id="reg-consent" type="checkbox" required />
@@ -87,24 +113,68 @@
               (collecte du nom, téléphone, position et signalements).</span>
           </label>
 
-          <button class="btn-primary auth-submit" type="submit">Créer mon compte</button>
+          <button class="btn-primary auth-submit" type="submit">
+            <span class="btn-label">Créer mon compte</span><span class="spinner" hidden></span>
+          </button>
           <p class="auth-switch">Déjà inscrit ?
             <a href="#" id="go-login">Connectez-vous</a>.</p>
         </form>
 
         <!-- Formulaire de VÉRIFICATION (code SMS / OTP) -->
-        <form id="form-otp" class="auth-form" hidden>
+        <form id="form-otp" class="auth-form" hidden novalidate>
           <p class="otp-intro">📲 Un code de vérification a été envoyé par SMS au
             <strong id="otp-phone">votre numéro</strong>. Saisissez-le pour activer
             votre compte.</p>
 
-          <label class="field-label" for="otp-code">🔢 Code de vérification</label>
-          <input id="otp-code" type="text" inputmode="numeric" autocomplete="one-time-code"
-                 placeholder="123456" required />
+          <div class="code-boxes" id="otp-boxes"></div>
+          <input id="otp-code" type="hidden" />
 
-          <button class="btn-primary auth-submit" type="submit">Vérifier mon numéro</button>
+          <button class="btn-primary auth-submit" type="submit">
+            <span class="btn-label">Vérifier mon numéro</span><span class="spinner" hidden></span>
+          </button>
           <p class="auth-switch">Pas reçu de code ?
-            <a href="#" id="otp-resend">Renvoyer le code</a></p>
+            <a href="#" id="otp-resend">Renvoyer le code</a>
+            <span id="otp-timer" class="resend-timer"></span></p>
+        </form>
+
+        <!-- Formulaire MOT DE PASSE OUBLIÉ (saisie du numéro) -->
+        <form id="form-forgot" class="auth-form" hidden novalidate>
+          <p class="otp-intro">🔑 Entrez le numéro de téléphone de votre compte.
+            Un code de réinitialisation vous sera envoyé par SMS.</p>
+
+          <label class="field-label" for="forgot-phone">📱 Numéro de téléphone</label>
+          <input id="forgot-phone" type="tel" autocomplete="tel" placeholder="+243 …" required />
+
+          <button class="btn-primary auth-submit" type="submit">
+            <span class="btn-label">Envoyer le code</span><span class="spinner" hidden></span>
+          </button>
+          <p class="auth-switch"><a href="#" id="forgot-back">← Retour à la connexion</a></p>
+        </form>
+
+        <!-- Formulaire RÉINITIALISATION (code + nouveau mot de passe) -->
+        <form id="form-reset" class="auth-form" hidden novalidate>
+          <p class="otp-intro">📲 Code envoyé par SMS au
+            <strong id="reset-phone">votre numéro</strong>. Saisissez-le, puis
+            choisissez un nouveau mot de passe.</p>
+
+          <div class="code-boxes" id="reset-boxes"></div>
+          <input id="reset-code" type="hidden" />
+
+          <label class="field-label" for="reset-password">🔒 Nouveau mot de passe</label>
+          <div class="pw-field">
+            <input id="reset-password" type="password" autocomplete="new-password"
+                   placeholder="Nouveau mot de passe" required />
+            <button type="button" class="pw-eye" data-target="reset-password"
+                    aria-label="Afficher le mot de passe">👁️</button>
+          </div>
+          <p class="field-error" id="err-reset" hidden></p>
+
+          <button class="btn-primary auth-submit" type="submit">
+            <span class="btn-label">Réinitialiser</span><span class="spinner" hidden></span>
+          </button>
+          <p class="auth-switch">Pas reçu de code ?
+            <a href="#" id="reset-resend">Renvoyer</a>
+            <span id="reset-timer" class="resend-timer"></span></p>
         </form>
       </div>
     </section>

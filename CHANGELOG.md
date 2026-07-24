@@ -2,6 +2,23 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [3.10.0] — Authentification citoyenne de niveau professionnel
+
+### Ajouté
+- **Mot de passe oublié par SMS** (citoyen) : « Mot de passe oublié ? » →
+  saisie du numéro → code SMS → nouveau mot de passe → connexion automatique.
+  Endpoints `POST /api/auth/forgot-password-sms` et `/reset-password-sms`
+  (réutilisent l'infrastructure OTP ; réponse générique anti-énumération).
+- **Expérience d'inscription/connexion professionnelle** (site citoyen) :
+  - **Afficher / masquer** le mot de passe (icône œil).
+  - **Indicateur de robustesse** du mot de passe (Très faible → Fort).
+  - **Confirmation du mot de passe** + **validation en direct par champ**
+    (numéro valide, correspondance des mots de passe, consentement).
+  - **Boutons avec indicateur de chargement** (spinner) pendant les requêtes.
+  - **Saisie du code en 6 cases** (avance/retour automatiques, collage, envoi
+    auto quand complet) + **compte à rebours** avant de pouvoir renvoyer le code.
+- Tests backend étendus (réinitialisation par SMS) — 52 au total.
+
 ## [3.9.1] — PostgreSQL comme base de données standard
 
 ### Modifié

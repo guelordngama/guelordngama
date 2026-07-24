@@ -209,6 +209,19 @@ def validate_phone_only(data):
     return phone
 
 
+def validate_reset_sms_payload(data):
+    """Valide la réinitialisation par SMS : numéro + code + nouveau mot de passe."""
+    data = require_dict(data)
+    phone = normalize_phone(data.get("phone"))
+    code = clean_text(data.get("code"), 12)
+    new_password = data.get("new_password") or ""
+    if not phone or not code:
+        raise ValidationError("Numéro de téléphone et code requis.")
+    if len(new_password) < 6:
+        raise ValidationError("Le nouveau mot de passe doit contenir au moins 6 caractères.")
+    return phone, code, new_password
+
+
 def validate_team_id(data):
     data = require_dict(data)
     try:

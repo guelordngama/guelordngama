@@ -162,6 +162,46 @@ def resend_otp(phone):
     # Réponse générique quoi qu'il arrive (anti-énumération).
 
 
+def request_password_reset_sms(phone):
+    """Envoie un code SMS de réinitialisation du mot de passe (par téléphone)."""
+    from ..validation import normalize_phone
+
+    phone_n = normalize_phone(phone)
+    user = User.query.filter(User.phone.in_(_phone_candidates(phone_n))).first()
+    if user and user.active:
+        send_otp(user)  # réutilise l'infra OTP (génère + envoie un code)
+    # Réponse générique (anti-énumération).
+
+
+def reset_password_sms(phone, code, new_password):
+    """Vérifie le code SMS et fixe le nouveau mot de passe. Retourne l'utilisateur."""
+    from flask import current_app
+
+    from ..validation import normalize_phone
+
+    phone_n = normalize_phone(phone)
+    user = User.query.filter(User.phone.in_(_phone_candidates(phone_n))).first()
+    if not user:
+        raise AuthError("Compte introuvable pour ce numéro.")
+    if not user.otp_hash or not user.otp_expires_at or datetime.utcnow() > user.otp_expires_at:
+        raise ValidationError("Code expiré. Demandez un nouveau code.")
+    if (user.otp_attempts or 0) >= current_app.config["OTP_MAX_ATTEMPTS"]:
+        raise ValidationError("Trop de tentatives. Demandez un nouveau code.")
+    if not verify_password(code, user.otp_hash):
+        user.otp_attempts = (user.otp_attempts or 0) + 1
+        db.session.commit()
+        raise AuthError("Code de vérification incorrect.")
+
+    user.password_hash = hash_password(new_password)
+    user.phone_verified = True  # une réinitialisation par SMS confirme aussi le numéro
+    user.otp_hash = None
+    user.otp_expires_at = None
+    user.otp_attempts = 0
+    db.session.commit()
+    log.info("Mot de passe réinitialisé par SMS pour le compte #%s", user.id)
+    return user
+
+
 def register_staff(payload):
     """Crée un compte personnel (rôle **opérateur**) depuis la console bureau.
 

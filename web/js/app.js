@@ -81,27 +81,126 @@
     box.style.color = "";  // revient au rouge défini par la CSS
   }
 
-  let pendingOtpPhone = null;
+  let pendingOtpPhone = null;   // numéro en cours de vérification
+  let resetPhone = null;        // numéro en cours de réinitialisation
 
-  function switchAuthTab(mode) {
-    const login = mode === "login";
-    $("tab-login").classList.toggle("active", login);
-    $("tab-register").classList.toggle("active", !login);
-    $("form-login").hidden = !login;
-    $("form-register").hidden = login;
-    $("form-otp").hidden = true;
+  const AUTH_FORMS = ["form-login", "form-register", "form-otp", "form-forgot", "form-reset"];
+  function showForm(id) {
+    AUTH_FORMS.forEach((f) => { const el = $(f); if (el) el.hidden = f !== id; });
+    $("tab-login").classList.toggle("active", id === "form-login");
+    $("tab-register").classList.toggle("active", id === "form-register");
     authError("");
+  }
+  function switchAuthTab(mode) { showForm(mode === "login" ? "form-login" : "form-register"); }
+
+  function setLoading(btn, on) {
+    btn.disabled = on;
+    const sp = btn.querySelector(".spinner");
+    if (sp) sp.hidden = !on;
+  }
+  function infoMsg(msg) {
+    const box = $("auth-error");
+    box.textContent = msg; box.hidden = false; box.style.color = "#22c55e";
+  }
+  function fieldErr(id, msg) {
+    const el = $(id); if (!el) return;
+    el.textContent = msg || ""; el.hidden = !msg;
+  }
+  function validPhone(p) { return (p || "").replace(/\D/g, "").length >= 8; }
+
+  // ---- Afficher / masquer les mots de passe ----
+  document.addEventListener("click", (e) => {
+    const eye = e.target.closest(".pw-eye");
+    if (!eye) return;
+    const inp = $(eye.dataset.target); if (!inp) return;
+    const reveal = inp.type === "password";
+    inp.type = reveal ? "text" : "password";
+    eye.textContent = reveal ? "🙈" : "👁️";
+  });
+
+  // ---- Robustesse du mot de passe (inscription) ----
+  function pwScore(p) {
+    let s = 0;
+    if (p.length >= 6) s++;
+    if (p.length >= 10) s++;
+    if (/[A-Z]/.test(p) && /[a-z]/.test(p)) s++;
+    if (/\d/.test(p)) s++;
+    if (/[^A-Za-z0-9]/.test(p)) s++;
+    return Math.min(s, 4);
+  }
+  $("reg-password").addEventListener("input", () => {
+    const p = $("reg-password").value;
+    const score = pwScore(p);
+    const pct = [0, 25, 50, 75, 100][score];
+    const colors = ["#ef4444", "#ef4444", "#f97316", "#eab308", "#22c55e"];
+    const words = ["Très faible", "Très faible", "Faible", "Moyen", "Fort"];
+    $("reg-strength").style.width = (p ? Math.max(pct, 10) : 0) + "%";
+    $("reg-strength").style.background = colors[score];
+    $("reg-strength-label").textContent = p ? "Robustesse : " + words[score] : "";
+  });
+
+  // ---- Cases de saisie du code (6 chiffres) ----
+  function setupCodeBoxes(hostId, hiddenId, onComplete) {
+    const host = $(hostId), hidden = $(hiddenId);
+    host.innerHTML = "";
+    const boxes = [];
+    const sync = () => {
+      const code = boxes.map((b) => b.value).join("");
+      hidden.value = code;
+      if (code.length === 6 && onComplete) onComplete(code);
+    };
+    for (let i = 0; i < 6; i++) {
+      const inp = document.createElement("input");
+      inp.type = "text"; inp.inputMode = "numeric"; inp.maxLength = 1;
+      inp.autocomplete = i === 0 ? "one-time-code" : "off";
+      inp.addEventListener("input", () => {
+        inp.value = inp.value.replace(/\D/g, "").slice(0, 1);
+        if (inp.value && i < 5) boxes[i + 1].focus();
+        sync();
+      });
+      inp.addEventListener("keydown", (ev) => {
+        if (ev.key === "Backspace" && !inp.value && i > 0) boxes[i - 1].focus();
+      });
+      inp.addEventListener("paste", (ev) => {
+        ev.preventDefault();
+        const d = (ev.clipboardData.getData("text") || "").replace(/\D/g, "").slice(0, 6);
+        for (let k = 0; k < 6; k++) boxes[k].value = d[k] || "";
+        boxes[Math.min(d.length, 5)].focus();
+        sync();
+      });
+      host.appendChild(inp); boxes.push(inp);
+    }
+    return {
+      clear() { boxes.forEach((b) => (b.value = "")); hidden.value = ""; },
+      focus() { boxes[0].focus(); },
+    };
+  }
+  const otpBoxes = setupCodeBoxes("otp-boxes", "otp-code",
+    () => $("form-otp").requestSubmit());
+  const resetBoxes = setupCodeBoxes("reset-boxes", "reset-code", null);
+
+  // ---- Compte à rebours « renvoyer le code » ----
+  function startResendTimer(linkId, timerId, seconds) {
+    const link = $(linkId), timer = $(timerId);
+    let left = seconds;
+    link.style.pointerEvents = "none"; link.style.opacity = "0.45";
+    timer.textContent = "(" + left + " s)";
+    const iv = setInterval(() => {
+      left--;
+      if (left <= 0) {
+        clearInterval(iv); timer.textContent = "";
+        link.style.pointerEvents = ""; link.style.opacity = "";
+      } else timer.textContent = "(" + left + " s)";
+    }, 1000);
   }
 
   // Affiche l'écran de saisie du code SMS (vérification du téléphone).
   function showOtp(phone) {
     pendingOtpPhone = phone;
     $("otp-phone").textContent = phone;
-    $("form-login").hidden = true;
-    $("form-register").hidden = true;
-    $("form-otp").hidden = false;
-    $("otp-code").value = "";
-    $("otp-code").focus();
+    showForm("form-otp");
+    otpBoxes.clear(); otpBoxes.focus();
+    startResendTimer("otp-resend", "otp-timer", 45);
   }
 
   $("tab-login").addEventListener("click", () => switchAuthTab("login"));
@@ -119,20 +218,21 @@
     return { ok: res.ok, status: res.status, data };
   }
 
-  // Connexion
+  // ---- Connexion ----
   $("form-login").addEventListener("submit", async (e) => {
     e.preventDefault();
     const btn = e.target.querySelector("button[type=submit]");
-    btn.disabled = true;
-    authError("");
+    setLoading(btn, true); authError("");
     const identifier = $("login-identifier").value.trim();
     const password = $("login-password").value;
+    if (!identifier || !password) {
+      authError("Renseignez votre identifiant et votre mot de passe.");
+      setLoading(btn, false); return;
+    }
     try {
       const { ok, data } = await authRequest("/api/auth/login", { identifier, password });
       if (!ok) {
-        // Numéro non vérifié : bascule vers la saisie du code et renvoie un code.
         if (data.error && data.error.code === "phone_not_verified") {
-          authError("");
           showOtp(identifier);
           authRequest("/api/auth/resend-otp", { phone: identifier });
           return;
@@ -144,90 +244,145 @@
     } catch (err) {
       authError("Réseau indisponible. Vérifiez votre connexion.");
     } finally {
-      btn.disabled = false;
+      setLoading(btn, false);
     }
   });
 
-  // Inscription (avec vérification du numéro de téléphone)
+  // ---- Inscription ----
   $("form-register").addEventListener("submit", async (e) => {
     e.preventDefault();
     const btn = e.target.querySelector("button[type=submit]");
-    btn.disabled = true;
-    authError("");
-    if (!$("reg-consent").checked) {
-      authError("Vous devez accepter la politique de confidentialité.");
-      btn.disabled = false;
-      return;
-    }
-    const body = {
-      name: $("reg-name").value.trim(),
-      phone: $("reg-phone").value.trim(),
-      email: $("reg-email").value.trim(),
-      password: $("reg-password").value,
-      consent: true,
-    };
+    setLoading(btn, true); authError("");
+    const name = $("reg-name").value.trim();
+    const phone = $("reg-phone").value.trim();
+    const password = $("reg-password").value;
+
+    // Validations côté client (retour immédiat, par champ).
+    let bad = false;
+    if (!name) { fieldErr("err-name", "Votre nom est requis."); bad = true; } else fieldErr("err-name", "");
+    if (!validPhone(phone)) { fieldErr("err-phone", "Numéro invalide (au moins 8 chiffres)."); bad = true; } else fieldErr("err-phone", "");
+    if (password.length < 6) { authError("Le mot de passe doit contenir au moins 6 caractères."); bad = true; }
+    if (password !== $("reg-password2").value) { fieldErr("err-password2", "Les mots de passe ne correspondent pas."); bad = true; } else fieldErr("err-password2", "");
+    if (!$("reg-consent").checked) { authError("Vous devez accepter la politique de confidentialité."); bad = true; }
+    if (bad) { setLoading(btn, false); return; }
+
+    const body = { name, phone, email: $("reg-email").value.trim(), password, consent: true };
     try {
       const { ok, status, data } = await authRequest("/api/auth/register", body);
       if (!ok) {
-        // 409 : le numéro (ou l'e-mail) est déjà utilisé.
         const msg = (data.error && data.error.message) ||
           (status === 409 ? "Ce numéro existe déjà. Connectez-vous ou utilisez un autre numéro."
                           : "Inscription impossible.");
         authError(msg);
-        // Si le numéro existe déjà, on bascule vers la connexion en pré-remplissant.
         if (status === 409 && data.error && data.error.details &&
             data.error.details.field === "phone") {
           $("login-identifier").value = body.phone;
         }
         return;
       }
-      // Inscription réussie → vérification du téléphone par code SMS.
-      if (data.verification_required) {
-        showOtp(data.phone || body.phone);
-        return;
-      }
+      if (data.verification_required) { showOtp(data.phone || body.phone); return; }
       onAuthenticated(data);
     } catch (err) {
       authError("Réseau indisponible. Vérifiez votre connexion.");
     } finally {
-      btn.disabled = false;
+      setLoading(btn, false);
     }
   });
 
-  // Vérification du code SMS (OTP)
+  // ---- Vérification du code SMS (OTP) ----
   $("form-otp").addEventListener("submit", async (e) => {
     e.preventDefault();
     const btn = e.target.querySelector("button[type=submit]");
-    btn.disabled = true;
-    authError("");
     const code = $("otp-code").value.trim();
+    if (code.length !== 6) { authError("Entrez le code à 6 chiffres reçu par SMS."); return; }
+    setLoading(btn, true); authError("");
     try {
       const { ok, data } = await authRequest("/api/auth/verify-otp",
         { phone: pendingOtpPhone, code });
       if (!ok) {
         authError((data.error && data.error.message) || "Vérification impossible.");
+        otpBoxes.clear(); otpBoxes.focus();
         return;
       }
       onAuthenticated(data);
     } catch (err) {
       authError("Réseau indisponible. Vérifiez votre connexion.");
     } finally {
-      btn.disabled = false;
+      setLoading(btn, false);
     }
   });
 
   $("otp-resend").addEventListener("click", async (e) => {
     e.preventDefault();
     if (!pendingOtpPhone) return;
-    authError("");
     try {
       await authRequest("/api/auth/resend-otp", { phone: pendingOtpPhone });
-      const box = $("auth-error");
-      box.textContent = "📩 Un nouveau code vient d'être envoyé.";
-      box.hidden = false;
-      box.style.color = "#8fe3cf";
+      infoMsg("📩 Un nouveau code vient d'être envoyé.");
+      startResendTimer("otp-resend", "otp-timer", 45);
+    } catch (err) { authError("Réseau indisponible."); }
+  });
+
+  // ---- Mot de passe oublié (par SMS) ----
+  $("go-forgot").addEventListener("click", (e) => {
+    e.preventDefault();
+    const id = $("login-identifier").value.trim();
+    if (id && !id.includes("@")) $("forgot-phone").value = id;
+    showForm("form-forgot");
+  });
+  $("forgot-back").addEventListener("click", (e) => { e.preventDefault(); showForm("form-login"); });
+
+  $("form-forgot").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = e.target.querySelector("button[type=submit]");
+    const phone = $("forgot-phone").value.trim();
+    if (!validPhone(phone)) { authError("Entrez un numéro de téléphone valide."); return; }
+    setLoading(btn, true); authError("");
+    try {
+      await authRequest("/api/auth/forgot-password-sms", { phone });
+      resetPhone = phone;
+      $("reset-phone").textContent = phone;
+      showForm("form-reset");
+      resetBoxes.clear(); resetBoxes.focus();
+      startResendTimer("reset-resend", "reset-timer", 45);
     } catch (err) {
-      authError("Réseau indisponible.");
+      authError("Réseau indisponible. Vérifiez votre connexion.");
+    } finally {
+      setLoading(btn, false);
+    }
+  });
+
+  $("reset-resend").addEventListener("click", async (e) => {
+    e.preventDefault();
+    if (!resetPhone) return;
+    try {
+      await authRequest("/api/auth/forgot-password-sms", { phone: resetPhone });
+      infoMsg("📩 Un nouveau code vient d'être envoyé.");
+      startResendTimer("reset-resend", "reset-timer", 45);
+    } catch (err) { authError("Réseau indisponible."); }
+  });
+
+  $("form-reset").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = e.target.querySelector("button[type=submit]");
+    const code = $("reset-code").value.trim();
+    const np = $("reset-password").value;
+    if (code.length !== 6) { authError("Entrez le code à 6 chiffres reçu par SMS."); return; }
+    if (np.length < 6) { fieldErr("err-reset", "Au moins 6 caractères."); return; }
+    fieldErr("err-reset", "");
+    setLoading(btn, true); authError("");
+    try {
+      const { ok, data } = await authRequest("/api/auth/reset-password-sms",
+        { phone: resetPhone, code, new_password: np });
+      if (!ok) {
+        authError((data.error && data.error.message) || "Réinitialisation impossible.");
+        resetBoxes.clear(); resetBoxes.focus();
+        return;
+      }
+      onAuthenticated(data);
+    } catch (err) {
+      authError("Réseau indisponible. Vérifiez votre connexion.");
+    } finally {
+      setLoading(btn, false);
     }
   });
 
@@ -248,6 +403,7 @@
     clearAuth();
     refreshUserChip();
     $("login-password").value = "";
+    showForm("form-login");
     show("auth");
   });
 
