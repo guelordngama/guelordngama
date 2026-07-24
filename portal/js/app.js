@@ -72,6 +72,12 @@
 
   async function login() {
     loginError("");
+    unlockAudio();  // le clic « Se connecter » débloque le son (autoplay)
+    try {
+      if ("Notification" in window && Notification.permission === "default") {
+        Notification.requestPermission();  // notifications système (arrière-plan)
+      }
+    } catch (e) {}
     const btn = $("btn-login");
     setLoading(btn, true);
     try {
@@ -180,7 +186,11 @@
   function addMessage(m) {
     const box = $("chat-messages");
     const mine = state.agent && m.sender_id === state.agent.id;
-    if (!mine && state.chatReady) soundPing();  // bip pour un message entrant
+    if (!mine && state.chatReady) {
+      soundPing();  // bip pour un message entrant
+      notify("💬 Nouveau message — SafeCity",
+             (m.sender_name || "Centre") + " : " + (m.text || "pièce jointe"));
+    }
     const div = document.createElement("div");
     div.className = "chat-msg " + (mine ? "mine" : "other");
     const who = document.createElement("span");
@@ -216,6 +226,8 @@
         addAlert(a, true);
         soundAlarm();
         toast("🚨 Nouvelle alerte : " + (a.type || "").toUpperCase(), URGENCY[a.urgency]);
+        notify("🚨 Nouvelle alerte — SafeCity",
+               (a.type || "Alerte").toUpperCase() + " · " + (a.neighborhood || ""));
       });
       state.socket.on("alert_updated", onAlertUpdated);
     } catch (e) { console.warn(e); }
@@ -366,24 +378,50 @@
   }
 
   // ---- Sons de notification (Web Audio) ----
+  // Un SEUL contexte audio, débloqué à la première interaction utilisateur
+  // (les navigateurs bloquent le son tant qu'il n'y a pas eu de geste).
+  let audioCtx = null;
+  function unlockAudio() {
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === "suspended") audioCtx.resume();
+    } catch (e) {}
+  }
+  ["click", "keydown", "touchstart"].forEach((ev) =>
+    document.addEventListener(ev, unlockAudio, { passive: true }));
+
   function playTones(segments) {
     try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      let t = ctx.currentTime;
+      unlockAudio();
+      const ctx = audioCtx;
+      if (!ctx) return;
+      if (ctx.state === "suspended") ctx.resume();
+      let t = ctx.currentTime + 0.02;
       segments.forEach(([freq, dur, vol]) => {
         const o = ctx.createOscillator(), g = ctx.createGain();
         o.frequency.value = freq; o.connect(g); g.connect(ctx.destination);
         g.gain.setValueAtTime(0.0001, t);
         g.gain.exponentialRampToValueAtTime(vol, t + 0.02);
         g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-        o.start(t); o.stop(t + dur);
+        o.start(t); o.stop(t + dur + 0.02);
         t += dur + 0.04;
       });
     } catch (e) {}
   }
+
+  // Notification système (utile quand l'onglet est en arrière-plan).
+  function notify(title, body) {
+    try {
+      if (!("Notification" in window) || Notification.permission !== "granted") return;
+      if (!document.hidden) return;  // déjà visible : le son + toast suffisent
+      const n = new Notification(title, { body: body, tag: "safecity", renotify: true });
+      setTimeout(() => n.close(), 6000);
+    } catch (e) {}
+  }
+
   // Alarme générale (nouvelle alerte diffusée à tous les agents).
   function soundAlarm() {
-    playTones([[660, 0.16, 0.3], [990, 0.16, 0.3]]);
+    playTones([[660, 0.16, 0.3], [990, 0.16, 0.3], [660, 0.16, 0.3]]);
     if (navigator.vibrate) navigator.vibrate([200, 80, 200]);
   }
   // Alarme renforcée : une intervention vous est assignée.
@@ -393,8 +431,11 @@
   }
   // Accusé de réception : l'agent accepte l'intervention.
   function soundAck() { playTones([[880, 0.10, 0.28], [1174, 0.14, 0.28]]); }
-  // Bip discret : nouveau message du centre.
-  function soundPing() { playTones([[1046, 0.08, 0.18]]); }
+  // Bip de message (double ton, clairement audible) + vibration courte.
+  function soundPing() {
+    playTones([[1046, 0.09, 0.24], [1319, 0.12, 0.24]]);
+    if (navigator.vibrate) navigator.vibrate(120);
+  }
 
   // ---- Historique des interventions de l'agent ----
   async function openHistory() {

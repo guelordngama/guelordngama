@@ -2,6 +2,20 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [3.10.1] — Sons de notification fiabilisés (portail agents)
+
+### Corrigé / Ajouté
+- **Sons de notification du portail agents fiabilisés** (nouvelle alerte et
+  nouveau message) : un **contexte audio unique** est désormais **débloqué à la
+  première interaction** (clic « Se connecter » / clic / touche) et **repris s'il
+  est suspendu** — corrige l'absence de son due à la politique d'autoplay des
+  navigateurs (l'ancien code recréait un contexte suspendu à chaque son).
+- **Bip de message plus audible** (double ton + courte vibration) et alarme
+  d'alerte renforcée.
+- **Notifications système** (API Notification) affichées pour une nouvelle
+  alerte ou un nouveau message **quand l'onglet est en arrière-plan** (permission
+  demandée à la connexion) — l'agent est prévenu même sans regarder le portail.
+
 ## [3.10.0] — Authentification citoyenne de niveau professionnel
 
 ### Ajouté
