@@ -53,7 +53,17 @@ class VoiceRecorder(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._session = QMediaCaptureSession()
-        self._audio_in = QAudioInput()
+        # Périphérique d'entrée par défaut, volume au maximum et non coupé
+        # (cause fréquente d'un enregistrement « muet » sous Windows).
+        try:
+            self._audio_in = QAudioInput(QMediaDevices.defaultAudioInput())
+        except Exception:
+            self._audio_in = QAudioInput()
+        try:
+            self._audio_in.setVolume(1.0)
+            self._audio_in.setMuted(False)
+        except Exception:
+            pass
         self._session.setAudioInput(self._audio_in)
         self._recorder = QMediaRecorder()
         self._session.setRecorder(self._recorder)
@@ -66,6 +76,10 @@ class VoiceRecorder(QObject):
             self._ext = "m4a"
         except Exception:
             self._ext = "m4a"
+        try:
+            self._recorder.setQuality(QMediaRecorder.Quality.HighQuality)
+        except Exception:
+            pass
 
         self._recorder.errorOccurred.connect(self._on_error)
         self._recorder.recorderStateChanged.connect(self._on_state)

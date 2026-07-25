@@ -2,6 +2,18 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.3.9] — 2026-07-25 — Correctifs médias messagerie (poste opérateur)
+
+### Corrigé
+- **Photo en pièce jointe affichée en ligne** (miniature dans la bulle) et
+  **agrandissable au clic**, au lieu d'un lien qui ne s'ouvrait pas.
+- **Lecture d'un message vocal débloquée** : clic pour lire, nouveau clic pour
+  **arrêter** (plus de blocage), passage propre d'un vocal à l'autre, gestion
+  des erreurs de lecture.
+- **Enregistrement vocal muet** : périphérique d'entrée par défaut explicite,
+  **volume au maximum + micro démuté**, encodage haute qualité (corrige les
+  vocaux silencieux sous Windows). *(À confirmer sur votre poste.)*
+
 ## [1.3.8] — 2026-07-25 — Nom d'expéditeur des e-mails
 
 ### Ajouté

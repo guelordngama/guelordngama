@@ -1111,11 +1111,7 @@ class ChatPage(QWidget):
                                             m.get("voice_duration")))
 
         if m.get("attachment_url"):
-            url = self.api_base + m["attachment_url"]
-            link = QLabel(f'<a href="{url}" style="color:#53bdeb;">📎 Voir la pièce jointe</a>')
-            link.setOpenExternalLinks(True)
-            link.setStyleSheet("background: transparent;")
-            bl.addWidget(link)
+            bl.addWidget(self._photo_view(self.api_base + m["attachment_url"]))
 
         lbl_time = QLabel(m.get("time", ""))
         lbl_time.setAlignment(Qt.AlignRight)
@@ -1162,24 +1158,119 @@ class ChatPage(QWidget):
             self._player = QMediaPlayer()
             self._player.setAudioOutput(self._audio_out)
             self._player.playbackStateChanged.connect(self._on_play_state)
+            self._player.errorOccurred.connect(self._on_play_error)
 
-        # Bascule lecture / pause sur le même bouton.
-        if self._player.source() == QUrl(url) and \
-                self._player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
-            self._player.pause()
-            btn.setText(getattr(btn, "_idle_label", "▶  Message vocal"))
+        from PySide6.QtMultimedia import QMediaPlayer as _QMP
+        active = self._player.playbackState() != _QMP.PlaybackState.StoppedState
+
+        # Clic sur le vocal déjà en cours → on l'ARRÊTE (ferme proprement).
+        if getattr(self, "_playing_btn", None) is btn and active:
+            self._player.stop()
+            self._reset_play_btn()
             return
 
+        # Sinon : couper l'éventuelle lecture en cours, puis lire celui-ci.
+        if getattr(self, "_playing_btn", None) is not None:
+            self._player.stop()
+            self._reset_play_btn()
         self._playing_btn = btn
+        self._audio_out.setVolume(1.0)
         self._player.setSource(QUrl(url))
         self._player.play()
-        btn.setText("⏸  Lecture…")
+        btn.setText("⏹  Arrêter")
+
+    def _reset_play_btn(self):
+        btn = getattr(self, "_playing_btn", None)
+        if btn is not None:
+            btn.setText(getattr(btn, "_idle_label", "▶  Message vocal"))
+        self._playing_btn = None
 
     def _on_play_state(self, state):
         from PySide6.QtMultimedia import QMediaPlayer
-        btn = getattr(self, "_playing_btn", None)
-        if btn and state == QMediaPlayer.PlaybackState.StoppedState:
-            btn.setText(getattr(btn, "_idle_label", "▶  Message vocal"))
+        if state == QMediaPlayer.PlaybackState.StoppedState:
+            self._reset_play_btn()
+
+    def _on_play_error(self, *_a):
+        self.attach_label.setText("🔊 Impossible de lire ce vocal (réseau ou format).")
+        self._reset_play_btn()
+
+    # ---- Pièces jointes image ----
+    def _nam_get(self, url):
+        from PySide6.QtCore import QUrl
+        from PySide6.QtNetwork import QNetworkAccessManager, QNetworkRequest
+
+        if not hasattr(self, "_nam") or self._nam is None:
+            self._nam = QNetworkAccessManager(self)
+        return self._nam.get(QNetworkRequest(QUrl(url)))
+
+    def _photo_view(self, url):
+        """Miniature cliquable d'une image (clic = agrandissement)."""
+        btn = QPushButton("🖼️  Chargement de l'image…")
+        btn.setCursor(Qt.PointingHandCursor)
+        btn.setStyleSheet(
+            "QPushButton { background: rgba(255,255,255,0.10); color: #e9edef;"
+            "border: none; border-radius: 8px; padding: 6px 12px; text-align: left; }"
+            "QPushButton:hover { background: rgba(255,255,255,0.18); }")
+        btn.clicked.connect(lambda: self._open_image(url, getattr(btn, "_full_pixmap", None)))
+        try:
+            from PySide6.QtCore import QSize
+            from PySide6.QtGui import QIcon, QPixmap
+
+            reply = self._nam_get(url)
+
+            def done():
+                pix = QPixmap()
+                if pix.loadFromData(reply.readAll()):
+                    btn._full_pixmap = pix
+                    thumb = pix.scaled(QSize(240, 170), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                    btn.setText("")
+                    btn.setIcon(QIcon(thumb))
+                    btn.setIconSize(thumb.size())
+                    btn.setToolTip("Cliquer pour agrandir")
+                else:
+                    btn.setText("📎  Pièce jointe (cliquer pour ouvrir)")
+                reply.deleteLater()
+
+            reply.finished.connect(done)
+        except Exception:
+            btn.setText("📎  Pièce jointe (cliquer pour ouvrir)")
+        return btn
+
+    def _open_image(self, url, pixmap=None):
+        """Affiche l'image en grand dans une fenêtre."""
+        from PySide6.QtGui import QPixmap
+        from PySide6.QtWidgets import QDialog, QLabel, QScrollArea, QVBoxLayout
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Pièce jointe")
+        dlg.resize(760, 560)
+        lay = QVBoxLayout(dlg)
+        lbl = QLabel("Chargement…")
+        lbl.setAlignment(Qt.AlignCenter)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(lbl)
+        lay.addWidget(scroll)
+
+        def show(pix):
+            if pix and not pix.isNull():
+                lbl.setPixmap(pix.scaled(1400, 1000, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            else:
+                lbl.setText("Impossible de charger l'image.")
+
+        if pixmap is not None and not pixmap.isNull():
+            show(pixmap)
+        else:
+            reply = self._nam_get(url)
+
+            def done():
+                p = QPixmap()
+                p.loadFromData(reply.readAll())
+                show(p)
+                reply.deleteLater()
+
+            reply.finished.connect(done)
+        dlg.exec()
 
     def _scroll_to_bottom(self):
         from PySide6.QtCore import QTimer
