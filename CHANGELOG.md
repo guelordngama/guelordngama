@@ -2,6 +2,20 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.3.0] — 2026-07-25 — Sous-domaine dédié pour le portail agents
+
+### Ajouté
+- **Portail agents sur un sous-domaine dédié** (ex. `agents.<domaine>`), en plus
+  de l'accès `/<domaine>/portal/` conservé pour compatibilité. Configuration via
+  `SAFECITY_PORTAL_DOMAIN` ; le certificat Let's Encrypt couvre les deux noms
+  (SAN) et l'API/temps réel/uploads sont proxifiés sur les deux domaines.
+- Nginx : locations communes factorisées dans `deploy/nginx/proxy.conf` (incluses
+  par chaque bloc `server`).
+- `deploy/install.sh` demande le sous-domaine (défaut `agents.<domaine>`) et
+  renseigne les **deux origines CORS** ; `init-letsencrypt.sh` émet un certificat
+  multi-domaines ; checklist mise à jour (DNS des deux noms + procédure d'ajout
+  du sous-domaine à un déploiement existant).
+
 ## [1.2.2] — 2026-07-24 — E-mail obligatoire à l'inscription sans SMS
 
 ### Modifié

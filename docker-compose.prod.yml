@@ -49,11 +49,13 @@ services:
       - backend
     environment:
       SAFECITY_DOMAIN: ${SAFECITY_DOMAIN:?Definir SAFECITY_DOMAIN}
+      SAFECITY_PORTAL_DOMAIN: ${SAFECITY_PORTAL_DOMAIN:?Definir SAFECITY_PORTAL_DOMAIN (ex agents.votre-domaine)}
     ports:
       - "80:80"
       - "443:443"
     volumes:
       - ./deploy/nginx/safecity.conf.template:/etc/nginx/templates/safecity.conf.template:ro
+      - ./deploy/nginx/proxy.conf:/etc/nginx/snippets/safecity_proxy.conf:ro
       - ./web:/usr/share/nginx/web:ro
       - ./portal:/usr/share/nginx/portal:ro
       - certbot-conf:/etc/letsencrypt:ro

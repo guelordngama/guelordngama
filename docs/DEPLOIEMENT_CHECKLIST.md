@@ -28,10 +28,15 @@ Suivez les étapes **dans l'ordre**. Cochez au fur et à mesure. Temps estimé :
 
 ---
 
-## 1. Vérifier le DNS
+## 1. Vérifier le DNS (deux noms)
 
-- [ ] `ping <votre-domaine>` renvoie bien l'IP de votre serveur.
-      *(DuckDNS : mettez à jour le champ « current ip » sur duckdns.org.)*
+- [ ] **Domaine principal** (site citoyen) → un enregistrement **A** vers l'IP du
+      serveur. `ping <votre-domaine>` renvoie bien cette IP.
+- [ ] **Sous-domaine du portail agents** (ex. `agents.<votre-domaine>`) → un
+      enregistrement **A** vers **la même IP**. `ping agents.<votre-domaine>`
+      renvoie la même IP.
+      *(DuckDNS : mettez à jour le champ « current ip ». Chez un registrar : deux
+      entrées A, `@`/racine et `agents`, vers la même IP.)*
 
 ## 2. Se connecter au serveur et récupérer le code
 
@@ -70,11 +75,12 @@ nano deploy/.env.prod
 ```
 ```ini
 # Déjà rempli par le script :
-SAFECITY_DOMAIN=<votre-domaine>
+SAFECITY_DOMAIN=<votre-domaine>                          # site citoyen
+SAFECITY_PORTAL_DOMAIN=agents.<votre-domaine>            # portail agents (sous-domaine)
 CERTBOT_EMAIL=<votre-email>
 SAFECITY_SECRET_KEY=<secret-généré>
 POSTGRES_PASSWORD=<mot-de-passe-généré>
-SAFECITY_CORS_ORIGINS=https://<votre-domaine>
+SAFECITY_CORS_ORIGINS=https://<votre-domaine>,https://agents.<votre-domaine>
 SAFECITY_SEED_DEMO=true          # ⚠️ passez à false à l'étape 7
 
 # À AJOUTER pour un usage réel :
@@ -101,7 +107,8 @@ SAFECITY_RETENTION_DAYS=365                               # conservation des ale
 
 - [ ] `https://<votre-domaine>/api/health` → `{"status":"ok"}`
 - [ ] `https://<votre-domaine>/` → application citoyenne
-- [ ] `https://<votre-domaine>/portal/` → portail agents
+- [ ] `https://agents.<votre-domaine>/` → **portail agents (sous-domaine dédié)**
+- [ ] `https://<votre-domaine>/portal/` → portail agents (accès de secours)
 - [ ] Poste opérateur (bureau, sur un PC) se connecte :
   ```
   SAFECITY_API=https://<votre-domaine>  python -m desktop.main
@@ -150,6 +157,26 @@ cd /root/safecity && git pull
 docker compose --env-file deploy/.env.prod -f docker-compose.prod.yml up -d --build
 ```
 Les **migrations s'appliquent automatiquement** — aucune perte de données.
+
+### Ajouter le sous-domaine du portail agents à un déploiement existant
+Si votre serveur tournait sans `SAFECITY_PORTAL_DOMAIN` :
+
+1. **DNS** : créez un enregistrement **A** `agents.<votre-domaine>` → même IP.
+2. **Config** : dans `deploy/.env.prod`, ajoutez / adaptez :
+   ```ini
+   SAFECITY_PORTAL_DOMAIN=agents.<votre-domaine>
+   SAFECITY_CORS_ORIGINS=https://<votre-domaine>,https://agents.<votre-domaine>
+   ```
+3. **Certificat** : réémettez-le pour couvrir les deux noms :
+   ```bash
+   sh deploy/init-letsencrypt.sh
+   ```
+   *(idempotent : régénère le certificat avec le domaine + le sous-domaine)*
+4. **Appliquer** :
+   ```bash
+   docker compose --env-file deploy/.env.prod -f docker-compose.prod.yml up -d --build
+   ```
+5. **Vérifier** : `https://agents.<votre-domaine>/` affiche le portail agents.
 
 ## 🩺 Dépannage rapide
 

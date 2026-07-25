@@ -62,8 +62,11 @@ if [ ! -f deploy/.env.prod ]; then
     DASHED="$(echo "$IP" | tr '.' '-')"
     DEFAULT_DOMAIN="${DASHED}.sslip.io"
 
-    read -r -p "Nom de domaine [${DEFAULT_DOMAIN}] : " DOMAIN
+    read -r -p "Nom de domaine (site citoyen) [${DEFAULT_DOMAIN}] : " DOMAIN
     DOMAIN="${DOMAIN:-$DEFAULT_DOMAIN}"
+    DEFAULT_PORTAL="agents.${DOMAIN}"
+    read -r -p "Sous-domaine du portail agents [${DEFAULT_PORTAL}] : " PORTAL
+    PORTAL="${PORTAL:-$DEFAULT_PORTAL}"
     read -r -p "E-mail (certificats Let's Encrypt) : " EMAIL
     while [ -z "${EMAIL:-}" ]; do read -r -p "E-mail requis : " EMAIL; done
     read -r -p "Activer les comptes de démonstration au premier démarrage ? [O/n] " DEMO
@@ -75,16 +78,17 @@ if [ ! -f deploy/.env.prod ]; then
     cat > deploy/.env.prod <<EOF
 # Généré par deploy/install.sh le $(date -u +%FT%TZ)
 SAFECITY_DOMAIN=${DOMAIN}
+SAFECITY_PORTAL_DOMAIN=${PORTAL}
 CERTBOT_EMAIL=${EMAIL}
 SAFECITY_SECRET_KEY=${SECRET}
 POSTGRES_PASSWORD=${PGPASS}
-SAFECITY_CORS_ORIGINS=https://${DOMAIN}
+SAFECITY_CORS_ORIGINS=https://${DOMAIN},https://${PORTAL}
 SAFECITY_SEED_DEMO=${SEED}
 BACKUP_INTERVAL_HOURS=24
 BACKUP_KEEP=14
 EOF
     chmod 600 deploy/.env.prod
-    ok "deploy/.env.prod créé (domaine : ${DOMAIN})."
+    ok "deploy/.env.prod créé (citoyens : ${DOMAIN} · agents : ${PORTAL})."
 fi
 
 # Recharge les valeurs pour l'affichage final.

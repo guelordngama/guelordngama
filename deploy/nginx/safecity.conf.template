@@ -1,19 +1,21 @@
 # ===== SafeCity — Reverse proxy Nginx (production) =====
-# Sert l'app citoyenne (/) et le portail agents (/portal/), et proxifie l'API
-# et Socket.IO (avec montée en WebSocket) vers le backend.
+# Deux domaines servis par le même serveur :
+#   • ${SAFECITY_DOMAIN}         → application citoyenne (et /portal/ en secours)
+#   • ${SAFECITY_PORTAL_DOMAIN}  → portail des agents (à la racine)
+# L'API REST, les fichiers envoyés et Socket.IO (temps réel) sont proxifiés vers
+# le backend sur les deux domaines (voir snippets/safecity_proxy.conf).
 #
-# Remplacez ${SAFECITY_DOMAIN} par votre domaine (ex. 203-0-113-10.sslip.io).
+# Renseignez SAFECITY_DOMAIN et SAFECITY_PORTAL_DOMAIN dans deploy/.env.prod.
 
 upstream safecity_backend {
     server backend:5000;
 }
 
-# --- HTTP : redirige vers HTTPS + sert le challenge Certbot ---
+# --- HTTP : redirige vers HTTPS + sert le challenge Certbot (les 2 domaines) ---
 server {
     listen 80;
-    server_name ${SAFECITY_DOMAIN};
+    server_name ${SAFECITY_DOMAIN} ${SAFECITY_PORTAL_DOMAIN};
 
-    # Validation des certificats Let's Encrypt (webroot).
     location /.well-known/acme-challenge/ {
         root /var/www/certbot;
     }
@@ -23,7 +25,7 @@ server {
     }
 }
 
-# --- HTTPS ---
+# --- HTTPS : application citoyenne (domaine principal) ---
 server {
     listen 443 ssl;
     http2 on;
@@ -34,7 +36,6 @@ server {
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers HIGH:!aNULL:!MD5;
 
-    # En-têtes de sécurité
     add_header X-Content-Type-Options nosniff always;
     add_header X-Frame-Options SAMEORIGIN always;
     add_header Referrer-Policy no-referrer always;
@@ -42,44 +43,47 @@ server {
 
     client_max_body_size 20m;
 
-    # --- API REST ---
-    location /api/ {
-        proxy_pass http://safecity_backend;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
+    include /etc/nginx/snippets/safecity_proxy.conf;
 
-    # --- Fichiers envoyés (photos, pièces jointes) ---
-    location /uploads/ {
-        proxy_pass http://safecity_backend;
-        proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    }
-
-    # --- Socket.IO (temps réel) avec montée en WebSocket ---
-    location /socket.io/ {
-        proxy_pass http://safecity_backend;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_read_timeout 3600s;
-    }
-
-    # --- Portail agents (statique) ---
+    # Portail agents aussi accessible sous /portal/ (compatibilité / secours).
     location /portal/ {
         alias /usr/share/nginx/portal/;
         index index.html;
         try_files $uri $uri/ /portal/index.html;
     }
 
-    # --- Application citoyenne (statique) ---
+    # Application citoyenne (statique).
     location / {
         root /usr/share/nginx/web;
+        index index.html;
+        try_files $uri $uri/ /index.html;
+    }
+}
+
+# --- HTTPS : portail des agents (sous-domaine dédié) ---
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name ${SAFECITY_PORTAL_DOMAIN};
+
+    # Même certificat (émis avec les deux domaines en SAN).
+    ssl_certificate     /etc/letsencrypt/live/${SAFECITY_DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${SAFECITY_DOMAIN}/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+
+    add_header X-Content-Type-Options nosniff always;
+    add_header X-Frame-Options SAMEORIGIN always;
+    add_header Referrer-Policy no-referrer always;
+    add_header Strict-Transport-Security "max-age=31536000" always;
+
+    client_max_body_size 20m;
+
+    include /etc/nginx/snippets/safecity_proxy.conf;
+
+    # Portail agents à la racine du sous-domaine.
+    location / {
+        root /usr/share/nginx/portal;
         index index.html;
         try_files $uri $uri/ /index.html;
     }
