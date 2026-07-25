@@ -98,6 +98,8 @@ class Config:
     SMTP_USER = os.environ.get("SAFECITY_SMTP_USER")
     SMTP_PASSWORD = os.environ.get("SAFECITY_SMTP_PASSWORD")
     SMTP_FROM = os.environ.get("SAFECITY_SMTP_FROM", "alertes@safecity.local")
+    # Nom affiché de l'expéditeur (ex. « SafeCity Lubumbashi <adresse> »).
+    SMTP_FROM_NAME = os.environ.get("SAFECITY_SMTP_FROM_NAME", "SafeCity Lubumbashi")
     SMTP_TLS = _env_bool("SAFECITY_SMTP_TLS", True)
     SMTP_TO = [e.strip() for e in os.environ.get("SAFECITY_SMTP_TO", "").split(",") if e.strip()]
     # Destinataires SMS des alertes (superviseurs sur le terrain), envoyés via la

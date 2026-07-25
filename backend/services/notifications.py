@@ -20,6 +20,7 @@ import threading
 import urllib.parse
 import urllib.request
 from email.message import EmailMessage
+from email.utils import formataddr
 
 from flask import current_app
 
@@ -41,7 +42,9 @@ def send_email_message(to_addrs, subject, body):
     cfg = current_app.config
     msg = EmailMessage()
     msg["Subject"] = subject
-    msg["From"] = cfg["SMTP_FROM"]
+    # En-tête « Nom <adresse> » si un nom d'expéditeur est configuré.
+    from_name = cfg.get("SMTP_FROM_NAME") or ""
+    msg["From"] = formataddr((from_name, cfg["SMTP_FROM"])) if from_name else cfg["SMTP_FROM"]
     msg["To"] = ", ".join(to_addrs)
     msg.set_content(body)
 

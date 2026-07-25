@@ -2,6 +2,14 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.3.8] — 2026-07-25 — Nom d'expéditeur des e-mails
+
+### Ajouté
+- **Nom d'expéditeur** dans les e-mails : les destinataires voient désormais
+  « **SafeCity Lubumbashi** <adresse> » au lieu de l'adresse seule. Configurable
+  via `SAFECITY_SMTP_FROM_NAME` (défaut : « SafeCity Lubumbashi »). S'applique à
+  tous les envois (codes de vérification, mot de passe oublié, alertes).
+
 ## [1.3.7] — 2026-07-25 — Carte claire : OpenStreetMap standard (coloré) partout
 
 ### Modifié
