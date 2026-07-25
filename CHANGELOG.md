@@ -2,6 +2,16 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.3.4] — 2026-07-25 — Serveur configurable dans les Paramètres (poste opérateur)
+
+### Ajouté
+- **Champ « Serveur » modifiable** dans Paramètres du poste opérateur : l'adresse
+  du serveur (API + temps réel) est éditable et **mémorisée** (QSettings). Prise
+  en compte au prochain démarrage.
+- **Serveur par défaut = production** `https://safecity-lubumbashi.com`. Priorité :
+  variable `SAFECITY_API` (explicite) > adresse enregistrée dans les Paramètres >
+  ce défaut. Pour le développement local : `SAFECITY_API=http://localhost:5000`.
+
 ## [1.3.3] — 2026-07-25 — Bouton « Actualiser » (poste opérateur)
 
 ### Ajouté

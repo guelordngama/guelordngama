@@ -1,6 +1,6 @@
 # 🛡️ SafeCity — Plateforme d'alerte citoyenne
 
-**Version 1.3.3** · voir le [journal des modifications](CHANGELOG.md).
+**Version 1.3.4** · voir le [journal des modifications](CHANGELOG.md).
 
 Application professionnelle de sécurité urbaine : un citoyen signale un danger
 en un geste depuis son téléphone, et le centre de surveillance de la mairie
@@ -67,7 +67,9 @@ python -m backend.app               # Flask (dev) sur http://localhost:5000
 
 # 2. Poste opérateur (dans un autre terminal)
 pip install PySide6 "python-socketio[client]>=5.12"
-python -m desktop.main
+# Le serveur par défaut est la PRODUCTION ; pour le dev local, pointez-le vers
+# votre backend (ou changez-le dans l'app : Paramètres › Serveur) :
+SAFECITY_API=http://localhost:5000 python -m desktop.main
 ```
 
 > Astuce : en développement, **inutile de lancer un second serveur** pour le web.

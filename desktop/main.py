@@ -57,7 +57,12 @@ from pages import (
 from sound import AlarmPlayer
 from widgets import AgentDialog, IncidentPopup, Toast
 
-API_BASE = os.environ.get("SAFECITY_API", "http://127.0.0.1:5000")
+# Serveur par défaut : la production de la mairie de Lubumbashi.
+# Priorité effective (résolue dans main()) : variable SAFECITY_API >
+# adresse enregistrée dans les Paramètres > ce défaut.
+# En développement local : SAFECITY_API=http://localhost:5000 python -m desktop.main
+DEFAULT_API_BASE = "https://safecity-lubumbashi.com"
+API_BASE = os.environ.get("SAFECITY_API", DEFAULT_API_BASE)
 
 
 def app_icon():
@@ -609,6 +614,7 @@ class MainWindow(QWidget):
         self.page_agents.request_history.connect(self._agent_history)
         self.page_chat.send.connect(self._send_message)
         self.page_settings.change_password.connect(self._change_password)
+        self.page_settings.server_changed.connect(self._save_server_url)
         self.page_history.export_csv.connect(lambda: self._export_history("csv"))
         self.page_history.export_xlsx.connect(lambda: self._export_history("xlsx"))
 
@@ -812,6 +818,11 @@ class MainWindow(QWidget):
             self.page_settings.password_changed_ok()
         except Exception as e:
             self.page_settings.password_change_failed(_api_error_message(e))
+
+    def _save_server_url(self, url):
+        from PySide6.QtCore import QSettings
+
+        QSettings("SafeCity", "Operateur").setValue("server_url", url)
 
     def _on_chat_message(self, msg):
         self.page_chat.add_message(msg)
@@ -1162,10 +1173,19 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName("SafeCity")
     app.setWindowIcon(app_icon())
+    settings = QSettings("SafeCity", "Operateur")
     # Applique le thème mémorisé (clair / sombre) avant de construire l'UI.
-    saved_theme = QSettings("SafeCity", "Operateur").value("theme", "dark")
+    saved_theme = settings.value("theme", "dark")
     theme.set_mode(saved_theme if saved_theme in ("light", "dark") else "dark")
     app.setStyleSheet(theme.QSS)
+
+    # Adresse du serveur : SAFECITY_API (explicite) sinon celle enregistrée dans
+    # les Paramètres, sinon le défaut de production.
+    global API_BASE
+    if not os.environ.get("SAFECITY_API"):
+        saved_server = settings.value("server_url", "")
+        if saved_server:
+            API_BASE = str(saved_server).rstrip("/")
     api = ApiClient(API_BASE)
 
     login = LoginDialog(api)

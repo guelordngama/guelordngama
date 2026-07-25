@@ -1246,6 +1246,7 @@ class ReportsPage(QWidget):
 
 class SettingsPage(QWidget):
     change_password = Signal(str, str)  # (mot de passe actuel, nouveau)
+    server_changed = Signal(str)        # nouvelle adresse de serveur enregistrée
 
     def __init__(self, api_base, operator):
         super().__init__()
@@ -1257,11 +1258,25 @@ class SettingsPage(QWidget):
         card = Card("Paramètres")
         card.add(QLabel(f"<b>Opérateur :</b> {operator.get('name', '—')}  "
                         f"({operator.get('role', '—')})"))
-        card.add(QLabel(f"<b>Serveur :</b> {api_base}"))
         perms = ", ".join(operator.get("permissions", [])) or "—"
         card.add(QLabel(f"<b>Permissions :</b> {perms}"))
         card.add(QLabel("<b>Thème :</b> Sombre — Centre de commandement"))
         root.addWidget(card)
+
+        # --- Serveur (modifiable) ---
+        srv_card = Card("🌐 Serveur")
+        srv_card.add(QLabel("Adresse du serveur SafeCity (API + temps réel) :"))
+        self.server_input = QLineEdit(api_base)
+        self.server_input.setPlaceholderText("https://safecity-lubumbashi.com")
+        srv_card.add(self.server_input)
+        self.server_info = QLabel(
+            "Serveur de production : safecity-lubumbashi.com (169.58.47.76).")
+        self.server_info.setObjectName("muted"); self.server_info.setWordWrap(True)
+        srv_card.add(self.server_info)
+        btn_srv = QPushButton("Enregistrer le serveur"); btn_srv.setObjectName("success")
+        btn_srv.clicked.connect(self._save_server)
+        srv_card.add(btn_srv)
+        root.addWidget(srv_card)
 
         # --- Changer mon mot de passe ---
         pw_card = Card("🔒 Changer mon mot de passe")
@@ -1284,6 +1299,17 @@ class SettingsPage(QWidget):
         pw_card.add(btn)
         root.addWidget(pw_card)
         root.addStretch()
+
+    def _save_server(self):
+        url = self.server_input.text().strip().rstrip("/")
+        if not (url.startswith("http://") or url.startswith("https://")):
+            self.server_info.setText("⚠ L'adresse doit commencer par http:// ou https://")
+            self.server_info.setStyleSheet("color: #ff8181;")
+            return
+        self.server_changed.emit(url)
+        self.server_info.setText(
+            "✅ Serveur enregistré. Redémarrez l'application pour vous y connecter.")
+        self.server_info.setStyleSheet("color: #22c55e;")
 
     def _submit_password(self):
         cur, new, new2 = self.pw_current.text(), self.pw_new.text(), self.pw_new2.text()
