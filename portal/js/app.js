@@ -151,6 +151,7 @@
     initChatFile();
     initChatVideo();
     initChatVoice();
+    initChatInfo();
     loadMessages();
     $("chat-send").addEventListener("click", sendMessage);
     $("chat-text").addEventListener("keydown", (e) => { if (e.key === "Enter") sendMessage(); });
@@ -420,7 +421,10 @@
     if (typeof io === "undefined") { throw new Error("Socket.IO non chargé"); }
     try {
       state.socket = io(API, { transports: ["polling", "websocket"] });
-      state.socket.on("connect", () => setConn(true));
+      state.socket.on("connect", () => {
+        setConn(true);
+        if (state.agent) state.socket.emit("identify", { uid: state.agent.id });
+      });
       state.socket.on("disconnect", () => setConn(false));
       state.socket.on("new_alert", (a) => {
         addAlert(a, true);
@@ -434,8 +438,38 @@
         if (state.agent && d.reader_id === state.agent.id) return;  // ma propre lecture
         if (d.seen_at && d.seen_at > (state.readFrontier || "")) state.readFrontier = d.seen_at;
         refreshTicks();
+        if (state.infoOpen) loadParticipants();
       });
+      state.socket.on("presence", () => { if (state.infoOpen) loadParticipants(); });
     } catch (e) { console.warn(e); }
+  }
+
+  // ---- Onglet « Infos » (participants) ----
+  function initChatInfo() {
+    const btn = $("chat-info-btn");
+    if (!btn) return;
+    btn.addEventListener("click", () => {
+      state.infoOpen = !state.infoOpen;
+      const panel = $("chat-info");
+      panel.hidden = !state.infoOpen;
+      btn.classList.toggle("active", state.infoOpen);
+      if (state.infoOpen) loadParticipants();
+    });
+  }
+  async function loadParticipants() {
+    let list = [];
+    try { list = await api("GET", "/api/messages/participants"); } catch (e) { return; }
+    const panel = $("chat-info");
+    panel.innerHTML =
+      '<div class="chat-info-legend">🟢 en ligne · ⚪ hors ligne · ✓✓ a vu le dernier message</div>';
+    list.forEach((u) => {
+      const row = document.createElement("div");
+      row.className = "chat-info-row";
+      const dot = u.online ? "🟢" : "⚪";
+      const seen = u.read_latest ? "<span class='seen'>✓✓ a vu</span>" : "<span class='unseen'>… pas encore</span>";
+      row.innerHTML = `<span>${dot} ${u.name} <em>(${u.role})</em></span> ${seen}`;
+      panel.appendChild(row);
+    });
   }
   function setConn(ok) {
     const el = $("conn-status");

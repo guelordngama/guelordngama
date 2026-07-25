@@ -20,6 +20,7 @@ class ApiClient:
     def __init__(self, base_url="http://localhost:5000"):
         self.base_url = base_url.rstrip("/")
         self.token = None
+        self.user_id = None
         self.sio = None
         self._handlers = {}  # event -> callback
 
@@ -51,7 +52,11 @@ class ApiClient:
         res = self._request("POST", "/api/auth/login",
                             {"email": email, "password": password})
         self.token = res.get("token")
+        self.user_id = (res.get("user") or {}).get("id")
         return res.get("user")
+
+    def get_participants(self):
+        return self._request("GET", "/api/messages/participants", auth=True)
 
     def register_staff(self, name, email, password, phone="", invite_code=""):
         """Crée un compte personnel (rôle opérateur) et connecte directement."""
@@ -195,6 +200,11 @@ class ApiClient:
 
         @self.sio.event
         def connect():
+            try:
+                if self.user_id:
+                    self.sio.emit("identify", {"uid": self.user_id})
+            except Exception:
+                pass
             cb = self._handlers.get("connect")
             if cb:
                 cb()
@@ -215,7 +225,8 @@ class ApiClient:
         # Tous les événements temps réel du centre (sinon messages/agents
         # n'arrivent pas en direct et n'apparaissent qu'après un redémarrage).
         for evt in ("new_alert", "alert_updated", "chat_message",
-                    "agent_updated", "agent_deleted", "agents_count", "messages_read"):
+                    "agent_updated", "agent_deleted", "agents_count",
+                    "messages_read", "presence"):
             self.sio.on(evt, _make(evt))
 
         # Connexion dans un thread pour ne pas bloquer l'UI.

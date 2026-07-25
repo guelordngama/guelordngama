@@ -99,6 +99,7 @@ class RealtimeBridge(QThread):
     agent_deleted = Signal(int)
     chat_message = Signal(dict)
     messages_read = Signal(dict)
+    presence = Signal(dict)
 
     def __init__(self, api):
         super().__init__()
@@ -114,6 +115,7 @@ class RealtimeBridge(QThread):
         self.api.on("agent_deleted", lambda d: self.agent_deleted.emit(d.get("id")))
         self.api.on("chat_message", lambda d: self.chat_message.emit(d))
         self.api.on("messages_read", lambda d: self.messages_read.emit(d))
+        self.api.on("presence", lambda d: self.presence.emit(d))
         self.api.connect_realtime()
 
 
@@ -807,6 +809,8 @@ class MainWindow(QWidget):
         self.bridge.agent_deleted.connect(self._on_agent_deleted)
         self.bridge.chat_message.connect(self._on_chat_message)
         self.bridge.messages_read.connect(self._on_messages_read)
+        self.bridge.presence.connect(self._on_presence)
+        self.page_chat.request_participants.connect(self._open_participants)
 
     def _on_agent_updated(self, agent):
         # Détecte un changement significatif (nouvel agent ou changement de
@@ -858,6 +862,21 @@ class MainWindow(QWidget):
 
     def _on_messages_read(self, data):
         self.page_chat.apply_read(data)
+        if self.page_chat.info_open():
+            self._open_participants()
+
+    def _open_participants(self):
+        try:
+            data = self.api.get_participants()
+        except Exception as e:
+            QMessageBox.warning(self, "Infos", _api_error_message(e))
+            return
+        self.page_chat.show_participants(data)
+
+    def _on_presence(self, _data):
+        # Rafraîchit la liste « Infos » si elle est ouverte.
+        if self.page_chat.info_open():
+            self._open_participants()
 
     def _send_message(self, text, attachment="", voice="", voice_duration=0, video=""):
         try:

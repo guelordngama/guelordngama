@@ -776,6 +776,24 @@ def test_sms_gateway_detection_and_twilio_removed():
     assert hasattr(cfg, "ORANGE_CLIENT_ID")
 
 
+def test_messages_participants_endpoint():
+    """L'onglet Infos liste les personnels avec présence et statut de lecture."""
+    from datetime import datetime, timedelta
+    from backend.extensions import db
+    from backend.models import User
+    app, client = make_client()
+    h = _login(client)
+    client.post("/api/messages", json={"text": "Coucou"}, headers=h)
+    with app.app_context():
+        db.session.add(User(name="Vu", email="vu2@safecity.local", role="agent",
+                            messages_seen_at=datetime.utcnow() + timedelta(seconds=3)))
+        db.session.commit()
+    p = client.get("/api/messages/participants", headers=h).get_json()
+    assert isinstance(p, list) and len(p) >= 1
+    row = [u for u in p if u["name"] == "Vu"][0]
+    assert row["read_latest"] is True and row["online"] is False and "role" in row
+
+
 def test_message_read_receipt():
     """Un message passe à read=True quand un autre participant a consulté la
     messagerie après son envoi ; POST /api/messages/read répond 200."""

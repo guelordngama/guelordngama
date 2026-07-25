@@ -2,6 +2,17 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.6.0] — 2026-07-25 — Onglet « Infos » : présence & lecture par participant
+
+### Ajouté
+- **Onglet/bouton « ℹ️ Infos »** dans la messagerie (poste opérateur et portail
+  agents) : liste des participants avec **présence en ligne** (🟢/⚪) et **statut
+  de lecture** du dernier message (✓✓ a vu / … pas encore) — pour repérer ceux
+  qui sont connectés mais n'ont pas vu les messages. Mise à jour **en temps réel**.
+- **Présence par utilisateur** : chaque client s'identifie après connexion
+  (événement `identify`) ; le serveur diffuse un événement `presence`. Nouvel
+  endpoint `GET /api/messages/participants`.
+
 ## [1.5.0] — 2026-07-25 — Accusés de lecture (✓✓) dans la messagerie
 
 ### Ajouté

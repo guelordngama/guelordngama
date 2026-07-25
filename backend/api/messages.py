@@ -27,6 +27,13 @@ def mark_read():
     return jsonify({"ok": True})
 
 
+@bp.get("/participants")
+@require_auth(roles=STAFF)
+def participants():
+    """Participants de la messagerie : présence en ligne + statut de lecture."""
+    return jsonify(messages_service.list_participants())
+
+
 @bp.post("")
 @require_auth(roles=STAFF)
 def post_message():

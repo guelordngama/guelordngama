@@ -64,6 +64,32 @@ def list_messages(limit=50, alert_id=None):
     return out
 
 
+def list_participants():
+    """Liste des participants à la messagerie (personnels) avec présence en
+    ligne et statut de lecture du dernier message — pour l'onglet « Infos »."""
+    from ..realtime import online_user_ids
+
+    online = online_user_ids()
+    latest = Message.query.order_by(Message.created_at.desc()).first()
+    latest_at = latest.created_at if latest else None
+    users = (User.query
+             .filter(User.role != "citizen", User.active.is_(True))
+             .order_by(User.role.desc(), User.name.asc())
+             .all())
+    out = []
+    for u in users:
+        read_latest = bool(latest_at) and bool(u.messages_seen_at) and u.messages_seen_at >= latest_at
+        out.append({
+            "id": u.id,
+            "name": u.name,
+            "role": u.role,
+            "online": u.id in online,
+            "seen_at": _iso(u.messages_seen_at),
+            "read_latest": read_latest if latest_at else True,
+        })
+    return out
+
+
 def mark_read(user):
     """Marque la messagerie comme « lue » par `user` (payload JWT) et diffuse
     l'accusé de lecture aux autres participants."""

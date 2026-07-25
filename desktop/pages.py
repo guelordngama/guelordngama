@@ -843,6 +843,7 @@ class ChatPage(QWidget):
     """
 
     send = Signal(str, str, str, int, str)  # (texte, image, vocal, durée s, vidéo)
+    request_participants = Signal()          # demande la liste « Infos »
 
     # Couleurs façon WhatsApp
     BUBBLE_ME = "#005c4b"       # vert (mes messages)
@@ -866,13 +867,23 @@ class ChatPage(QWidget):
         self._player = None         # lecteur pour écouter les vocaux reçus
         self._read_frontier = ""    # accusés de lecture : horodatage « vu » le + récent
         self._sent_ticks = []       # (created_at, lbl_heure, texte_heure) de MES messages
+        self._info_dialog = None    # fenêtre « Infos » (participants)
         root = QVBoxLayout(self)
         root.setContentsMargins(24, 20, 24, 24)
         root.setSpacing(12)
 
+        title_row = QHBoxLayout()
         title = QLabel("💬 Messagerie opérateurs ↔ agents")
         title.setObjectName("sectionTitle")
-        root.addWidget(title)
+        btn_info = QPushButton("ℹ️ Infos")
+        btn_info.setObjectName("ghost")
+        btn_info.setToolTip("Voir les participants : en ligne et qui a lu")
+        btn_info.setCursor(Qt.PointingHandCursor)
+        btn_info.clicked.connect(self.request_participants.emit)
+        title_row.addWidget(title)
+        title_row.addStretch()
+        title_row.addWidget(btn_info)
+        root.addLayout(title_row)
 
         # Zone de messages défilante contenant les bulles.
         self.scroll = QScrollArea()
@@ -1093,6 +1104,47 @@ class ChatPage(QWidget):
         if read:
             return "<span style='color:#53bdeb;'>✓✓</span>"
         return "<span style='color:#8696a0;'>✓</span>"
+
+    # ---- Onglet « Infos » (participants) ----
+    def show_participants(self, data):
+        from PySide6.QtWidgets import (QDialog, QLabel, QListWidget, QPushButton,
+                                       QVBoxLayout)
+
+        if self._info_dialog is None:
+            dlg = QDialog(self)
+            dlg.setWindowTitle("Infos — participants")
+            dlg.resize(380, 480)
+            lay = QVBoxLayout(dlg)
+            legend = QLabel("🟢 en ligne · ⚪ hors ligne · ✓✓ a vu le dernier message")
+            legend.setObjectName("muted")
+            legend.setWordWrap(True)
+            lay.addWidget(legend)
+            self._info_list = QListWidget()
+            self._info_list.setStyleSheet(
+                f"QListWidget {{ background: {theme.BG_ALT}; color: {theme.TEXT};"
+                f"border: 1px solid {theme.BORDER}; border-radius: 10px; padding: 4px; }}"
+                "QListWidget::item { padding: 6px 4px; }")
+            lay.addWidget(self._info_list, 1)
+            b = QPushButton("🔄 Actualiser")
+            b.clicked.connect(self.request_participants.emit)
+            lay.addWidget(b)
+            dlg.finished.connect(lambda _=0: setattr(self, "_info_dialog", None))
+            self._info_dialog = dlg
+            self._populate_info(data)
+            dlg.show()
+        else:
+            self._populate_info(data)
+
+    def info_open(self):
+        return self._info_dialog is not None
+
+    def _populate_info(self, data):
+        self._info_list.clear()
+        for u in data or []:
+            dot = "🟢" if u.get("online") else "⚪"
+            seen = "✓✓ a vu" if u.get("read_latest") else "…  pas encore vu"
+            role = (u.get("role") or "").capitalize()
+            self._info_list.addItem(f"{dot}  {u.get('name')}  ({role})\n        {seen}")
 
     def apply_read(self, data):
         """Met à jour les ✓✓ quand un autre participant a lu la messagerie."""
