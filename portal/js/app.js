@@ -162,6 +162,7 @@
     $("chat-messages").innerHTML = "";
     try { (await api("GET", "/api/messages?limit=40")).forEach(addMessage); } catch (e) {}
     state.chatReady = true;  // les messages suivants déclencheront un bip
+    markRead();              // j'ai ouvert la messagerie → accusé de lecture
   }
   let chatAttachment = null;
   function initChatFile() {
@@ -375,8 +376,36 @@
       vid.src = API + m.video_url;
       div.appendChild(vid);
     }
+    // Accusé de lecture (✓ / ✓✓) sur MES messages uniquement.
+    if (mine) {
+      div.dataset.created = m.created_at || "";
+      if (m.read) div.dataset.read = "1";
+      const tick = document.createElement("span");
+      tick.className = "chat-tick";
+      div.appendChild(tick);
+      updateTick(div);
+    }
     box.appendChild(div);
     box.scrollTop = box.scrollHeight;
+    if (!mine) markRead();  // j'ai « vu » un message reçu
+  }
+
+  // ---- Accusés de lecture ----
+  function updateTick(div) {
+    const tick = div.querySelector(".chat-tick");
+    if (!tick) return;
+    const created = div.dataset.created || "";
+    const read = div.dataset.read === "1" || (created && created <= (state.readFrontier || ""));
+    tick.textContent = read ? "✓✓" : "✓";
+    tick.classList.toggle("read", !!read);
+  }
+  function refreshTicks() {
+    document.querySelectorAll("#chat-messages .chat-msg.mine").forEach(updateTick);
+  }
+  let markReadTimer = null;
+  function markRead() {
+    clearTimeout(markReadTimer);
+    markReadTimer = setTimeout(() => { api("POST", "/api/messages/read").catch(() => {}); }, 400);
   }
 
   function initMap() {
@@ -401,6 +430,11 @@
                (a.type || "Alerte").toUpperCase() + " · " + (a.neighborhood || ""));
       });
       state.socket.on("alert_updated", onAlertUpdated);
+      state.socket.on("messages_read", (d) => {
+        if (state.agent && d.reader_id === state.agent.id) return;  // ma propre lecture
+        if (d.seen_at && d.seen_at > (state.readFrontier || "")) state.readFrontier = d.seen_at;
+        refreshTicks();
+      });
     } catch (e) { console.warn(e); }
   }
   function setConn(ok) {

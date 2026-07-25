@@ -105,6 +105,10 @@ class ApiClient:
                 body["voice_duration"] = voice_duration
         return self._request("POST", "/api/messages", body, auth=True)
 
+    def mark_messages_read(self):
+        """Signale que la messagerie a été consultée (accusé de lecture ✓✓)."""
+        return self._request("POST", "/api/messages/read", {}, auth=True)
+
     def download_export(self, fmt, dest_path, filters=None):
         import urllib.parse
 
@@ -211,7 +215,7 @@ class ApiClient:
         # Tous les événements temps réel du centre (sinon messages/agents
         # n'arrivent pas en direct et n'apparaissent qu'après un redémarrage).
         for evt in ("new_alert", "alert_updated", "chat_message",
-                    "agent_updated", "agent_deleted", "agents_count"):
+                    "agent_updated", "agent_deleted", "agents_count", "messages_read"):
             self.sio.on(evt, _make(evt))
 
         # Connexion dans un thread pour ne pas bloquer l'UI.

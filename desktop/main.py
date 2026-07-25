@@ -98,6 +98,7 @@ class RealtimeBridge(QThread):
     agent_updated = Signal(dict)
     agent_deleted = Signal(int)
     chat_message = Signal(dict)
+    messages_read = Signal(dict)
 
     def __init__(self, api):
         super().__init__()
@@ -112,6 +113,7 @@ class RealtimeBridge(QThread):
         self.api.on("agent_updated", lambda d: self.agent_updated.emit(d))
         self.api.on("agent_deleted", lambda d: self.agent_deleted.emit(d.get("id")))
         self.api.on("chat_message", lambda d: self.chat_message.emit(d))
+        self.api.on("messages_read", lambda d: self.messages_read.emit(d))
         self.api.connect_realtime()
 
 
@@ -804,6 +806,7 @@ class MainWindow(QWidget):
 
         self.bridge.agent_deleted.connect(self._on_agent_deleted)
         self.bridge.chat_message.connect(self._on_chat_message)
+        self.bridge.messages_read.connect(self._on_messages_read)
 
     def _on_agent_updated(self, agent):
         # Détecte un changement significatif (nouvel agent ou changement de
@@ -836,8 +839,25 @@ class MainWindow(QWidget):
             if self._unread_msg_ids:
                 self._unread_msg_ids = set()
                 self.sidebar.set_badge(self.IDX_CHAT, 0)
+            self._mark_read()  # j'ai ouvert la messagerie → accusé de lecture
         except Exception as e:
             QMessageBox.warning(self, "Messagerie", str(e))
+
+    def _mark_read(self):
+        """Signale la lecture de la messagerie (non bloquant)."""
+        import threading
+
+        threading.Thread(
+            target=lambda: self._safe_mark_read(), daemon=True).start()
+
+    def _safe_mark_read(self):
+        try:
+            self.api.mark_messages_read()
+        except Exception:
+            pass
+
+    def _on_messages_read(self, data):
+        self.page_chat.apply_read(data)
 
     def _send_message(self, text, attachment="", voice="", voice_duration=0, video=""):
         try:
@@ -860,13 +880,16 @@ class MainWindow(QWidget):
 
     def _on_chat_message(self, msg):
         self.page_chat.add_message(msg)
+        other = msg.get("sender_id") != self.operator.get("id")
         # Notification + badge « non lu » si on n'est pas sur la page Messagerie
         # et que le message vient d'un autre utilisateur.
-        if self.stack.currentIndex() != self.IDX_CHAT and msg.get("sender_id") != self.operator.get("id"):
+        if self.stack.currentIndex() != self.IDX_CHAT and other:
             self._unread_msg_ids.add(msg.get("id"))
             self.sidebar.set_badge(self.IDX_CHAT, len(self._unread_msg_ids))
             self.alarm.play_notify()  # son de réception (message)
             Toast(self, f"💬 {msg.get('sender_name')}: {msg.get('text', '')[:40]}", theme.ACCENT_2).show_for(3500)
+        elif self.stack.currentIndex() == self.IDX_CHAT and other:
+            self._mark_read()  # je suis sur la messagerie et je vois le message
 
     # ---- Export de l'historique ----
     def _export_history(self, fmt):

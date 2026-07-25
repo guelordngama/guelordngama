@@ -2,6 +2,18 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.5.0] — 2026-07-25 — Accusés de lecture (✓✓) dans la messagerie
+
+### Ajouté
+- **Accusés de lecture façon WhatsApp** : les messages envoyés affichent **✓**
+  (envoyé) puis **✓✓** (bleu, lu) dès qu'un autre participant a ouvert la
+  messagerie après l'envoi. Sur le **poste opérateur** et le **portail agents**,
+  mise à jour **en temps réel** (événement Socket.IO `messages_read`).
+- **Backend** : suivi de lecture par `users.messages_seen_at` (**migration**
+  `e7a1c9d4f2b6`), champ `read` par message dans `GET /api/messages`, endpoint
+  `POST /api/messages/read`, diffusion de l'accusé aux participants.
+  L'ouverture de la messagerie marque automatiquement la lecture.
+
 ## [1.4.0] — 2026-07-25 — Vidéos dans la messagerie (façon WhatsApp)
 
 ### Ajouté

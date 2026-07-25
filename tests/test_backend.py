@@ -776,6 +776,26 @@ def test_sms_gateway_detection_and_twilio_removed():
     assert hasattr(cfg, "ORANGE_CLIENT_ID")
 
 
+def test_message_read_receipt():
+    """Un message passe à read=True quand un autre participant a consulté la
+    messagerie après son envoi ; POST /api/messages/read répond 200."""
+    from datetime import datetime, timedelta
+    from backend.extensions import db
+    from backend.models import User
+    app, client = make_client()
+    h = _login(client)
+    mid = client.post("/api/messages", json={"text": "Salut"}, headers=h).get_json()["id"]
+    before = [m for m in client.get("/api/messages", headers=h).get_json() if m["id"] == mid][0]
+    assert before["read"] is False
+    with app.app_context():
+        db.session.add(User(name="Ag", email="ag@safecity.local", role="agent",
+                            messages_seen_at=datetime.utcnow() + timedelta(seconds=2)))
+        db.session.commit()
+    after = [m for m in client.get("/api/messages", headers=h).get_json() if m["id"] == mid][0]
+    assert after["read"] is True
+    assert client.post("/api/messages/read", headers=h).status_code == 200
+
+
 def test_video_message_accepted():
     """Un message peut porter une vidéo (mp4) ; quicktime est normalisé en .mov."""
     import base64

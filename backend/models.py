@@ -60,6 +60,7 @@ class User(TimestampMixin, db.Model):
     lat = db.Column(db.Float)
     lng = db.Column(db.Float)
     last_seen = db.Column(db.DateTime)
+    messages_seen_at = db.Column(db.DateTime)  # dernière consultation de la messagerie
     distance_total_m = db.Column(db.Float, default=0.0)  # distance cumulée (analytics)
     current_alert_id = db.Column(db.Integer)
 

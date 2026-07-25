@@ -864,6 +864,8 @@ class ChatPage(QWidget):
         self._rec_timer = None      # minuteur d'affichage de la durée
         self._rec_start = 0.0       # instant de départ (monotone) de l'enregistrement
         self._player = None         # lecteur pour écouter les vocaux reçus
+        self._read_frontier = ""    # accusés de lecture : horodatage « vu » le + récent
+        self._sent_ticks = []       # (created_at, lbl_heure, texte_heure) de MES messages
         root = QVBoxLayout(self)
         root.setContentsMargins(24, 20, 24, 24)
         root.setSpacing(12)
@@ -1077,12 +1079,36 @@ class ChatPage(QWidget):
             self._last_day = day
 
     def _clear_messages(self):
+        self._sent_ticks = []
         # Retire toutes les bulles en gardant le stretch final.
         while self._msgs.count() > 1:
             item = self._msgs.takeAt(0)
             w = item.widget()
             if w:
                 w.deleteLater()
+
+    # ---- Accusés de lecture ----
+    @staticmethod
+    def _tick_html(read):
+        if read:
+            return "<span style='color:#53bdeb;'>✓✓</span>"
+        return "<span style='color:#8696a0;'>✓</span>"
+
+    def apply_read(self, data):
+        """Met à jour les ✓✓ quand un autre participant a lu la messagerie."""
+        if not isinstance(data, dict):
+            return
+        if data.get("reader_id") == self.me_id:
+            return
+        seen = data.get("seen_at") or ""
+        if seen and seen > self._read_frontier:
+            self._read_frontier = seen
+        for created, lbl, base in self._sent_ticks:
+            read = created and created <= self._read_frontier
+            try:
+                lbl.setText(base + "  " + self._tick_html(read))
+            except RuntimeError:
+                pass  # widget supprimé
 
     def _add_divider(self, label):
         lbl = QLabel(f"──  {label}  ──")
@@ -1150,8 +1176,17 @@ class ChatPage(QWidget):
 
         lbl_time = QLabel(m.get("time", ""))
         lbl_time.setAlignment(Qt.AlignRight)
+        lbl_time.setTextFormat(Qt.RichText)
         lbl_time.setStyleSheet(f"color: {self.TIME_COLOR}; font-size: 10px; background: transparent;")
         bl.addWidget(lbl_time)
+
+        # Accusé de lecture (✓ / ✓✓) sur MES messages.
+        if mine:
+            base = m.get("time", "")
+            created = m.get("created_at") or ""
+            read = bool(m.get("read")) or (created and created <= self._read_frontier)
+            lbl_time.setText(base + "  " + self._tick_html(read))
+            self._sent_ticks.append((created, lbl_time, base))
 
         # Ligne : bulle poussée à droite (moi) ou à gauche (agent).
         line = QHBoxLayout()

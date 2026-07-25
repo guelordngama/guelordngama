@@ -19,6 +19,14 @@ def list_messages():
     return jsonify(messages_service.list_messages(limit=limit, alert_id=alert_id))
 
 
+@bp.post("/read")
+@require_auth(roles=STAFF)
+def mark_read():
+    """Marque la messagerie comme lue par l'utilisateur courant (accusé ✓✓)."""
+    messages_service.mark_read(g.user)
+    return jsonify({"ok": True})
+
+
 @bp.post("")
 @require_auth(roles=STAFF)
 def post_message():
