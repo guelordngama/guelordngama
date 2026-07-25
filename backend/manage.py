@@ -55,6 +55,54 @@ def _purge_old(args):
         print(f"Purge terminée : {n} alerte(s) clôturée(s) de plus de {days} jours supprimée(s).")
 
 
+def _purge_demo(args):
+    """Supprime les comptes de démonstration (opérateur + personnels semés)."""
+    from .seed import _DEMO_STAFF
+
+    app = create_app()
+    with app.app_context():
+        demo_emails = [app.config["DEMO_OPERATOR_EMAIL"]] + [e for _, e, *_ in _DEMO_STAFF]
+        rows = User.query.filter(db.func.lower(User.email).in_(
+            [e.lower() for e in demo_emails])).all()
+        if not rows:
+            print("Aucun compte de démonstration trouvé (déjà nettoyé).")
+            return
+        # Sécurité : refuser si cela supprimerait le dernier administrateur.
+        remaining_admins = User.query.filter(
+            User.role == "admin",
+            db.func.lower(User.email).notin_([e.lower() for e in demo_emails])).count()
+        if remaining_admins == 0:
+            print("⚠ Refus : aucun administrateur réel ne subsisterait. Créez d'abord "
+                  "un vrai admin :\n  python -m backend.manage create-admin --email … "
+                  "--password … --name …")
+            sys.exit(1)
+        for u in rows:
+            print(f"  suppression : {u.email} ({u.role})")
+            db.session.delete(u)
+        db.session.commit()
+        print(f"{len(rows)} compte(s) de démonstration supprimé(s).")
+        if app.config.get("SEED_DEMO_OPERATOR"):
+            print("⚠ ATTENTION : SAFECITY_SEED_DEMO est encore ACTIF — les comptes de "
+                  "démo seront RECRÉÉS au prochain redémarrage. Mettez "
+                  "SAFECITY_SEED_DEMO=false puis redémarrez AVANT de purger.")
+
+
+def _delete_user(args):
+    """Supprime un compte par e-mail."""
+    app = create_app()
+    with app.app_context():
+        u = User.query.filter(db.func.lower(User.email) == args.email.lower()).first()
+        if not u:
+            print(f"Aucun compte pour {args.email}.")
+            sys.exit(1)
+        if u.role == "admin" and User.query.filter(User.role == "admin").count() <= 1:
+            print("⚠ Refus : c'est le dernier administrateur. Créez-en un autre d'abord.")
+            sys.exit(1)
+        db.session.delete(u)
+        db.session.commit()
+        print(f"Compte supprimé : {args.email} ({u.role}).")
+
+
 def _test_email(args):
     """Envoie un e-mail de test pour vérifier la configuration SMTP (Gmail)."""
     from .services import notifications
@@ -104,6 +152,13 @@ def main(argv=None):
     te = sub.add_parser("test-email", help="Envoyer un e-mail de test (vérifie le SMTP/Gmail)")
     te.add_argument("--to", required=True, help="Adresse destinataire de l'e-mail de test")
     te.set_defaults(func=_test_email)
+
+    sub.add_parser("purge-demo",
+                   help="Supprimer les comptes de démonstration (safecity.local)").set_defaults(func=_purge_demo)
+
+    du = sub.add_parser("delete-user", help="Supprimer un compte par e-mail")
+    du.add_argument("--email", required=True)
+    du.set_defaults(func=_delete_user)
 
     args = parser.parse_args(argv)
     args.func(args)
