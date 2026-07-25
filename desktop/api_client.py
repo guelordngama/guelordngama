@@ -206,7 +206,10 @@ class ApiClient:
                     cb(data)
             return handler
 
-        for evt in ("new_alert", "alert_updated"):
+        # Tous les événements temps réel du centre (sinon messages/agents
+        # n'arrivent pas en direct et n'apparaissent qu'après un redémarrage).
+        for evt in ("new_alert", "alert_updated", "chat_message",
+                    "agent_updated", "agent_deleted", "agents_count"):
             self.sio.on(evt, _make(evt))
 
         # Connexion dans un thread pour ne pas bloquer l'UI.

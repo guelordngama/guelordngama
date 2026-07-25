@@ -2,6 +2,15 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.3.2] — 2026-07-25 — Correctif : messages temps réel du poste opérateur
+
+### Corrigé
+- **Les messages n'apparaissaient qu'après un redémarrage** de l'application
+  bureau. Le client Socket.IO n'écoutait que `new_alert`/`alert_updated` : les
+  événements **`chat_message`, `agent_updated`, `agent_deleted`, `agents_count`**
+  n'étaient jamais reçus. Ils sont désormais tous enregistrés → messages,
+  mises à jour et suppressions d'agents s'affichent **en direct**.
+
 ## [1.3.1] — 2026-07-25 — Correctif : messages vocaux du poste opérateur (Windows)
 
 ### Corrigé
