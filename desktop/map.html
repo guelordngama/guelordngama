@@ -28,10 +28,10 @@
     L.Icon.Default.imagePath = "vendor/leaflet/images/";
 
     var map = L.map("map", { zoomControl: true }).setView([-4.325, 15.3222], 13);
-    // Fond de carte clair (CARTO). Si le réseau est absent, la carte reste
-    // utilisable (fond uni) et les marqueurs/itinéraires s'affichent quand même.
-    var tiles = L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
-      attribution: "© OpenStreetMap © CARTO", maxZoom: 19, subdomains: "abcd",
+    // Fond de carte standard OpenStreetMap (coloré). Si le réseau est absent, la
+    // carte reste utilisable (fond uni) et les marqueurs/itinéraires s'affichent.
+    var tiles = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "© OpenStreetMap", maxZoom: 19, subdomains: "abc",
     }).addTo(map);
     var tileErrors = 0;
     tiles.on("tileerror", function () {

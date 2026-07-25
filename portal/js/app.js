@@ -354,8 +354,8 @@
   function initMap() {
     if (typeof L === "undefined") { throw new Error("Leaflet non chargé"); }
     state.map = L.map("map").setView([-4.325, 15.3222], 13);
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-      { attribution: "© OpenStreetMap © CARTO", subdomains: "abcd", maxZoom: 19 }).addTo(state.map);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+      { attribution: "© OpenStreetMap", subdomains: "abc", maxZoom: 19 }).addTo(state.map);
   }
 
   // ---- Temps réel ----
