@@ -9,8 +9,8 @@
   <link rel="stylesheet" href="vendor/leaflet/leaflet.css" />
   <script src="vendor/leaflet/leaflet.js"></script>
   <style>
-    html, body, #map { height: 100%; margin: 0; background: #0b1220; }
-    .leaflet-container { background: #0b1220; }
+    html, body, #map { height: 100%; margin: 0; background: #e9edf2; }
+    .leaflet-container { background: #e9edf2; }
     .alert-popup b { color: #ef4444; }
     .legend {
       background: rgba(16,26,46,0.92); color: #e6ecf5; padding: 10px 12px;
@@ -28,9 +28,9 @@
     L.Icon.Default.imagePath = "vendor/leaflet/images/";
 
     var map = L.map("map", { zoomControl: true }).setView([-4.325, 15.3222], 13);
-    // Fond de carte sombre (CARTO). Si le réseau est absent, la carte reste
+    // Fond de carte clair (CARTO). Si le réseau est absent, la carte reste
     // utilisable (fond uni) et les marqueurs/itinéraires s'affichent quand même.
-    var tiles = L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+    var tiles = L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
       attribution: "© OpenStreetMap © CARTO", maxZoom: 19, subdomains: "abcd",
     }).addTo(map);
     var tileErrors = 0;

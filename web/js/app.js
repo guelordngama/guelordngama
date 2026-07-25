@@ -781,8 +781,9 @@
     setTimeout(() => {
       if (!miniMap) {
         miniMap = L.map("mini-map").setView([alert.lat, alert.lng], 15);
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-          attribution: "© OpenStreetMap",
+        L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+          attribution: "© OpenStreetMap © CARTO",
+          subdomains: "abcd",
           maxZoom: 19,
         }).addTo(miniMap);
       } else {

@@ -2,6 +2,14 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.3.7] — 2026-07-25 — Carte en fond clair (blanc) partout
+
+### Modifié
+- **Fond de carte clair** (CARTO *light*) au lieu du fond sombre, sur les **trois**
+  interfaces : **poste opérateur** (`map.html`), **portail agents** et **site
+  citoyen** (carte de confirmation). Fonds des conteneurs passés en clair aussi
+  (pendant le chargement / hors-ligne). Marqueurs et légendes inchangés.
+
 ## [1.3.6] — 2026-07-25 — Fenêtre de connexion sans identifiants de démo
 
 ### Modifié

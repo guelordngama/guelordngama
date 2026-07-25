@@ -1,6 +1,6 @@
 # 🛡️ SafeCity — Plateforme d'alerte citoyenne
 
-**Version 1.3.6** · voir le [journal des modifications](CHANGELOG.md).
+**Version 1.3.7** · voir le [journal des modifications](CHANGELOG.md).
 
 Application professionnelle de sécurité urbaine : un citoyen signale un danger
 en un geste depuis son téléphone, et le centre de surveillance de la mairie
