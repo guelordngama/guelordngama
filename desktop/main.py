@@ -509,6 +509,13 @@ class MainWindow(QWidget):
         self.clock.setObjectName("clock")
         tl.addWidget(self.clock)
         tl.addSpacing(12)
+        self.btn_refresh = QPushButton("🔄 Actualiser")
+        self.btn_refresh.setObjectName("ghost")
+        self.btn_refresh.setToolTip("Actualiser les données (F5)")
+        self.btn_refresh.setCursor(Qt.PointingHandCursor)
+        self.btn_refresh.clicked.connect(self._refresh_now)
+        tl.addWidget(self.btn_refresh)
+        tl.addSpacing(8)
         self.btn_sound = QPushButton("🔊" if self.alarm.enabled else "🔇")
         self.btn_sound.setObjectName("ghost")
         self.btn_sound.setFixedWidth(46)
@@ -635,12 +642,23 @@ class MainWindow(QWidget):
         QShortcut(QKeySequence("Ctrl+M"), self, activated=self._toggle_sound)
 
     def _refresh_now(self):
-        self._refresh_all()
-        idx = self.stack.currentIndex()
-        if idx == self.IDX_AGENTS:
-            self._load_agents()
-        elif idx == self.IDX_CHAT:
-            self._load_messages()
+        # Retour visuel sur le bouton pendant l'actualisation (synchrone).
+        btn = getattr(self, "btn_refresh", None)
+        if btn is not None:
+            btn.setEnabled(False)
+            btn.setText("⏳ Actualisation…")
+            QApplication.processEvents()
+        try:
+            self._refresh_all()
+            idx = self.stack.currentIndex()
+            if idx == self.IDX_AGENTS:
+                self._load_agents()
+            elif idx == self.IDX_CHAT:
+                self._load_messages()
+        finally:
+            if btn is not None:
+                btn.setText("🔄 Actualiser")
+                btn.setEnabled(True)
         Toast(self, "🔄 Données actualisées", theme.ACCENT).show_for(1200)
 
     def _focus_search(self):

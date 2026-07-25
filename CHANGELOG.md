@@ -2,6 +2,14 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.3.3] — 2026-07-25 — Bouton « Actualiser » (poste opérateur)
+
+### Ajouté
+- **Bouton « 🔄 Actualiser »** dans la barre du haut du poste opérateur : recharge
+  à la demande les alertes, statistiques, agents et messages (équivalent visible
+  du raccourci **F5**). Retour visuel pendant l'actualisation (« ⏳ Actualisation… »)
+  puis notification « Données actualisées ».
+
 ## [1.3.2] — 2026-07-25 — Correctif : messages temps réel du poste opérateur
 
 ### Corrigé
