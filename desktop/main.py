@@ -174,6 +174,19 @@ class LoginDialog(QDialog):
         tabs.addTab(self._build_register_tab(), "Créer un compte")
         root.addWidget(tabs)
 
+        # --- Serveur (modifiable avant connexion) ---
+        srv_row = QHBoxLayout()
+        srv_lbl = QLabel("🌐 Serveur")
+        srv_lbl.setObjectName("muted")
+        self.server_field = QLineEdit(self.api.base_url)
+        self.server_field.setPlaceholderText("https://safecity-lubumbashi.com")
+        self.server_field.setToolTip("Adresse du serveur SafeCity (mémorisée)")
+        self.server_field.editingFinished.connect(self._apply_server)
+        srv_row.addWidget(srv_lbl)
+        srv_row.addWidget(self.server_field, 1)
+        root.addSpacing(6)
+        root.addLayout(srv_row)
+
         self.info = QLabel("Compte de démonstration pré-rempli.")
         self.info.setObjectName("muted")
         self.info.setWordWrap(True)
@@ -290,7 +303,23 @@ class LoginDialog(QDialog):
         QApplication.processEvents()  # force le repaint avant l'appel bloquant
 
     # ---- Actions ----
+    def _apply_server(self):
+        """Applique l'adresse de serveur saisie à l'ApiClient et la mémorise.
+
+        Retourne False si l'adresse est invalide (format http/https)."""
+        url = self.server_field.text().strip().rstrip("/")
+        if not (url.startswith("http://") or url.startswith("https://")):
+            return False
+        if url != self.api.base_url:
+            self.api.base_url = url
+            from PySide6.QtCore import QSettings
+            QSettings("SafeCity", "Operateur").setValue("server_url", url)
+        return True
+
     def _try_login(self):
+        if not self._apply_server():
+            self._error("Adresse de serveur invalide (http:// ou https://).")
+            return
         self._set_busy(self.btn_login, True, "Connexion…")
         try:
             self.user = self.api.login(self.email.text().strip(), self.password.text())
@@ -310,6 +339,9 @@ class LoginDialog(QDialog):
             return
         if pwd != pwd2:
             self._error("Les deux mots de passe ne correspondent pas.")
+            return
+        if not self._apply_server():
+            self._error("Adresse de serveur invalide (http:// ou https://).")
             return
         self._set_busy(self.btn_register, True, "Création…")
         try:

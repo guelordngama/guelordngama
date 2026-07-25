@@ -2,6 +2,14 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.3.5] — 2026-07-25 — Serveur choisissable dès la fenêtre de connexion
+
+### Ajouté
+- **Champ « Serveur » dans la fenêtre de connexion** du poste opérateur :
+  pré-rempli avec l'adresse courante, il permet de choisir le serveur **avant**
+  de se connecter. La valeur est appliquée à la connexion / création de compte
+  et **mémorisée** (comme dans Paramètres › Serveur).
+
 ## [1.3.4] — 2026-07-25 — Serveur configurable dans les Paramètres (poste opérateur)
 
 ### Ajouté
