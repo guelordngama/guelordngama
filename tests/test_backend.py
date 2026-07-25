@@ -776,6 +776,19 @@ def test_sms_gateway_detection_and_twilio_removed():
     assert hasattr(cfg, "ORANGE_CLIENT_ID")
 
 
+def test_video_message_accepted():
+    """Un message peut porter une vidéo (mp4) ; quicktime est normalisé en .mov."""
+    import base64
+    _, client = make_client()
+    h = _login(client)
+    raw = base64.b64encode(b"\x00\x00\x00\x18ftypmp42").decode()
+    r = client.post("/api/messages", json={"video": "data:video/mp4;base64," + raw}, headers=h)
+    assert r.status_code == 201, r.get_json()
+    assert r.get_json()["video_url"].endswith(".mp4")
+    q = client.post("/api/messages", json={"video": "data:video/quicktime;base64," + raw}, headers=h)
+    assert q.get_json()["video_url"].endswith(".mov")
+
+
 def test_voice_message_mp4_accepted_as_m4a():
     """Le poste opérateur (Windows/QtMultimedia) envoie du audio/mp4 : il doit
     être accepté et stocké en .m4a (même conteneur MP4/AAC que .m4a)."""

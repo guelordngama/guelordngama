@@ -123,6 +123,7 @@ input:focus, select:focus { outline: none; border-color: var(--accent); }
 .chat-input button { border: none; border-radius: 10px; background: var(--accent); color: #fff;
   font-size: 16px; font-weight: 800; padding: 0 16px; cursor: pointer; }
 .chat-msg img { max-width: 180px; border-radius: 8px; margin-top: 6px; display: block; cursor: pointer; }
+.chat-msg video.chat-video-msg { max-width: 240px; border-radius: 8px; margin-top: 6px; display: block; }
 .chat-mic { font-size: 18px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px;
   background: rgba(11,18,32,0.5); cursor: pointer; }
 .chat-mic.recording { border-color: #ef4444; background: rgba(239,68,68,0.18);

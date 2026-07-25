@@ -91,12 +91,14 @@ class ApiClient:
         return self._request("GET", f"/api/messages?limit={limit}", auth=True)
 
     def send_message(self, text, alert_id=None, attachment=None, voice=None,
-                     voice_duration=None):
+                     voice_duration=None, video=None):
         body = {"text": text}
         if alert_id:
             body["alert_id"] = alert_id
         if attachment:
             body["attachment"] = attachment
+        if video:
+            body["video"] = video
         if voice:
             body["voice"] = voice
             if voice_duration:

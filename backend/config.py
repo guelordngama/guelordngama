@@ -54,9 +54,10 @@ class Config:
 
     # --- Fichiers / uploads ---
     UPLOAD_DIR = UPLOAD_DIR
-    MAX_CONTENT_LENGTH = int(os.environ.get("SAFECITY_MAX_UPLOAD_MB", "16")) * 1024 * 1024
+    MAX_CONTENT_LENGTH = int(os.environ.get("SAFECITY_MAX_UPLOAD_MB", "32")) * 1024 * 1024
     ALLOWED_IMAGE_EXT = {"jpg", "jpeg", "png", "gif", "webp"}
     ALLOWED_AUDIO_EXT = {"webm", "ogg", "mp3", "wav", "m4a"}
+    ALLOWED_VIDEO_EXT = {"mp4", "webm", "ogg", "mov", "m4v"}
 
     # --- Temps réel ---
     SURVEILLANCE_ROOM = "surveillance"

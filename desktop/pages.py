@@ -842,7 +842,7 @@ class ChatPage(QWidget):
     ceux des agents **à gauche** (gris), ajustées au contenu, avec l'heure.
     """
 
-    send = Signal(str, str, str, int)  # (texte, pièce jointe, message vocal, durée s)
+    send = Signal(str, str, str, int, str)  # (texte, image, vocal, durée s, vidéo)
 
     # Couleurs façon WhatsApp
     BUBBLE_ME = "#005c4b"       # vert (mes messages)
@@ -857,6 +857,7 @@ class ChatPage(QWidget):
         self.me_id = operator.get("id")
         self.api_base = api_base.rstrip("/")
         self._attachment = None
+        self._video = None          # data URL de la vidéo prête à envoyer
         self._voice = None          # data URL du message vocal prêt à envoyer
         self._voice_dur = 0         # durée (s) du vocal prêt à envoyer
         self._recorder = None       # VoiceRecorder actif
@@ -893,7 +894,14 @@ class ChatPage(QWidget):
         b_attach = QPushButton("📎")
         b_attach.setObjectName("ghost")
         b_attach.setFixedWidth(46)
+        b_attach.setToolTip("Joindre une image")
         b_attach.clicked.connect(self._pick_attachment)
+
+        b_video = QPushButton("🎥")
+        b_video.setObjectName("ghost")
+        b_video.setFixedWidth(46)
+        b_video.setToolTip("Joindre une vidéo")
+        b_video.clicked.connect(self._pick_video)
 
         self.btn_mic = QPushButton("🎤")
         self.btn_mic.setObjectName("ghost")
@@ -907,6 +915,7 @@ class ChatPage(QWidget):
         btn = QPushButton("Envoyer")
         btn.clicked.connect(self._send)
         row.addWidget(b_attach)
+        row.addWidget(b_video)
         row.addWidget(self.btn_mic)
         row.addWidget(self.input, 1)
         row.addWidget(btn)
@@ -944,6 +953,27 @@ class ChatPage(QWidget):
             data = base64.b64encode(fh.read()).decode()
         self._attachment = f"data:image/{ext};base64,{data}"
         self.attach_label.setText(f"📎 Pièce jointe : {os.path.basename(path)}  (sera envoyée)")
+
+    def _pick_video(self):
+        import base64
+        import os
+
+        from PySide6.QtWidgets import QFileDialog
+
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Joindre une vidéo", "", "Vidéos (*.mp4 *.webm *.mov *.m4v *.ogg)")
+        if not path:
+            return
+        size = os.path.getsize(path)
+        if size > 20 * 1024 * 1024:
+            self.attach_label.setText("🎥 Vidéo trop volumineuse (max 20 Mo). Choisissez une courte séquence.")
+            return
+        ext = os.path.splitext(path)[1].lstrip(".").lower() or "mp4"
+        mime = {"mov": "quicktime"}.get(ext, ext)
+        with open(path, "rb") as fh:
+            data = base64.b64encode(fh.read()).decode()
+        self._video = f"data:video/{mime};base64,{data}"
+        self.attach_label.setText(f"🎥 Vidéo : {os.path.basename(path)}  (sera envoyée)")
 
     # ---- Message vocal ----
     def _toggle_record(self):
@@ -1006,10 +1036,12 @@ class ChatPage(QWidget):
 
     def _send(self):
         text = self.input.text().strip()
-        if text or self._attachment or self._voice:
-            self.send.emit(text, self._attachment or "", self._voice or "", self._voice_dur or 0)
+        if text or self._attachment or self._voice or self._video:
+            self.send.emit(text, self._attachment or "", self._voice or "",
+                           self._voice_dur or 0, self._video or "")
             self.input.clear()
             self._attachment = None
+            self._video = None
             self._voice = None
             self._voice_dur = 0
             self.attach_label.setText("")
@@ -1112,6 +1144,9 @@ class ChatPage(QWidget):
 
         if m.get("attachment_url"):
             bl.addWidget(self._photo_view(self.api_base + m["attachment_url"]))
+
+        if m.get("video_url"):
+            bl.addWidget(self._video_view(self.api_base + m["video_url"]))
 
         lbl_time = QLabel(m.get("time", ""))
         lbl_time.setAlignment(Qt.AlignRight)
@@ -1271,6 +1306,67 @@ class ChatPage(QWidget):
 
             reply.finished.connect(done)
         dlg.exec()
+
+    # ---- Pièces jointes vidéo ----
+    def _video_view(self, url):
+        btn = QPushButton("🎥  Vidéo — cliquer pour lire")
+        btn.setCursor(Qt.PointingHandCursor)
+        btn.setStyleSheet(
+            "QPushButton { background: rgba(255,255,255,0.12); color: #e9edef;"
+            "border: none; border-radius: 8px; padding: 6px 12px; text-align: left; }"
+            "QPushButton:hover { background: rgba(255,255,255,0.2); }")
+        btn.clicked.connect(lambda: self._open_video(url))
+        return btn
+
+    def _open_video(self, url):
+        """Lit la vidéo dans une fenêtre (QVideoWidget) ; repli sur le lecteur système."""
+        try:
+            from PySide6.QtCore import QUrl
+            from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
+            from PySide6.QtMultimediaWidgets import QVideoWidget
+            from PySide6.QtWidgets import QDialog, QHBoxLayout, QPushButton, QVBoxLayout
+        except Exception:
+            self._open_video_external(url)
+            return
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Vidéo")
+        dlg.resize(760, 520)
+        lay = QVBoxLayout(dlg)
+        video_w = QVideoWidget()
+        lay.addWidget(video_w, 1)
+        bar = QHBoxLayout()
+        b_play = QPushButton("⏸  Pause")
+        b_ext = QPushButton("Ouvrir dans le lecteur système")
+        b_ext.setObjectName("ghost")
+        bar.addWidget(b_play)
+        bar.addStretch()
+        bar.addWidget(b_ext)
+        lay.addLayout(bar)
+
+        player = QMediaPlayer(dlg)
+        audio = QAudioOutput(dlg)
+        player.setAudioOutput(audio)
+        player.setVideoOutput(video_w)
+        player.setSource(QUrl(url))
+        player.play()
+
+        def toggle():
+            if player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
+                player.pause(); b_play.setText("▶  Lire")
+            else:
+                player.play(); b_play.setText("⏸  Pause")
+
+        b_play.clicked.connect(toggle)
+        b_ext.clicked.connect(lambda: self._open_video_external(url))
+        dlg.finished.connect(lambda _=0: player.stop())
+        dlg.exec()
+
+    def _open_video_external(self, url):
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+
+        QDesktopServices.openUrl(QUrl(url))
 
     def _scroll_to_bottom(self):
         from PySide6.QtCore import QTimer

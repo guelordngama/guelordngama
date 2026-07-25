@@ -169,6 +169,9 @@ def save_data_url(data_url, kind):
     if kind == "image":
         allowed = current_app.config["ALLOWED_IMAGE_EXT"]
         mime_prefix = "image/"
+    elif kind == "video":
+        allowed = current_app.config["ALLOWED_VIDEO_EXT"]
+        mime_prefix = "video/"
     else:
         allowed = current_app.config["ALLOWED_AUDIO_EXT"]
         mime_prefix = "audio/"
@@ -182,6 +185,8 @@ def save_data_url(data_url, kind):
     # annoncé « audio/mp4 » : c'est le même format que .m4a → on le normalise.
     if kind == "audio" and ext in ("mp4", "x-m4a", "aac"):
         ext = "m4a"
+    if kind == "video" and ext in ("quicktime", "x-m4v"):
+        ext = "mov" if ext == "quicktime" else "m4v"
     if ext not in allowed:
         raise ValidationError(f"Type de fichier non autorisé pour {kind} : .{ext}")
 

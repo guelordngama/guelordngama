@@ -149,6 +149,7 @@
 
     // Messagerie
     initChatFile();
+    initChatVideo();
     initChatVoice();
     loadMessages();
     $("chat-send").addEventListener("click", sendMessage);
@@ -172,6 +173,23 @@
       const reader = new FileReader();
       reader.onload = () => { chatAttachment = reader.result;
         document.querySelector(".chat-attach").classList.add("armed"); };
+      reader.readAsDataURL(file);
+    });
+  }
+  let chatVideo = null;
+  function initChatVideo() {
+    const f = $("chat-video");
+    if (!f) return;
+    f.addEventListener("change", () => {
+      const file = f.files[0];
+      if (!file) { chatVideo = null; return; }
+      if (file.size > 20 * 1024 * 1024) {
+        alert("Vidéo trop volumineuse (max 20 Mo). Filmez une courte séquence.");
+        f.value = ""; return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => { chatVideo = reader.result;
+        f.parentElement.classList.add("armed"); };
       reader.readAsDataURL(file);
     });
   }
@@ -260,14 +278,17 @@
 
   async function sendMessage() {
     const t = $("chat-text").value.trim();
-    if (!t && !chatAttachment && !chatVoice) return;
+    if (!t && !chatAttachment && !chatVoice && !chatVideo) return;
     const body = { text: t };
     if (chatAttachment) body.attachment = chatAttachment;
+    if (chatVideo) body.video = chatVideo;
     if (chatVoice) { body.voice = chatVoice; if (chatVoiceDur) body.voice_duration = chatVoiceDur; }
     $("chat-text").value = "";
     chatAttachment = null;
+    chatVideo = null;
     $("chat-file").value = "";
-    document.querySelector(".chat-attach").classList.remove("armed");
+    if ($("chat-video")) { $("chat-video").value = ""; $("chat-video").parentElement.classList.remove("armed"); }
+    document.querySelectorAll(".chat-attach").forEach((el) => el.classList.remove("armed"));
     clearVoice();
     try { await api("POST", "/api/messages", body); } catch (e) { alert("Échec : " + e.message); }
   }
@@ -346,6 +367,13 @@
       img.src = API + m.attachment_url;
       img.addEventListener("click", () => window.open(API + m.attachment_url, "_blank"));
       div.appendChild(img);
+    }
+    if (m.video_url) {
+      const vid = document.createElement("video");
+      vid.controls = true;
+      vid.className = "chat-video-msg";
+      vid.src = API + m.video_url;
+      div.appendChild(vid);
     }
     box.appendChild(div);
     box.scrollTop = box.scrollHeight;

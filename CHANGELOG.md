@@ -2,6 +2,19 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.4.0] — 2026-07-25 — Vidéos dans la messagerie (façon WhatsApp)
+
+### Ajouté
+- **Envoi et lecture de vidéos** dans la messagerie opérateurs ↔ agents :
+  - **Poste opérateur** : bouton 🎥 (choix d'un fichier), lecture dans une
+    fenêtre intégrée (QVideoWidget) avec repli sur le lecteur système.
+  - **Portail agents** : bouton 🎥 et lecture en ligne (`<video controls>`).
+  - **Backend** : champ `video` accepté (formats `mp4/webm/ogg/mov/m4v`),
+    exposé via `video_url`. Nouvelle colonne `messages.video_path` +
+    **migration Alembic** `d5f9a3c1e8b2`.
+- Limite de taille : **20 Mo** par vidéo (courtes séquences) ; `MAX_UPLOAD_MB`
+  par défaut porté à **32 Mo** pour la marge d'encodage base64.
+
 ## [1.3.9] — 2026-07-25 — Correctifs médias messagerie (poste opérateur)
 
 ### Corrigé
