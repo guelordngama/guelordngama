@@ -187,7 +187,7 @@ class LoginDialog(QDialog):
         root.addSpacing(6)
         root.addLayout(srv_row)
 
-        self.info = QLabel("Compte de démonstration pré-rempli.")
+        self.info = QLabel("Connectez-vous avec votre compte opérateur.")
         self.info.setObjectName("muted")
         self.info.setWordWrap(True)
         root.addWidget(self.info)
@@ -201,8 +201,10 @@ class LoginDialog(QDialog):
 
         form = QFormLayout()
         form.setSpacing(10)
-        self.email = QLineEdit("operateur@safecity.local")
-        self.password = QLineEdit("safecity123")
+        self.email = QLineEdit()
+        self.email.setPlaceholderText("votre e-mail")
+        self.password = QLineEdit()
+        self.password.setPlaceholderText("votre mot de passe")
         self.password.setEchoMode(QLineEdit.Password)
         self.password.returnPressed.connect(self._try_login)
         form.addRow("Email", self.email)

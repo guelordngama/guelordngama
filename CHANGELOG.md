@@ -2,6 +2,14 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.3.6] — 2026-07-25 — Fenêtre de connexion sans identifiants de démo
+
+### Modifié
+- **Retrait du pré-remplissage de démonstration** (`operateur@safecity.local` /
+  `safecity123`) sur la fenêtre de connexion du poste opérateur : champs vides
+  avec indications (« votre e-mail » / « votre mot de passe ») et note adaptée.
+  Évite la confusion en production, où le compte de démo a été supprimé.
+
 ## [1.3.5] — 2026-07-25 — Serveur choisissable dès la fenêtre de connexion
 
 ### Ajouté
