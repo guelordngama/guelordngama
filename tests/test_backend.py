@@ -776,6 +776,18 @@ def test_sms_gateway_detection_and_twilio_removed():
     assert hasattr(cfg, "ORANGE_CLIENT_ID")
 
 
+def test_voice_message_mp4_accepted_as_m4a():
+    """Le poste opérateur (Windows/QtMultimedia) envoie du audio/mp4 : il doit
+    être accepté et stocké en .m4a (même conteneur MP4/AAC que .m4a)."""
+    import base64
+    _, client = make_client()
+    h = _login(client)
+    durl = "data:audio/mp4;base64," + base64.b64encode(b"\x00\x00\x00\x20ftypM4A ").decode()
+    r = client.post("/api/messages", json={"voice": durl, "voice_duration": 11}, headers=h)
+    assert r.status_code == 201, r.get_json()
+    assert r.get_json()["voice_url"].endswith(".m4a")
+
+
 # --------------------------------------------------------------------------- #
 # Exécution directe (sans pytest)
 # --------------------------------------------------------------------------- #

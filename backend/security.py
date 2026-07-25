@@ -178,6 +178,10 @@ def save_data_url(data_url, kind):
         ext = header.split(mime_prefix, 1)[1].split(";")[0].split("/")[-1].lower()
     if ext == "jpeg":
         ext = "jpg"
+    # Le poste opérateur (QtMultimedia sous Windows) produit un conteneur MP4/AAC
+    # annoncé « audio/mp4 » : c'est le même format que .m4a → on le normalise.
+    if kind == "audio" and ext in ("mp4", "x-m4a", "aac"):
+        ext = "m4a"
     if ext not in allowed:
         raise ValidationError(f"Type de fichier non autorisé pour {kind} : .{ext}")
 

@@ -2,6 +2,15 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.3.1] — 2026-07-25 — Correctif : messages vocaux du poste opérateur (Windows)
+
+### Corrigé
+- **Envoi d'un message vocal depuis le poste opérateur** échouait avec
+  « Type de fichier non autorisé pour audio : .mp4 ». Sous Windows, QtMultimedia
+  produit un conteneur **MP4/AAC** annoncé `audio/mp4` (identique à `.m4a`). Le
+  backend normalise désormais `audio/mp4` (et `x-m4a`, `aac`) en **`.m4a`**, qui
+  est un format audio accepté et lisible côté web comme bureau.
+
 ## [1.3.0] — 2026-07-25 — Sous-domaine dédié pour le portail agents
 
 ### Ajouté
