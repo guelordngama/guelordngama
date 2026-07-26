@@ -56,21 +56,20 @@ def register_citizen(payload):
             details={"field": "email"},
         )
 
+    # Inscription directe : le compte est actif immédiatement (pas de code de
+    # vérification). Le citoyen est connecté dès la création.
     user = User(
         name=payload["name"],
         phone=phone,
         email=email,
         role="citizen",
         password_hash=hash_password(payload["password"]),
-        phone_verified=False,
+        phone_verified=True,
         consent_at=datetime.utcnow(),  # consentement recueilli à l'inscription
     )
     db.session.add(user)
     db.session.commit()
-    log.info("Nouveau compte citoyen #%s (%s) — vérification requise", user.id, phone)
-    # Envoie le code de vérification (SMS, avec repli e-mail). On expose le canal
-    # utilisé pour que le frontend affiche le bon message.
-    user.otp_channel = send_otp(user)
+    log.info("Nouveau compte citoyen #%s (%s) — activé", user.id, phone)
     return user
 
 

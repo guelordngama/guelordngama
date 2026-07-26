@@ -46,21 +46,8 @@ def _do_register():
     payload = validate_register_payload(request.get_json(silent=True))
     user = register_citizen(payload)
     audit.record("citizen_registered", detail=user.phone, user_id=user.id, user_name=user.name)
-    channel = getattr(user, "otp_channel", "sms")
-    messages = {
-        "sms": "Un code de vérification a été envoyé par SMS à votre numéro.",
-        "email": "Un code de vérification à 6 chiffres a été envoyé à votre "
-                 "adresse e-mail.",
-        "dev": "Un code de vérification a été généré (voir les journaux du serveur "
-               "en développement).",
-    }
-    # Pas de jeton tant que le téléphone n'est pas vérifié.
-    return jsonify({
-        "verification_required": True,
-        "phone": user.phone,
-        "channel": channel,
-        "message": messages.get(channel, messages["sms"]),
-    }), 201
+    # Compte activé immédiatement : on renvoie un jeton (connexion directe).
+    return jsonify({"token": generate_token(user), "user": user.to_dict()}), 201
 
 
 @bp.post("/verify-otp")
@@ -229,11 +216,7 @@ def _do_login():
         audit.record("login_denied_inactive", detail=identifier,
                      user_id=user.id, user_name=user.name)
         raise AuthError("Ce compte est désactivé.")
-    if user.role == "citizen" and not user.phone_verified:
-        audit.record("login_unverified", detail=identifier,
-                     user_id=user.id, user_name=user.name)
-        raise AuthError("Votre numéro n'est pas encore vérifié.",
-                        code="phone_not_verified")
+    # Plus de vérification par code : l'inscription active directement le compte.
     audit.record("login", detail=f"{user.email or user.phone} ({user.role})",
                  user_id=user.id, user_name=user.name)
     return jsonify({"token": generate_token(user), "user": user.to_dict()})

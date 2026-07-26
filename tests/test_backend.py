@@ -435,63 +435,29 @@ def test_report_pdf():
 # Inscription / connexion des citoyens
 # --------------------------------------------------------------------------- #
 def _register_and_verify_citizen(app, client, name, phone, password):
-    """Inscrit un citoyen puis vérifie son téléphone (OTP capté via SMS simulé)."""
-    from backend.services import notifications
-    app.config["SMS_HTTP_URL"] = "http://sms.local/send"  # rend sms_configured() vrai
-    captured = {}
-    notifications.send_sms = lambda to, text: captured.update(text=text)
+    """Inscrit un citoyen : le compte est activé immédiatement (sans code)."""
     r = client.post("/api/auth/register", json={
         "name": name, "phone": phone, "password": password, "consent": True})
-    assert r.status_code == 201 and r.get_json()["verification_required"]
-    import re as _re
-    code = _re.search(r"est (\d+)\.", captured["text"]).group(1)
-    v = client.post("/api/auth/verify-otp", json={"phone": phone, "code": code})
-    assert v.status_code == 200
-    return v.get_json()
+    assert r.status_code == 201, r.get_json()
+    body = r.get_json()
+    assert body.get("token") and body["user"]["phone_verified"] is True
+    return body
 
 
-def test_register_requires_otp_then_login_by_phone():
+def test_register_activates_and_login_directly():
     app, client = make_client()
-    app.config["SMS_HTTP_URL"] = "http://sms.local/send"  # SMS configuré → e-mail non requis
-    from backend.services import notifications
-    notifications.send_sms = lambda to, text: None
-    # L'inscription n'ouvre pas de session : vérification requise.
+    # L'inscription active le compte et connecte directement (jeton renvoyé).
     r = client.post("/api/auth/register", json={
         "name": "Citoyen Test", "phone": "+243 810 000 111", "password": "secret1",
         "consent": True})
     assert r.status_code == 201
-    assert r.get_json().get("verification_required") is True
-    assert "token" not in r.get_json()
-    # Sans vérification, la connexion est refusée (phone_not_verified).
-    denied = client.post("/api/auth/login", json={
-        "identifier": "243810000111", "password": "secret1"})
-    assert denied.status_code == 401
-    assert denied.get_json()["error"]["code"] == "phone_not_verified"
-
-
-def test_otp_verification_flow_and_login():
-    app, client = make_client()
-    body = _register_and_verify_citizen(app, client, "Citoyen", "+243810000111", "secret1")
-    assert body["user"]["role"] == "citizen"
-    assert body["user"]["phone_verified"] is True
-    assert body["token"]
-    # Connexion possible après vérification (numéro dans un autre format).
+    assert r.get_json().get("token")
+    assert r.get_json()["user"]["phone_verified"] is True
+    # Connexion possible immédiatement (numéro dans un autre format).
     login = client.post("/api/auth/login", json={
         "identifier": "243-810-000-111", "password": "secret1"})
     assert login.status_code == 200
-    assert login.get_json()["user"]["id"] == body["user"]["id"]
-
-
-def test_otp_wrong_code_rejected():
-    app, client = make_client()
-    app.config["SMS_HTTP_URL"] = "http://sms.local/send"
-    from backend.services import notifications
-    notifications.send_sms = lambda to, text: None
-    client.post("/api/auth/register", json={
-        "name": "C", "phone": "+243810000222", "password": "secret1", "consent": True})
-    bad = client.post("/api/auth/verify-otp", json={
-        "phone": "243810000222", "code": "000000"})
-    assert bad.status_code == 401
+    assert login.get_json()["user"]["role"] == "citizen"
 
 
 def test_register_duplicate_phone_conflict():
@@ -557,10 +523,10 @@ def test_delete_own_account_anonymises_alerts():
 def test_password_reset_by_sms():
     app, client = make_client()
     _register_and_verify_citizen(app, client, "Citoyen", "+243810000111", "ancien1")
-    # Le SMS simulé de la vérif est déjà branché par le helper ; on le réutilise.
     import re as _re
 
     from backend.services import notifications
+    app.config["SMS_HTTP_URL"] = "http://sms.local/send"  # passerelle SMS active
     captured = {}
     notifications.send_sms = lambda to, text: captured.update(text=text)
     assert client.post("/api/auth/forgot-password-sms", json={
@@ -707,55 +673,18 @@ def test_forgot_password_without_smtp_returns_503():
     assert r.get_json()["error"]["code"] == "email_not_configured"
 
 
-def test_otp_email_fallback_when_sms_unavailable():
-    """Si aucun SMS n'est disponible mais que le citoyen a un e-mail (et le SMTP
-    est configuré), le code de vérification part par e-mail : l'inscription
-    continue de fonctionner."""
-    from backend.services import notifications
-    app, client = make_client()
-    app.config["SMTP_HOST"] = "smtp.local"  # SMTP « configuré » (envoi simulé)
-    original = notifications.send_email_message
-    sent = {}
-    notifications.send_email_message = lambda to, subject, body: sent.update(to=to, body=body)
-    try:
-        r = client.post("/api/auth/register", json={
-            "name": "Citoyen Mail", "phone": "+243820000222", "password": "secret1",
-            "email": "cit@exemple.cd", "consent": True})
-        assert r.status_code == 201, r.get_json()
-        assert r.get_json()["channel"] == "email"
-        assert sent.get("to") == ["cit@exemple.cd"]
-        import re as _re
-        code = _re.search(r"est (\d+)\.", sent["body"]).group(1)
-        v = client.post("/api/auth/verify-otp", json={"phone": "+243820000222", "code": code})
-        assert v.status_code == 200
-    finally:
-        notifications.send_email_message = original
-
-
-def test_email_required_when_no_sms_gateway():
-    """Sans passerelle SMS, l'e-mail devient obligatoire à l'inscription (c'est
-    le seul canal pour recevoir le code) ; avec e-mail, l'inscription passe."""
-    from backend.services import notifications
-    app, client = make_client()  # config de test : aucune passerelle SMS
-
-    # Sans e-mail → refus 400 avec le champ 'email'.
+def test_register_email_optional_direct_activation():
+    """L'inscription est directe (sans code) : l'e-mail est optionnel et le
+    compte est actif immédiatement."""
+    _, client = make_client()
     r = client.post("/api/auth/register", json={
         "name": "Sans Mail", "phone": "+243830000111", "password": "secret1",
         "consent": True})
-    assert r.status_code == 400
-    assert r.get_json()["error"]["details"]["field"] == "email"
-
-    # Avec e-mail + SMTP configuré → inscription acceptée (code par e-mail).
-    app.config["SMTP_HOST"] = "smtp.local"
-    notifications.send_email_message = lambda to, subject, body: None
-    ok = client.post("/api/auth/register", json={
-        "name": "Avec Mail", "phone": "+243830000222", "password": "secret1",
-        "email": "avec@exemple.cd", "consent": True})
-    assert ok.status_code == 201, ok.get_json()
-
-    # /api/meta annonce email_required = True quand aucun SMS n'est configuré.
-    meta = client.get("/api/meta").get_json()
-    assert meta["email_required"] is True
+    assert r.status_code == 201, r.get_json()
+    assert r.get_json()["user"]["phone_verified"] is True
+    assert r.get_json().get("token")
+    # /api/meta : plus d'e-mail obligatoire.
+    assert client.get("/api/meta").get_json()["email_required"] is False
 
 
 def test_sms_gateway_detection_and_twilio_removed():

@@ -2,6 +2,19 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.7.0] — 2026-07-25 — Inscription citoyenne directe (sans code de vérification)
+
+### Modifié
+- **Suppression de la vérification par code (OTP)** à l'inscription citoyenne :
+  le compte est **activé immédiatement** dès que le formulaire est rempli, et le
+  citoyen est **connecté directement** (jeton renvoyé par `/register`).
+- **E-mail redevenu optionnel** (il servait uniquement à recevoir le code) —
+  utile désormais surtout pour la récupération de mot de passe. `/api/meta`
+  renvoie `email_required: false`.
+- La **connexion** ne bloque plus sur « numéro non vérifié ».
+- L'unicité du **numéro de téléphone** reste vérifiée. Les endpoints de code
+  (verify/resend) subsistent mais ne sont plus utilisés par l'inscription.
+
 ## [1.6.1] — 2026-07-25 — Message de vérification e-mail plus clair
 
 ### Modifié

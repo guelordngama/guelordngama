@@ -1,6 +1,6 @@
 # 🛡️ SafeCity — Plateforme d'alerte citoyenne
 
-**Version 1.6.1** · voir le [journal des modifications](CHANGELOG.md).
+**Version 1.7.0** · voir le [journal des modifications](CHANGELOG.md).
 
 Application professionnelle de sécurité urbaine : un citoyen signale un danger
 en un geste depuis son téléphone, et le centre de surveillance de la mairie
@@ -44,7 +44,7 @@ images, **vidéos** et **messages vocaux** (enregistrement + écoute, avec duré
   uploads, en-têtes de sécurité, CORS restreignable, refus de démarrage en
   production non sûre ([docs/SECURITY.md](docs/SECURITY.md)).
 - **Optimisations** : index BDD, pagination, stats SQL + cache.
-- **Qualité** : 59 tests, migrations Alembic (vérifiées sur PostgreSQL 16),
+- **Qualité** : 56 tests, migrations Alembic (vérifiées sur PostgreSQL 16),
   CI GitHub Actions, Docker.
 
 ## 🚀 Démarrage rapide
