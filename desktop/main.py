@@ -590,7 +590,7 @@ class MainWindow(QWidget):
         self.stack = QStackedWidget()
         self.page_dashboard = DashboardPage()
         self.page_live = LiveAlertsPage()
-        self.page_map = MapPage()
+        self.page_map = MapPage(API_BASE)
         self.page_agents = AgentsPage()
         self.page_citizens = PeoplePage(["Nom", "Téléphone", "Email", "Inscrit le"])
         self.page_history = HistoryPage()

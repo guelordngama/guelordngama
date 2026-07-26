@@ -28,24 +28,48 @@
     L.Icon.Default.imagePath = "vendor/leaflet/images/";
 
     var map = L.map("map", { zoomControl: true }).setView([-4.325, 15.3222], 13);
-    // Fond de carte coloré CARTO « Voyager » (style OpenStreetMap, mais servi par
-    // le CDN CARTO, plus fiable et sans blocage d'usage). Si le réseau est absent,
+
+    // Fond de carte coloré (style OpenStreetMap « Voyager »). Les tuiles sont
+    // servies par le serveur SafeCity lui-même (proxy /tiles/…), ce qui contourne
+    // le blocage des CDN externes par le pare-feu de la mairie : le client ne
+    // contacte que le domaine SafeCity, déjà autorisé. Si le réseau est absent,
     // la carte reste utilisable (fond uni) et les marqueurs/itinéraires s'affichent.
-    var tiles = L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
-      attribution: "© OpenStreetMap © CARTO", maxZoom: 20, subdomains: "abcd",
-    }).addTo(map);
+    var tiles = null;
     var tileErrors = 0;
-    tiles.on("tileerror", function () {
-      if (++tileErrors === 4) {  // réseau probablement indisponible
-        var b = L.control({ position: "topleft" });
-        b.onAdd = function () {
-          var d = L.DomUtil.create("div", "legend");
-          d.innerHTML = "⚠️ Fond de carte hors-ligne — marqueurs actifs";
-          return d;
-        };
-        b.addTo(map);
-      }
-    });
+    var offlineBadge = null;
+
+    function buildTiles(url) {
+      if (tiles) { map.removeLayer(tiles); tiles = null; }
+      tileErrors = 0;
+      if (offlineBadge) { map.removeControl(offlineBadge); offlineBadge = null; }
+      tiles = L.tileLayer(url, {
+        attribution: "© OpenStreetMap © CARTO", maxZoom: 20,
+      }).addTo(map);
+      tiles.on("tileerror", function () {
+        if (++tileErrors === 4 && !offlineBadge) {  // réseau probablement indisponible
+          offlineBadge = L.control({ position: "topleft" });
+          offlineBadge.onAdd = function () {
+            var d = L.DomUtil.create("div", "legend");
+            d.innerHTML = "⚠️ Fond de carte hors-ligne — marqueurs actifs";
+            return d;
+          };
+          offlineBadge.addTo(map);
+        }
+      });
+    }
+
+    // Bascule le fond vers le proxy de tuiles du serveur SafeCity (appelé par le
+    // poste opérateur une fois l'URL du serveur connue). base = ex.
+    // "https://safecity-lubumbashi.com".
+    window.setTileServer = function (base) {
+      if (!base) return;
+      base = String(base).replace(/\/+$/, "");
+      buildTiles(base + "/tiles/{z}/{x}/{y}.png");
+    };
+
+    // Fond par défaut (avant que le poste opérateur ne fournisse l'URL du
+    // serveur) : proxy relatif, utile quand la page est servie par le backend.
+    buildTiles("/tiles/{z}/{x}/{y}.png");
 
     var URGENCY = { faible: "#22c55e", moyenne: "#eab308", haute: "#f97316", critique: "#ef4444" };
     var markers = {};     // id -> marker

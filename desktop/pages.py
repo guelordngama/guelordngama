@@ -458,8 +458,11 @@ class LiveAlertsPage(QWidget):
 # Carte interactive
 # --------------------------------------------------------------------------- #
 class MapPage(QWidget):
-    def __init__(self):
+    def __init__(self, api_base=None):
         super().__init__()
+        # URL du serveur SafeCity : sert à faire passer les tuiles de carte par le
+        # proxy /tiles/ du backend (contourne le blocage des CDN par le pare-feu).
+        self.api_base = api_base
         root = QVBoxLayout(self)
         root.setContentsMargins(24, 20, 24, 24)
         self.ready = False
@@ -488,6 +491,11 @@ class MapPage(QWidget):
         self.ready = ok
         if not ok:
             return
+        # Bascule le fond de carte vers le proxy de tuiles du serveur SafeCity.
+        if self.api_base:
+            import json
+
+            self._run(f"window.setTileServer({json.dumps(self.api_base)});")
         if self._pending is not None:
             self.set_alerts(self._pending)
         if self._pending_patrols is not None:

@@ -412,8 +412,10 @@
   function initMap() {
     if (typeof L === "undefined") { throw new Error("Leaflet non chargé"); }
     state.map = L.map("map").setView([-4.325, 15.3222], 13);
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
-      { attribution: "© OpenStreetMap © CARTO", subdomains: "abcd", maxZoom: 20 }).addTo(state.map);
+    // Tuiles servies par le proxy du serveur SafeCity (/tiles/…) : contourne le
+    // blocage des CDN externes par le pare-feu.
+    L.tileLayer(API + "/tiles/{z}/{x}/{y}.png",
+      { attribution: "© OpenStreetMap © CARTO", maxZoom: 20 }).addTo(state.map);
   }
 
   // ---- Temps réel ----

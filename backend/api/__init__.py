@@ -12,6 +12,7 @@ def register_blueprints(app):
     from .reports import bp as reports_bp
     from .stats import bp as stats_bp
     from .teams import bp as teams_bp
+    from .tiles import bp as tiles_bp
     from .uploads import bp as uploads_bp
 
     app.register_blueprint(health_bp)
@@ -24,6 +25,7 @@ def register_blueprints(app):
     app.register_blueprint(messages_bp)
     app.register_blueprint(export_bp)
     app.register_blueprint(uploads_bp)
+    app.register_blueprint(tiles_bp)
     app.register_blueprint(audit_bp)
 
     # En développement, le backend sert aussi les fronts (app citoyenne au « / »,

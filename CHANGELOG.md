@@ -2,6 +2,25 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.7.2] — 2026-07-26 — Tuiles de carte servies par le serveur (proxy)
+
+### Corrigé
+- **Carte qui restait blanche** malgré le fond CARTO : le **pare-feu de la mairie
+  bloque tous les CDN de tuiles externes** (OpenStreetMap comme CARTO). Les
+  clients ne pouvaient donc jamais télécharger le fond de carte.
+
+### Ajouté
+- **Proxy de tuiles côté serveur** (`GET /tiles/<z>/<x>/<y>.png`) : c'est le
+  serveur SafeCity qui récupère les tuiles CARTO Voyager (fond coloré, style
+  OpenStreetMap) et les **met en cache sur disque**, puis les sert depuis son
+  propre domaine — déjà autorisé par le pare-feu. Les clients ne contactent plus
+  que `safecity-lubumbashi.com`.
+  - **Poste opérateur** : `map.html` bascule le fond vers `<serveur>/tiles/…`
+    via `window.setTileServer()`, alimenté par l'URL du serveur (`MapPage`).
+  - **Portail agents** et **site citoyen** : fond pointant vers
+    `<API_BASE>/tiles/…`.
+  - **Nginx** : `location /tiles/` proxifié vers le backend (cache 30 jours).
+
 ## [1.7.1] — 2026-07-26 — Fond de carte fiable (CARTO Voyager)
 
 ### Corrigé

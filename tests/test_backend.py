@@ -105,6 +105,14 @@ def test_health():
     assert client.get("/api/health").get_json()["status"] == "ok"
 
 
+def test_tile_proxy_rejects_out_of_bounds():
+    # Le proxy de tuiles refuse les coordonnées hors bornes (z/x/y) sans jamais
+    # solliciter le réseau : indices absurdes → 400.
+    _, client = make_client()
+    assert client.get("/tiles/30/1/1.png").status_code == 400  # z > 20
+    assert client.get("/tiles/1/9/0.png").status_code == 400   # x hors plage
+
+
 def test_security_headers_present():
     _, client = make_client()
     resp = client.get("/api/health")

@@ -781,9 +781,10 @@
     setTimeout(() => {
       if (!miniMap) {
         miniMap = L.map("mini-map").setView([alert.lat, alert.lng], 15);
-        L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+        // Tuiles servies par le proxy du serveur SafeCity (/tiles/…) : contourne
+        // le blocage des CDN externes par le pare-feu.
+        L.tileLayer(API + "/tiles/{z}/{x}/{y}.png", {
           attribution: "© OpenStreetMap © CARTO",
-          subdomains: "abcd",
           maxZoom: 20,
         }).addTo(miniMap);
       } else {
