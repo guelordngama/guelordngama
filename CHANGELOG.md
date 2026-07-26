@@ -2,6 +2,21 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.7.5] — 2026-07-26 — Badge « messages non lus » fiable même hors ligne
+
+### Corrigé
+- **Badge « messages non lus » qui n'apparaissait plus** sur le poste opérateur.
+  Il ne dépendait que du **temps réel** (`chat_message`) : si le socket est hors
+  ligne (réseau de la mairie), aucun message ne remontait et le badge ne
+  s'affichait jamais.
+  - Le filet de sécurité périodique (15 s) détecte désormais les **nouveaux
+    messages par REST** et met à jour le **badge du menu Messagerie**, avec son
+    de notification et toast — même socket hors ligne.
+  - Aucune double notification : les ids de messages vus sont partagés entre le
+    chemin temps réel et le chemin REST (`_known_msg_ids`). Ses propres messages
+    n'incrémentent pas le badge ; sur la page Messagerie ouverte, les nouveaux
+    messages sont chargés directement (accusé de lecture, pas de badge).
+
 ## [1.7.4] — 2026-07-26 — Gestion des citoyens : état vide clair + diagnostic
 
 ### Corrigé

@@ -500,6 +500,10 @@ class MainWindow(QWidget):
         # Ensembles d'ids « non lus » (messages reçus / agents modifiés hors page).
         self._unread_msg_ids = set()
         self._unread_agent_ids = set()
+        # Filet de sécurité messagerie : ids de messages déjà vus (temps réel OU
+        # REST) pour détecter les nouveaux même si le socket est hors ligne.
+        self._known_msg_ids = set()
+        self._msg_bootstrapped = False
 
         self.setObjectName("root")
         self.setWindowTitle(
@@ -844,6 +848,11 @@ class MainWindow(QWidget):
             msgs = self.api.get_messages(50)
             # Affiche les messages non lus (surlignés + séparateur), puis efface.
             self.page_chat.set_messages(msgs, unread_ids=set(self._unread_msg_ids))
+            # Synchronise le filet de sécurité : ces messages sont désormais vus.
+            for m in msgs if isinstance(msgs, list) else []:
+                if m.get("id") is not None:
+                    self._known_msg_ids.add(m["id"])
+            self._msg_bootstrapped = True
             if self._unread_msg_ids:
                 self._unread_msg_ids = set()
                 self.sidebar.set_badge(self.IDX_CHAT, 0)
@@ -903,6 +912,9 @@ class MainWindow(QWidget):
 
     def _on_chat_message(self, msg):
         self.page_chat.add_message(msg)
+        # Mémorise l'id pour que le filet de sécurité REST ne le re-notifie pas.
+        if msg.get("id") is not None:
+            self._known_msg_ids.add(msg["id"])
         other = msg.get("sender_id") != self.operator.get("id")
         # Notification + badge « non lu » si on n'est pas sur la page Messagerie
         # et que le message vient d'un autre utilisateur.
@@ -1081,14 +1093,53 @@ class MainWindow(QWidget):
         self._refresh_stats()
 
     def _periodic_refresh(self):
-        """Filet de sécurité (toutes les 15 s) : recharge les alertes par REST
-        puis les statistiques. Garantit que le tableau reste à jour même si un
-        événement temps réel a été manqué (coupure réseau, socket tombée)."""
+        """Filet de sécurité (toutes les 15 s) : recharge les alertes ET les
+        messages par REST, puis les statistiques. Garantit que le tableau et le
+        badge « messages non lus » restent à jour même si un événement temps réel
+        a été manqué (coupure réseau, socket hors ligne)."""
         # _refresh_alerts() appelle _refresh_all() qui rafraîchit déjà les stats ;
         # on ne rappelle _refresh_stats() que si le rechargement des alertes a
         # échoué (réseau), pour au moins tenter les compteurs.
         if not self._refresh_alerts():
             self._refresh_stats()
+        self._refresh_messages()
+
+    def _refresh_messages(self):
+        """Filet de sécurité messagerie : détecte les nouveaux messages via REST
+        (au cas où le temps réel serait hors ligne) et met à jour le badge
+        « non lu » du menu Messagerie. Idempotent grâce à _known_msg_ids (partagé
+        avec le chemin temps réel), donc aucune double notification."""
+        try:
+            msgs = self.api.get_messages(50)
+        except Exception:
+            return  # réseau indisponible : on retentera au prochain tick
+        if not isinstance(msgs, list):
+            return
+        fresh = [m for m in msgs if m.get("id") is not None
+                 and m.get("id") not in self._known_msg_ids]
+        for m in msgs:
+            if m.get("id") is not None:
+                self._known_msg_ids.add(m["id"])
+        # Premier passage : on mémorise l'existant sans notifier l'historique.
+        if not self._msg_bootstrapped:
+            self._msg_bootstrapped = True
+            return
+        # Nouveaux messages venant d'autres utilisateurs (pas les siens).
+        others = [m for m in fresh
+                  if m.get("sender_id") != self.operator.get("id")]
+        if not others:
+            return
+        if self.stack.currentIndex() == self.IDX_CHAT:
+            # Déjà sur la messagerie : on recharge pour les afficher + accusé de
+            # lecture (pas de badge).
+            self._load_messages()
+        else:
+            for m in others:
+                self._unread_msg_ids.add(m["id"])
+            self.sidebar.set_badge(self.IDX_CHAT, len(self._unread_msg_ids))
+            self.alarm.play_notify()
+            Toast(self, f"💬 {len(others)} nouveau(x) message(s)",
+                  theme.ACCENT_2).show_for(3500)
 
     def _refresh_alerts(self):
         """Recharge les alertes par REST et intègre celles qu'un événement
