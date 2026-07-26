@@ -36,6 +36,11 @@ fi
 
 echo "▶ 3/4 · Reconstruction et redémarrage (migrations automatiques)…"
 $CO up -d --build
+# La config Nginx (safecity.conf.template + snippet proxy.conf) est montée en
+# volume : « up » ne recrée pas le conteneur quand seul le CONTENU des fichiers
+# change. On redémarre donc Nginx pour qu'il relise la config (nouvelles routes,
+# ex. /tiles/, ou changement de domaine).
+$CO restart nginx
 
 echo "▶ 4/4 · Contrôle de santé…"
 sleep 6
