@@ -2,6 +2,15 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.7.1] — 2026-07-26 — Fond de carte fiable (CARTO Voyager)
+
+### Corrigé
+- **Carte qui restait blanche** (« Fond de carte hors-ligne ») : le serveur public
+  `tile.openstreetmap.org` bloquait/limitait le chargement des tuiles sur certains
+  réseaux. Remplacé par **CARTO Voyager** — un fond **coloré** (style
+  OpenStreetMap) servi par le CDN CARTO, plus fiable. Appliqué au **poste
+  opérateur**, au **portail agents** et au **site citoyen**.
+
 ## [1.7.0] — 2026-07-25 — Inscription citoyenne directe (sans code de vérification)
 
 ### Modifié

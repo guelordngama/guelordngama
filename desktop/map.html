@@ -28,10 +28,11 @@
     L.Icon.Default.imagePath = "vendor/leaflet/images/";
 
     var map = L.map("map", { zoomControl: true }).setView([-4.325, 15.3222], 13);
-    // Fond de carte standard OpenStreetMap (coloré). Si le réseau est absent, la
-    // carte reste utilisable (fond uni) et les marqueurs/itinéraires s'affichent.
-    var tiles = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "© OpenStreetMap", maxZoom: 19, subdomains: "abc",
+    // Fond de carte coloré CARTO « Voyager » (style OpenStreetMap, mais servi par
+    // le CDN CARTO, plus fiable et sans blocage d'usage). Si le réseau est absent,
+    // la carte reste utilisable (fond uni) et les marqueurs/itinéraires s'affichent.
+    var tiles = L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+      attribution: "© OpenStreetMap © CARTO", maxZoom: 20, subdomains: "abcd",
     }).addTo(map);
     var tileErrors = 0;
     tiles.on("tileerror", function () {
