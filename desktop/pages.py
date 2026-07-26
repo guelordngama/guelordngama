@@ -613,19 +613,45 @@ class StatisticsPage(QWidget):
 class PeoplePage(QWidget):
     """Page tabulaire générique (agents, citoyens)."""
 
-    def __init__(self, headers, empty="Aucune donnée"):
+    def __init__(self, headers, empty="Aucun citoyen inscrit pour le moment.",
+                 noun="citoyen"):
         super().__init__()
+        self._noun = noun
         root = QVBoxLayout(self)
         root.setContentsMargins(24, 20, 24, 24)
+        root.setSpacing(10)
+
+        # En-tête : compteur (ex. « 3 citoyens inscrits »).
+        self.count_label = QLabel("")
+        self.count_label.setObjectName("sectionTitle")
+        root.addWidget(self.count_label)
+
         self.table = _table(headers)
         root.addWidget(self.table)
+
+        # État vide explicite (sinon un tableau vide ressemble à un bug).
         self._empty = empty
+        self.empty_label = QLabel(empty)
+        self.empty_label.setObjectName("muted")
+        self.empty_label.setAlignment(Qt.AlignCenter)
+        self.empty_label.setStyleSheet(
+            f"color:{theme.MUTED}; font-size:15px; padding:40px;")
+        self.empty_label.hide()
+        root.addWidget(self.empty_label, 1)
 
     def set_rows(self, rows):
+        rows = list(rows)
         self.table.setRowCount(len(rows))
         for i, cells in enumerate(rows):
             for j, (text, color) in enumerate(cells):
                 self.table.setItem(i, j, _item(text, color))
+        # Bascule affichage tableau / message « vide » et met à jour le compteur.
+        has_rows = len(rows) > 0
+        self.table.setVisible(has_rows)
+        self.empty_label.setVisible(not has_rows)
+        n = len(rows)
+        suffix = "" if n == 1 else "s"
+        self.count_label.setText(f"{n} {self._noun}{suffix} inscrit{suffix}")
 
 
 class AgentsPage(QWidget):

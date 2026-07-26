@@ -2,6 +2,24 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.7.4] — 2026-07-26 — Gestion des citoyens : état vide clair + diagnostic
+
+### Corrigé
+- **Page « Gestion des citoyens » qui semblait vide/cassée** : le tableau
+  n'affichait aucun retour quand aucun citoyen n'est inscrit (juste un fond
+  vide). Ajout d'un **message d'état vide explicite** (« Aucun citoyen inscrit
+  pour le moment. ») et d'un **compteur** en en-tête (« N citoyen(s)
+  inscrit(s) »), pour distinguer « aucune donnée » d'un vrai bug.
+  - L'endpoint `/api/citizens` et le flux d'inscription ont été **vérifiés de
+    bout en bout** (un citoyen inscrit a bien le rôle `citizen` et apparaît dans
+    la liste renvoyée à l'opérateur). Le vide venait de l'absence de citoyens
+    dans la base, pas d'un défaut d'affichage.
+
+### Ajouté
+- Commande d'administration **`list-citizens`** (`python -m backend.manage
+  list-citizens`) : liste les comptes citoyens inscrits (nom, téléphone,
+  e-mail, date) — utile pour vérifier côté serveur combien de citoyens existent.
+
 ## [1.7.3] — 2026-07-26 — Poste opérateur : alertes en direct fiabilisées
 
 ### Corrigé

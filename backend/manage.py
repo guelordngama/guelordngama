@@ -44,6 +44,19 @@ def _list_staff(_args):
             print(f"  {u.id:>3}  {u.role:<10}  {u.name:<24}  {u.email}")
 
 
+def _list_citizens(_args):
+    """Liste les comptes citoyens (diagnostic de la page « Gestion des citoyens »)."""
+    app = create_app()
+    with app.app_context():
+        citizens = User.query.filter_by(role="citizen").order_by(
+            User.created_at.desc()).all()
+        print(f"{len(citizens)} citoyen(s) inscrit(s) :")
+        for u in citizens:
+            created = (u.created_at.isoformat() if u.created_at else "")[:19]
+            print(f"  {u.id:>3}  {u.name:<24}  {u.phone or '—':<16}  "
+                  f"{u.email or '—':<28}  {created}")
+
+
 def _purge_old(args):
     """Purge de conservation : supprime les alertes clôturées anciennes."""
     from .services.retention import purge_old_alerts
@@ -143,6 +156,8 @@ def main(argv=None):
     c.set_defaults(func=_create_admin)
 
     sub.add_parser("list-staff", help="Lister les comptes personnels").set_defaults(func=_list_staff)
+    sub.add_parser("list-citizens",
+                   help="Lister les comptes citoyens inscrits").set_defaults(func=_list_citizens)
 
     pg = sub.add_parser("purge-old", help="Supprimer les alertes clôturées anciennes (conservation)")
     pg.add_argument("--days", type=int, default=None,
