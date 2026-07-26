@@ -2,6 +2,29 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.9.0] — 2026-07-26 — Regroupement des signalements en doublon
+
+### Ajouté
+- **Regroupement automatique des doublons** : quand plusieurs citoyens signalent
+  le **même incident** (même type, à proximité et dans une courte fenêtre de
+  temps), les signalements sont **regroupés** sous un incident principal — pour
+  éviter d'envoyer plusieurs patrouilles au même endroit.
+  - Seuils configurables : `SAFECITY_DEDUP_RADIUS_M` (défaut 150 m),
+    `SAFECITY_DEDUP_WINDOW_MIN` (défaut 10 min), `SAFECITY_DEDUP` pour
+    activer/désactiver.
+  - Un doublon **ne crée pas** de nouvel incident à l'écran (pas de pop-up ni
+    d'alarme redondante) : le **compteur de signalements liés** du principal
+    s'incrémente en temps réel (`alert_updated`).
+  - **Poste opérateur** : bandeau « 🔁 N signalements du même incident » dans la
+    fenêtre d'incident + marqueur « 🔁N » dans la liste des alertes.
+  - **Portail agents** : ligne et marqueur « 🔁 N signalements regroupés » sur la
+    carte d'alerte.
+  - **Suivi citoyen** : chaque citoyen garde **sa** référence, mais un doublon
+    suit l'avancement de l'**incident principal** (celui qui est réellement
+    traité) — statut et agent affecté cohérents pour tout le monde.
+- Migration `b4d8f1a3c705` : colonne `duplicate_of_id` (auto-référence) sur
+  `alerts`. La liste opérateur n'affiche que les incidents principaux.
+
 ## [1.8.0] — 2026-07-26 — Suivi d'alerte pour le citoyen
 
 ### Ajouté

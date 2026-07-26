@@ -12,7 +12,7 @@ from flask import current_app
 from ..ai.classifier import get_classifier
 from ..errors import NotFoundError
 from ..extensions import db, socketio
-from ..geo import compute_intervention, reverse_geocode
+from ..geo import compute_intervention, haversine_m, reverse_geocode
 from ..models import Alert, Team
 from ..security import save_data_url
 
@@ -43,7 +43,47 @@ def track_alert(reference):
     if not reference:
         return None
     alert = Alert.query.filter_by(public_ref=reference.strip().upper()).first()
-    return alert.public_status() if alert else None
+    if not alert:
+        return None
+    # Si l'alerte est un doublon, elle suit l'avancement de l'incident principal
+    # (c'est lui qui est traité), tout en conservant la référence du citoyen.
+    incident = alert.primary if (alert.duplicate_of_id and alert.primary) else alert
+    status = incident.public_status()
+    status["reference"] = alert.public_ref
+    return status
+
+
+def _find_duplicate_primary(alert_type, lat, lng):
+    """Cherche un signalement PRINCIPAL récent et proche du même type, pour
+    regrouper les doublons (plusieurs citoyens signalant le même incident).
+    Renvoie l'alerte principale ou None."""
+    from datetime import timedelta
+
+    if not current_app.config.get("DEDUP_ENABLED", True):
+        return None
+    radius = current_app.config["DEDUP_RADIUS_M"]
+    window = current_app.config["DEDUP_WINDOW_MIN"]
+    since = datetime.utcnow() - timedelta(minutes=window)
+    # Candidats : mêmes type, encore ouverts (non clôturés), récents, et
+    # eux-mêmes principaux (pas déjà des doublons).
+    candidates = (
+        Alert.query
+        .filter(Alert.type == alert_type)
+        .filter(Alert.duplicate_of_id.is_(None))
+        .filter(Alert.status != "cloturee")
+        .filter(Alert.created_at >= since)
+        .order_by(Alert.created_at.desc())
+        .limit(50)
+        .all()
+    )
+    best, best_dist = None, None
+    for c in candidates:
+        if c.lat is None or c.lng is None:
+            continue
+        d = haversine_m(lat, lng, c.lat, c.lng)
+        if d <= radius and (best_dist is None or d < best_dist):
+            best, best_dist = c, d
+    return best
 
 
 def create_alert(data):
@@ -63,6 +103,9 @@ def create_alert(data):
         data["lat"],
         data["lng"],
     )
+
+    # Regroupement : cette alerte double-t-elle un incident déjà signalé ?
+    primary = _find_duplicate_primary(data["type"], data["lat"], data["lng"])
 
     alert = Alert(
         type=data["type"],
@@ -84,11 +127,23 @@ def create_alert(data):
         eta_moto_min=eta_moto,
         eta_walk_min=eta_walk,
         reporter_id=data.get("reporter_id"),
+        duplicate_of_id=primary.id if primary else None,
     )
     db.session.add(alert)
     db.session.commit()
-    log.info("Nouvelle alerte #%s type=%s urgence=%s", alert.id, alert.type, alert.urgency)
 
+    if primary is not None:
+        # Doublon : on NE crée PAS un nouvel incident à l'écran (pas de pop-up ni
+        # d'alarme redondante). On rafraîchit le signalement principal pour que le
+        # compteur de signalements liés s'incrémente côté opérateur.
+        log.info("Alerte #%s regroupée avec l'incident principal #%s (doublon)",
+                 alert.id, primary.id)
+        primary_payload = primary.to_dict()
+        _emit("alert_updated", primary_payload)
+        # Le citoyen garde SA référence et suit l'avancement de l'incident.
+        return alert.to_dict()
+
+    log.info("Nouvelle alerte #%s type=%s urgence=%s", alert.id, alert.type, alert.urgency)
     payload = alert.to_dict()
     _emit("new_alert", payload)
     # Notifications push (e-mail / SMS) — non bloquant, jamais fatal.
@@ -113,6 +168,12 @@ def list_alerts(filters=None, page=1, page_size=50):
 
     f = filters or {}
     query = Alert.query
+
+    # Par défaut, on n'affiche que les incidents PRINCIPAUX : les doublons sont
+    # regroupés (compteur « signalements liés » sur le principal). include_dupes
+    # permet de tout lister si besoin.
+    if not f.get("include_dupes"):
+        query = query.filter(Alert.duplicate_of_id.is_(None))
 
     if f.get("status"):
         query = query.filter(Alert.status == f["status"])

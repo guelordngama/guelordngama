@@ -66,6 +66,14 @@ class Config:
     ALERTS_PAGE_SIZE = int(os.environ.get("SAFECITY_ALERTS_PAGE_SIZE", "50"))
     ALERTS_MAX_PAGE_SIZE = 200
 
+    # --- Regroupement de doublons ---
+    # Quand plusieurs citoyens signalent le MÊME incident (même type, à proximité
+    # et dans une courte fenêtre de temps), les alertes sont regroupées sous un
+    # signalement principal pour éviter d'envoyer plusieurs patrouilles.
+    DEDUP_ENABLED = os.environ.get("SAFECITY_DEDUP", "1") not in ("0", "false", "False")
+    DEDUP_RADIUS_M = float(os.environ.get("SAFECITY_DEDUP_RADIUS_M", "150"))
+    DEDUP_WINDOW_MIN = float(os.environ.get("SAFECITY_DEDUP_WINDOW_MIN", "10"))
+
     # --- Position de patrouille par défaut (fallback pour la distance) ---
     DEFAULT_PATROL_LAT = float(os.environ.get("SAFECITY_PATROL_LAT", "-4.3250"))
     DEFAULT_PATROL_LNG = float(os.environ.get("SAFECITY_PATROL_LNG", "15.3222"))
@@ -191,6 +199,9 @@ class TestingConfig(Config):
     SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
     SEED_DEMO_OPERATOR = True
     LOGIN_RATE_MAX = 1000  # ne pas gêner les tests
+    # Regroupement désactivé par défaut dans les tests (comportement déterministe) ;
+    # les tests dédiés l'activent explicitement.
+    DEDUP_ENABLED = False
     # Tests hermétiques : on ignore toute passerelle e-mail/SMS issue d'un .env
     # local, pour que les tests ne dépendent pas de la configuration de la machine.
     SMTP_HOST = None

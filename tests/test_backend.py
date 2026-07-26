@@ -161,6 +161,35 @@ def test_citizen_track_alert_by_reference():
     assert client.get("/api/alerts/track/" + ref.lower()).status_code == 200
 
 
+def test_duplicate_alerts_are_grouped():
+    app, client = make_client()
+    app.config["DEDUP_ENABLED"] = True
+    app.config["DEDUP_RADIUS_M"] = 150
+    app.config["DEDUP_WINDOW_MIN"] = 10
+
+    def post(t, lat, lng):
+        return client.post("/api/alerts", json={
+            "type": t, "description": "incident " + t, "lat": lat, "lng": lng,
+        }).get_json()
+
+    a1 = post("incendie", -11.6600, 27.4800)          # principal
+    a2 = post("incendie", -11.6604, 27.4802)          # même incendie, ~50 m
+    a3 = post("vol", -11.6600, 27.4800)               # même lieu, type différent
+    a4 = post("incendie", -11.7500, 27.6000)          # incendie loin (~20 km)
+
+    assert a1["duplicate_of"] is None
+    assert a2["duplicate_of"] == a1["id"], "doublon rattaché au principal"
+    assert a3["duplicate_of"] is None, "type différent : pas un doublon"
+    assert a4["duplicate_of"] is None, "trop loin : pas un doublon"
+
+    # La liste opérateur ne montre que les incidents principaux (doublon masqué).
+    alerts = client.get("/api/alerts").get_json()
+    ids = {a["id"] for a in alerts}
+    assert a2["id"] not in ids and a1["id"] in ids
+    primary = next(a for a in alerts if a["id"] == a1["id"])
+    assert primary["duplicate_count"] == 1
+
+
 def test_list_alerts_pagination():
     _, client = make_client()
     for _ in range(3):

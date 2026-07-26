@@ -159,8 +159,15 @@ class Alert(TimestampMixin, db.Model):
     reporter_id = db.Column(db.Integer, db.ForeignKey("users.id"))
     closed_at = db.Column(db.DateTime)
 
+    # Regroupement de doublons : si renseigné, cette alerte est un signalement
+    # supplémentaire du même incident que l'alerte « principale » pointée ici.
+    duplicate_of_id = db.Column(db.Integer, db.ForeignKey("alerts.id"), index=True)
+
     assigned_team = db.relationship("Team")
     assigned_agent = db.relationship("User", foreign_keys=[assigned_agent_id])
+    duplicates = db.relationship(
+        "Alert", backref=db.backref("primary", remote_side=[id]),
+        foreign_keys=[duplicate_of_id])
 
     # Libellés citoyens des étapes de suivi.
     _TRACK_STEPS = (
@@ -233,6 +240,10 @@ class Alert(TimestampMixin, db.Model):
             "accepted_at": _iso(self.accepted_at),
             "closed_at": _iso(self.closed_at),
             "time": self.created_at.strftime("%Hh%M") if self.created_at else None,
+            # Regroupement de doublons : nombre de signalements liés (0 si aucun)
+            # et référence à l'incident principal si cette alerte est un doublon.
+            "duplicate_of": self.duplicate_of_id,
+            "duplicate_count": len(self.duplicates) if self.duplicate_of_id is None else 0,
         }
 
 

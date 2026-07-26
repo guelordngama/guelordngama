@@ -529,11 +529,17 @@
       const card = node.querySelector(".alert-card");
       const color = URGENCY[a.urgency] || "#ef4444";
       card.style.borderLeftColor = color;
-      node.querySelector(".alert-type").textContent = (a.type || "").toUpperCase();
+      const dup = a.duplicate_count || 0;
+      node.querySelector(".alert-type").textContent =
+        (a.type || "").toUpperCase() + (dup > 0 ? "  🔁" + (dup + 1) : "");
       const badge = node.querySelector(".alert-badge");
       badge.textContent = URG_LABEL[a.urgency] || a.urgency;
       badge.style.background = color + "26"; badge.style.color = color;
+      const dupLine = dup > 0
+        ? "🔁 " + (dup + 1) + " signalements du même incident (regroupés)<br>"
+        : "";
       node.querySelector(".alert-meta").innerHTML =
+        dupLine +
         "👤 " + (a.reporter_name || "Anonyme") + " · 📞 " + (a.reporter_phone || "—") + "<br>" +
         "📍 " + (a.neighborhood || "—") + " · 🕒 " + (a.time || "—") + "<br>" +
         "🌐 " + a.lat.toFixed(5) + ", " + a.lng.toFixed(5) +

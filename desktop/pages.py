@@ -1758,7 +1758,12 @@ def _fill_alert_table(table, alerts, with_citizen=False, hide_distance=False, un
 
         time_txt = a.get("time", "—")
         put(("● " + time_txt) if is_unread else time_txt)
-        put((a.get("type") or "").capitalize())
+        # Marqueur de doublons regroupés : « Incendie 🔁3 » (3 signalements liés).
+        type_txt = (a.get("type") or "").capitalize()
+        dup = a.get("duplicate_count") or 0
+        if dup > 0:
+            type_txt += f"  🔁{dup + 1}"
+        put(type_txt)
         if with_citizen:
             put(a.get("reporter_name") or "Anonyme")
         put(a.get("neighborhood") or "—")

@@ -220,6 +220,20 @@ class IncidentPopup(QDialog):
         self._elapsed_timer.start(1000)
         self._tick_elapsed()
 
+        # Bandeau « signalements liés » : plusieurs citoyens ont signalé le même
+        # incident → une seule intervention suffit.
+        dup = alert.get("duplicate_count") or 0
+        if dup > 0:
+            total = dup + 1
+            banner = QLabel(f"🔁  {total} signalements du même incident "
+                            f"(regroupés) — une seule intervention nécessaire")
+            banner.setAlignment(Qt.AlignCenter)
+            banner.setWordWrap(True)
+            banner.setStyleSheet(
+                f"background: {theme.ACCENT}22; color: {theme.ACCENT}; "
+                f"font-weight: 800; padding: 8px; font-size: 13px;")
+            root.addWidget(banner)
+
         body = QVBoxLayout()
         body.setContentsMargins(20, 16, 20, 20)
         body.setSpacing(12)
