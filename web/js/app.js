@@ -734,7 +734,7 @@
   }
 
   function showQueued() {
-    $("cf-type").textContent = capitalize(state.type || "autre");
+    $("cf-type").textContent = typeLabel(state.type || "autre");
     $("cf-urgency").textContent = "En attente";
     $("cf-urgency").className = "";
     $("cf-neighborhood").textContent = state.neighborhood || "—";
@@ -782,6 +782,18 @@
     });
   }
 
+  // Traduit une clé si i18n est chargé, sinon repli sur le texte fourni.
+  const tr = (key, fallback) =>
+    (window.t ? window.t(key) : null) || fallback || key;
+
+  // Nom traduit d'un type d'incident (Vol/Wizi…), repli sur le type capitalisé.
+  function typeLabel(type) {
+    if (!type) return "—";
+    const k = "typename." + type;
+    const v = window.t ? window.t(k) : null;
+    return v && v !== k ? v : capitalize(type);
+  }
+
   // Construit/rafraîchit une chronologie (élément <ol>) à partir des étapes.
   function renderTimeline(ol, steps) {
     ol.innerHTML = "";
@@ -794,7 +806,8 @@
       const body = document.createElement("div");
       const label = document.createElement("div");
       label.className = "tl-label";
-      label.textContent = s.label || TRACK_LABELS[s.key] || s.key;
+      // Libellé traduit (FR/SW) selon la clé d'étape ; repli sur le libellé serveur.
+      label.textContent = tr("step." + s.key, s.label || TRACK_LABELS[s.key] || s.key);
       body.appendChild(label);
       if (s.at) {
         const when = document.createElement("div");
@@ -836,11 +849,11 @@
         const sub = document.querySelector("#screen-confirm .confirm-sub");
         if (sub) {
           if (st.status === "cloturee") {
-            sub.textContent = "✅ Votre alerte a été traitée et clôturée. Merci.";
+            sub.textContent = tr("confirm.resolved", "✅ Votre alerte a été traitée et clôturée. Merci.");
           } else if (st.status === "assignee") {
             sub.textContent = st.agent_first_name
-              ? "🚓 Un agent (" + st.agent_first_name + ") a été affecté à votre alerte."
-              : "🚓 Votre alerte a été prise en charge.";
+              ? tr("confirm.assignedAgent", "🚓 Un agent a été affecté.").replace("{name}", st.agent_first_name)
+              : tr("confirm.assigned", "🚓 Votre alerte a été prise en charge.");
           }
         }
         if (st.status === "cloturee") stopTrackPoll();
@@ -854,7 +867,7 @@
   function showConfirmation(alert) {
     const sub = document.querySelector("#screen-confirm .confirm-sub");
     if (sub) sub.textContent = "Le centre de surveillance a bien reçu votre signalement.";
-    $("cf-type").textContent = capitalize(alert.type);
+    $("cf-type").textContent = typeLabel(alert.type);
     const urg = $("cf-urgency");
     urg.textContent = capitalize(alert.urgency);
     urg.className = "urg-" + alert.urgency;
@@ -906,7 +919,7 @@
     try {
       const st = await fetchTrack(ref);
       $("tk-ref").textContent = st.reference || ref;
-      $("tk-type").textContent = capitalize(st.type || "—");
+      $("tk-type").textContent = st.type ? typeLabel(st.type) : "—";
       $("tk-neighborhood").textContent = st.neighborhood || "—";
       $("tk-agent").textContent = st.agent_first_name || "—";
       renderTimeline($("tk-timeline"), st.steps);

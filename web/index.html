@@ -17,15 +17,17 @@
       <span class="brand-mark">🛡️</span>
       <div>
         <h1>SafeCity</h1>
-        <p class="tagline">Alerte d'urgence citoyenne</p>
+        <p class="tagline" data-i18n="app.tagline">Alerte d'urgence citoyenne</p>
       </div>
     </div>
     <div class="header-right">
+      <button id="lang-toggle" class="theme-toggle lang-toggle" type="button"
+              title="Kiswahili / Français" aria-label="Changer de langue">SW</button>
       <button id="theme-toggle" class="theme-toggle" type="button"
               title="Changer de thème" aria-label="Changer de thème">🌙</button>
       <span id="user-chip" class="user-chip" hidden>
         <span id="user-name">—</span>
-        <button id="btn-logout" type="button" title="Se déconnecter">Déconnexion</button>
+        <button id="btn-logout" type="button" title="Se déconnecter" data-i18n="header.logout">Déconnexion</button>
       </span>
       <span id="conn-status" class="conn-status offline" title="État de la connexion">●</span>
     </div>
@@ -36,11 +38,11 @@
     <section id="screen-auth" class="screen active">
       <div class="auth-card glass">
         <div class="auth-tabs">
-          <button id="tab-login" class="auth-tab active" type="button">Se connecter</button>
-          <button id="tab-register" class="auth-tab" type="button">Créer un compte</button>
+          <button id="tab-login" class="auth-tab active" type="button" data-i18n="auth.login">Se connecter</button>
+          <button id="tab-register" class="auth-tab" type="button" data-i18n="auth.register">Créer un compte</button>
         </div>
 
-        <p id="auth-intro" class="auth-intro">
+        <p id="auth-intro" class="auth-intro" data-i18n="auth.intro">
           Bienvenue sur SafeCity. Créez un compte pour signaler un danger, ou
           connectez-vous si vous en avez déjà un.
         </p>
@@ -49,50 +51,55 @@
 
         <!-- Formulaire de CONNEXION -->
         <form id="form-login" class="auth-form" novalidate>
-          <label class="field-label" for="login-identifier">📱 Téléphone ou e-mail</label>
+          <label class="field-label" for="login-identifier" data-i18n="auth.identifier">📱 Téléphone ou e-mail</label>
           <input id="login-identifier" type="text" autocomplete="username"
+                 data-i18n-ph="auth.identifier.ph"
                  placeholder="+243 … ou vous@exemple.com" required />
 
-          <label class="field-label" for="login-password">🔒 Mot de passe</label>
+          <label class="field-label" for="login-password" data-i18n="auth.password">🔒 Mot de passe</label>
           <div class="pw-field">
             <input id="login-password" type="password" autocomplete="current-password"
+                   data-i18n-ph="auth.password.ph"
                    placeholder="Votre mot de passe" required />
             <button type="button" class="pw-eye" data-target="login-password"
                     aria-label="Afficher le mot de passe">👁️</button>
           </div>
 
           <button class="btn-primary auth-submit" type="submit">
-            <span class="btn-label">Se connecter</span><span class="spinner" hidden></span>
+            <span class="btn-label" data-i18n="auth.login">Se connecter</span><span class="spinner" hidden></span>
           </button>
           <p class="auth-switch">
-            <a href="#" id="go-forgot">Mot de passe oublié ?</a>
+            <a href="#" id="go-forgot" data-i18n="auth.forgot">Mot de passe oublié ?</a>
           </p>
-          <p class="auth-switch">Pas encore de compte ?
-            <a href="#" id="go-register">Créez-en un</a>.</p>
+          <p class="auth-switch"><span data-i18n="auth.noAccount">Pas encore de compte ?</span>
+            <a href="#" id="go-register" data-i18n="auth.createOne">Créez-en un</a>.</p>
         </form>
 
         <!-- Formulaire d'INSCRIPTION -->
         <form id="form-register" class="auth-form" hidden novalidate>
-          <label class="field-label" for="reg-name">👤 Nom complet</label>
+          <label class="field-label" for="reg-name" data-i18n="auth.name">👤 Nom complet</label>
           <input id="reg-name" type="text" autocomplete="name"
+                 data-i18n-ph="auth.name.ph"
                  placeholder="Nom et prénom" required />
           <p class="field-error" id="err-name" hidden></p>
 
-          <label class="field-label" for="reg-phone">📱 Numéro de téléphone</label>
+          <label class="field-label" for="reg-phone" data-i18n="auth.phone">📱 Numéro de téléphone</label>
           <input id="reg-phone" type="tel" autocomplete="tel"
                  placeholder="+243 812 345 678" required />
           <p class="field-error" id="err-phone" hidden></p>
 
-          <label class="field-label" for="reg-email" id="reg-email-label">✉️ E-mail (optionnel)</label>
+          <label class="field-label" for="reg-email" id="reg-email-label" data-i18n="auth.email">✉️ E-mail (optionnel)</label>
           <input id="reg-email" type="email" autocomplete="email"
+                 data-i18n-ph="auth.email.ph"
                  placeholder="vous@exemple.com" />
-          <p class="field-hint" id="reg-email-hint">Utile pour récupérer votre mot de passe
+          <p class="field-hint" id="reg-email-hint" data-i18n="auth.emailHint">Utile pour récupérer votre mot de passe
             en cas d'oubli.</p>
           <p class="field-error" id="err-email" hidden></p>
 
-          <label class="field-label" for="reg-password">🔒 Mot de passe (min. 6 caractères)</label>
+          <label class="field-label" for="reg-password" data-i18n="auth.newPassword">🔒 Mot de passe (min. 6 caractères)</label>
           <div class="pw-field">
             <input id="reg-password" type="password" autocomplete="new-password"
+                   data-i18n-ph="auth.newPassword.ph"
                    placeholder="Choisissez un mot de passe" required />
             <button type="button" class="pw-eye" data-target="reg-password"
                     aria-label="Afficher le mot de passe">👁️</button>
@@ -100,9 +107,10 @@
           <div class="pw-strength"><div class="pw-strength-bar" id="reg-strength"></div></div>
           <span class="pw-strength-label" id="reg-strength-label"></span>
 
-          <label class="field-label" for="reg-password2">🔒 Confirmer le mot de passe</label>
+          <label class="field-label" for="reg-password2" data-i18n="auth.confirmPassword">🔒 Confirmer le mot de passe</label>
           <div class="pw-field">
             <input id="reg-password2" type="password" autocomplete="new-password"
+                   data-i18n-ph="auth.confirmPassword.ph"
                    placeholder="Retapez le mot de passe" required />
             <button type="button" class="pw-eye" data-target="reg-password2"
                     aria-label="Afficher le mot de passe">👁️</button>
@@ -111,16 +119,16 @@
 
           <label class="consent-row">
             <input id="reg-consent" type="checkbox" required />
-            <span>J'ai lu et j'accepte la
-              <a href="#" id="open-privacy">politique de confidentialité</a>
-              (collecte du nom, téléphone, position et signalements).</span>
+            <span><span data-i18n="auth.consent">J'ai lu et j'accepte la</span>
+              <a href="#" id="open-privacy" data-i18n="auth.privacyPolicy">politique de confidentialité</a>
+              <span data-i18n="auth.consentEnd">(collecte du nom, téléphone, position et signalements).</span></span>
           </label>
 
           <button class="btn-primary auth-submit" type="submit">
-            <span class="btn-label">Créer mon compte</span><span class="spinner" hidden></span>
+            <span class="btn-label" data-i18n="auth.createMyAccount">Créer mon compte</span><span class="spinner" hidden></span>
           </button>
-          <p class="auth-switch">Déjà inscrit ?
-            <a href="#" id="go-login">Connectez-vous</a>.</p>
+          <p class="auth-switch"><span data-i18n="auth.already">Déjà inscrit ?</span>
+            <a href="#" id="go-login" data-i18n="auth.doLogin">Connectez-vous</a>.</p>
         </form>
 
         <!-- Formulaire de VÉRIFICATION (code SMS / OTP) -->
@@ -184,7 +192,7 @@
 
     <!-- ÉCRAN 1 : bouton d'alerte -->
     <section id="screen-alert" class="screen">
-      <p class="intro">En cas de danger, appuyez sur le bouton.<br>
+      <p class="intro" data-i18n="alert.intro">En cas de danger, appuyez sur le bouton.
         Votre position GPS sera transmise immédiatement au centre de surveillance.</p>
 
       <div class="alert-wrap">
@@ -192,140 +200,139 @@
           <span class="alert-ring"></span>
           <span class="alert-button-inner">
             <span class="alert-icon">🚨</span>
-            <span class="alert-label">ALERTE</span>
+            <span class="alert-label" data-i18n="alert.button">ALERTE</span>
           </span>
         </button>
       </div>
 
       <div id="gps-box" class="glass gps-box">
         <span class="gps-icon">📍</span>
-        <span id="gps-text">Acquisition de la position…</span>
+        <span id="gps-text" data-i18n="alert.gps">Acquisition de la position…</span>
       </div>
 
-      <p class="legal-hint">⚖️ N'utilisez ce bouton qu'en cas de danger réel.
+      <p class="legal-hint" data-i18n="alert.legalHint">⚖️ N'utilisez ce bouton qu'en cas de danger réel.
         Une fausse alerte est punie par la loi.</p>
 
       <p class="account-links">
-        <a href="#" id="open-privacy-2">Confidentialité</a> ·
-        <a href="#" id="btn-delete-account" class="danger-link">Supprimer mon compte</a>
+        <a href="#" id="open-privacy-2" data-i18n="alert.privacy">Confidentialité</a> ·
+        <a href="#" id="btn-delete-account" class="danger-link" data-i18n="alert.deleteAccount">Supprimer mon compte</a>
       </p>
     </section>
 
     <!-- ÉCRAN 2 : détails de l'incident -->
     <section id="screen-details" class="screen">
-      <h2>Détails de l'incident</h2>
+      <h2 data-i18n="details.title">Détails de l'incident</h2>
 
-      <label class="field-label">⚠️ Type de danger</label>
+      <label class="field-label" data-i18n="details.dangerType">⚠️ Type de danger</label>
       <div id="danger-types" class="danger-grid">
-        <button class="danger-chip" data-type="vol">🕵️ Vol</button>
-        <button class="danger-chip" data-type="braquage">🔫 Braquage</button>
-        <button class="danger-chip" data-type="incendie">🔥 Incendie</button>
-        <button class="danger-chip" data-type="accident">🚗 Accident</button>
-        <button class="danger-chip" data-type="violence">👊 Violence</button>
-        <button class="danger-chip" data-type="autre">❓ Autre</button>
+        <button class="danger-chip" data-type="vol" data-i18n="type.vol">🕵️ Vol</button>
+        <button class="danger-chip" data-type="braquage" data-i18n="type.braquage">🔫 Braquage</button>
+        <button class="danger-chip" data-type="incendie" data-i18n="type.incendie">🔥 Incendie</button>
+        <button class="danger-chip" data-type="accident" data-i18n="type.accident">🚗 Accident</button>
+        <button class="danger-chip" data-type="violence" data-i18n="type.violence">👊 Violence</button>
+        <button class="danger-chip" data-type="autre" data-i18n="type.autre">❓ Autre</button>
       </div>
 
       <div class="two-cols">
         <div>
-          <label class="field-label" for="citizen-name">👤 Votre nom (optionnel)</label>
-          <input id="citizen-name" type="text" placeholder="Nom / prénom" />
+          <label class="field-label" for="citizen-name" data-i18n="details.yourName">👤 Votre nom (optionnel)</label>
+          <input id="citizen-name" type="text" data-i18n-ph="details.yourName.ph" placeholder="Nom / prénom" />
         </div>
         <div>
-          <label class="field-label" for="citizen-phone">📞 Téléphone (optionnel)</label>
+          <label class="field-label" for="citizen-phone" data-i18n="details.yourPhone">📞 Téléphone (optionnel)</label>
           <input id="citizen-phone" type="tel" placeholder="+243 …" />
         </div>
       </div>
 
-      <label class="field-label" for="description">📝 Description (optionnel)</label>
-      <textarea id="description" rows="3" placeholder="Décrivez brièvement la situation…"></textarea>
+      <label class="field-label" for="description" data-i18n="details.description">📝 Description (optionnel)</label>
+      <textarea id="description" rows="3" data-i18n-ph="details.description.ph" placeholder="Décrivez brièvement la situation…"></textarea>
 
       <div class="attach-row">
         <label class="attach-btn glass">
-          📷 Photo
+          <span data-i18n="details.photo">📷 Photo</span>
           <input id="photo-input" type="file" accept="image/*" capture="environment" hidden />
         </label>
-        <button id="btn-record" class="attach-btn glass" type="button">🎤 Message vocal</button>
+        <button id="btn-record" class="attach-btn glass" type="button" data-i18n="details.voice">🎤 Message vocal</button>
       </div>
       <div id="attach-preview" class="attach-preview"></div>
 
       <div class="glass location-summary">
-        <div><span class="ls-label">Quartier</span><span id="ls-neighborhood">—</span></div>
-        <div><span class="ls-label">Position</span><span id="ls-address">—</span></div>
+        <div><span class="ls-label" data-i18n="details.neighborhood">Quartier</span><span id="ls-neighborhood">—</span></div>
+        <div><span class="ls-label" data-i18n="details.position">Position</span><span id="ls-address">—</span></div>
       </div>
 
       <div class="legal-notice">
         <span class="legal-icon">⚖️</span>
         <p>
-          <strong>Avertissement :</strong> ce service est réservé aux situations
-          réelles. Tout <strong>signalement volontairement faux ou abusif</strong>
+          <strong data-i18n="details.warningTitle">Avertissement :</strong><span data-i18n="details.warning"> ce service est réservé aux situations
+          réelles. Tout signalement volontairement faux ou abusif
           mobilise inutilement les secours, met des vies en danger et constitue une
-          infraction punie par la loi. L'auteur d'une fausse alerte s'expose à des
-          <strong>poursuites judiciaires</strong>. En envoyant cette alerte, vous
-          confirmez que les informations fournies sont exactes.
+          infraction punie par la loi. En envoyant cette alerte, vous
+          confirmez que les informations fournies sont exactes.</span>
         </p>
       </div>
 
       <div class="actions">
-        <button id="btn-back" class="btn-secondary" type="button">Annuler</button>
-        <button id="btn-send" class="btn-primary" type="button">Envoyer l'alerte 🚀</button>
+        <button id="btn-back" class="btn-secondary" type="button" data-i18n="details.cancel">Annuler</button>
+        <button id="btn-send" class="btn-primary" type="button" data-i18n="details.send">Envoyer l'alerte 🚀</button>
       </div>
     </section>
 
     <!-- ÉCRAN 3 : confirmation -->
     <section id="screen-confirm" class="screen">
       <div class="confirm-check">✅</div>
-      <h2>Alerte envoyée</h2>
-      <p class="confirm-sub">Le centre de surveillance a bien reçu votre signalement.</p>
+      <h2 data-i18n="confirm.title">Alerte envoyée</h2>
+      <p class="confirm-sub" data-i18n="confirm.sub">Le centre de surveillance a bien reçu votre signalement.</p>
 
       <!-- Référence de suivi : à noter pour suivre l'alerte plus tard. -->
       <div id="cf-ref-box" class="ref-box glass" hidden>
-        <span class="ref-label">Votre référence de suivi</span>
+        <span class="ref-label" data-i18n="confirm.refLabel">Votre référence de suivi</span>
         <strong id="cf-ref" class="ref-code">—</strong>
-        <span class="ref-hint">Notez-la pour suivre votre alerte, même après avoir fermé la page.</span>
+        <span class="ref-hint" data-i18n="confirm.refHint">Notez-la pour suivre votre alerte, même après avoir fermé la page.</span>
       </div>
 
       <!-- Suivi en direct de l'avancement du traitement. -->
       <ol id="cf-timeline" class="timeline glass" hidden></ol>
 
       <div class="glass confirm-card">
-        <div class="cc-row"><span>Type</span><strong id="cf-type">—</strong></div>
-        <div class="cc-row"><span>Urgence (IA)</span><strong id="cf-urgency">—</strong></div>
-        <div class="cc-row"><span>Quartier</span><strong id="cf-neighborhood">—</strong></div>
-        <div class="cc-row"><span>Distance équipe</span><strong id="cf-distance">—</strong></div>
-        <div class="cc-row"><span>Temps estimé (moto)</span><strong id="cf-eta">—</strong></div>
+        <div class="cc-row"><span data-i18n="confirm.type">Type</span><strong id="cf-type">—</strong></div>
+        <div class="cc-row"><span data-i18n="confirm.urgency">Urgence (IA)</span><strong id="cf-urgency">—</strong></div>
+        <div class="cc-row"><span data-i18n="confirm.neighborhood">Quartier</span><strong id="cf-neighborhood">—</strong></div>
+        <div class="cc-row"><span data-i18n="confirm.distance">Distance équipe</span><strong id="cf-distance">—</strong></div>
+        <div class="cc-row"><span data-i18n="confirm.eta">Temps estimé (moto)</span><strong id="cf-eta">—</strong></div>
       </div>
 
       <div id="mini-map" class="mini-map"></div>
 
-      <button id="btn-new" class="btn-primary" type="button">Nouvelle alerte</button>
-      <button id="btn-track-later" class="btn-ghost" type="button">🔎 Suivre une alerte par référence</button>
+      <button id="btn-new" class="btn-primary" type="button" data-i18n="confirm.new">Nouvelle alerte</button>
+      <button id="btn-track-later" class="btn-ghost" type="button" data-i18n="confirm.trackLater">🔎 Suivre une alerte par référence</button>
     </section>
 
     <!-- ÉCRAN 4 : suivi d'une alerte par référence -->
     <section id="screen-track" class="screen">
       <div class="confirm-check">🔎</div>
-      <h2>Suivre une alerte</h2>
-      <p class="confirm-sub">Saisissez la référence reçue lors de votre signalement (ex. SC-K7P2Q9).</p>
+      <h2 data-i18n="track.title">Suivre une alerte</h2>
+      <p class="confirm-sub" data-i18n="track.sub">Saisissez la référence reçue lors de votre signalement (ex. SC-K7P2Q9).</p>
 
       <div class="glass confirm-card">
-        <label for="track-input" class="sr-only">Référence</label>
+        <label for="track-input" class="sr-only" data-i18n="track.ref">Référence</label>
         <input id="track-input" class="track-input" type="text" inputmode="text"
                autocomplete="off" placeholder="SC-XXXXXX" maxlength="16" />
-        <button id="btn-track-go" class="btn-primary" type="button">Voir l'état</button>
-        <p id="track-error" class="track-error" hidden>Référence introuvable. Vérifiez la saisie.</p>
+        <button id="btn-track-go" class="btn-primary" type="button" data-i18n="track.see">Voir l'état</button>
+        <p id="track-error" class="track-error" hidden data-i18n="track.error">Référence introuvable. Vérifiez la saisie.</p>
       </div>
 
       <div id="track-result" hidden>
         <div class="glass confirm-card">
-          <div class="cc-row"><span>Référence</span><strong id="tk-ref">—</strong></div>
-          <div class="cc-row"><span>Type</span><strong id="tk-type">—</strong></div>
-          <div class="cc-row"><span>Quartier</span><strong id="tk-neighborhood">—</strong></div>
-          <div class="cc-row"><span>Agent</span><strong id="tk-agent">—</strong></div>
+          <div class="cc-row"><span data-i18n="track.ref">Référence</span><strong id="tk-ref">—</strong></div>
+          <div class="cc-row"><span data-i18n="track.type">Type</span><strong id="tk-type">—</strong></div>
+          <div class="cc-row"><span data-i18n="track.neighborhood">Quartier</span><strong id="tk-neighborhood">—</strong></div>
+          <div class="cc-row"><span data-i18n="track.agent">Agent</span><strong id="tk-agent">—</strong></div>
         </div>
         <ol id="tk-timeline" class="timeline glass"></ol>
       </div>
 
-      <button id="btn-track-back" class="btn-ghost" type="button">← Retour</button>
+      <button id="btn-track-back" class="btn-ghost" type="button" data-i18n="track.back">← Retour</button>
     </section>
   </main>
 
@@ -364,6 +371,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <script src="js/config.js"></script>
+  <script src="js/i18n.js"></script>
   <script src="js/app.js"></script>
   <script>
     // Enregistre le service worker pour le mode hors-ligne (chargement sans réseau).

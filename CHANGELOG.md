@@ -2,6 +2,19 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.10.0] — 2026-07-26 — Application citoyenne bilingue (Français / Swahili)
+
+### Ajouté
+- **Version Swahili** de l'application citoyenne (Lubumbashi étant largement
+  swahiliphone) : un **bouton de langue** dans l'en-tête bascule l'interface
+  entre **Français** et **Kiswahili** d'un clic, et le choix est **mémorisé**.
+  - Tous les écrans citoyens sont traduits : connexion/inscription, bouton
+    d'alerte, types de danger (Wizi, Unyang'anyi, Moto, Ajali, Vurugu…), détails
+    de l'incident, avertissement légal, confirmation, et **suivi d'alerte**
+    (chronologie et messages d'avancement).
+  - Système d'i18n léger (`web/js/i18n.js`, attributs `data-i18n`) sans
+    dépendance externe ; repli automatique sur le Français.
+
 ## [1.9.0] — 2026-07-26 — Regroupement des signalements en doublon
 
 ### Ajouté
