@@ -337,6 +337,55 @@ input:focus, textarea:focus { outline: none; border-color: var(--accent); }
 .cc-row span { color: var(--muted); }
 .mini-map { height: 210px; border-radius: 16px; overflow: hidden; margin-bottom: 22px; border: 1px solid var(--line); }
 
+/* ---- Suivi d'alerte : référence + chronologie ---- */
+.btn-ghost {
+  background: transparent; color: var(--accent); border: 1px solid var(--line);
+  margin-top: 10px;
+}
+.btn-ghost:hover { background: rgba(61, 139, 255, 0.10); }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+.ref-box {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  border-radius: 16px; padding: 16px; margin: 18px 0;
+  border: 1px dashed rgba(61, 139, 255, 0.5);
+}
+.ref-label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; }
+.ref-code {
+  font-size: 26px; font-weight: 800; letter-spacing: 0.12em; color: var(--accent);
+  font-family: "Segoe UI", system-ui, monospace;
+}
+.ref-hint { color: var(--muted); font-size: 12px; text-align: center; }
+
+.timeline { list-style: none; margin: 18px 0; padding: 16px 18px; border-radius: 16px; text-align: left; }
+.tl-step { display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; position: relative; }
+.tl-step:not(:last-child)::after {
+  content: ""; position: absolute; left: 13px; top: 30px; bottom: -6px;
+  width: 2px; background: var(--line);
+}
+.tl-icon {
+  flex: 0 0 auto; width: 28px; height: 28px; border-radius: 50%;
+  display: grid; place-items: center; font-weight: 800; font-size: 14px;
+  background: rgba(88, 110, 150, 0.18); color: var(--muted);
+  border: 2px solid var(--line); z-index: 1;
+}
+.tl-step.done .tl-icon { background: var(--green); color: #04220f; border-color: var(--green); }
+.tl-label { font-weight: 700; color: var(--muted); }
+.tl-step.done .tl-label { color: var(--ink); }
+.tl-when { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+.track-input {
+  width: 100%; padding: 14px 16px; border-radius: 12px; margin: 4px 0 12px;
+  background: rgba(88, 110, 150, 0.12); border: 1px solid var(--line);
+  color: var(--ink); font-size: 18px; letter-spacing: 0.14em; text-align: center;
+  text-transform: uppercase; font-weight: 700;
+}
+.track-input:focus { outline: none; border-color: var(--accent); }
+.track-error { color: #f87171; font-size: 13px; margin-top: 10px; text-align: center; }
+#screen-track { text-align: center; }
+
 .app-footer { text-align: center; font-size: 11px; color: var(--muted); padding: 18px; }
 
 /* Bandeau file d'attente hors-ligne */

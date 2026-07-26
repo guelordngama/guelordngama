@@ -45,6 +45,16 @@ def list_():
     return jsonify(result)
 
 
+@bp.get("/track/<ref>")
+def track(ref):
+    """Suivi citoyen par référence publique (ex. « SC-K7P2Q9 »). Public, mais ne
+    renvoie que l'avancement du traitement — aucune donnée sensible."""
+    status = alerts_service.track_alert(ref)
+    if status is None:
+        return jsonify({"error": {"message": "Référence introuvable"}}), 404
+    return jsonify(status)
+
+
 @bp.get("/<int:alert_id>")
 def detail(alert_id):
     return jsonify(alerts_service.get_alert(alert_id).to_dict())

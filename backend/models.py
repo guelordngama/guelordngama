@@ -122,6 +122,9 @@ class Alert(TimestampMixin, db.Model):
     )
 
     id = db.Column(db.Integer, primary_key=True)
+    # Référence publique (ex. « SC-A1B2C3 ») communiquée au citoyen pour suivre
+    # son alerte sans exposer les données sensibles ni permettre l'énumération.
+    public_ref = db.Column(db.String(16), unique=True, index=True)
     type = db.Column(db.String(30), nullable=False, default="autre", index=True)
     description = db.Column(db.Text)
 
@@ -159,9 +162,51 @@ class Alert(TimestampMixin, db.Model):
     assigned_team = db.relationship("Team")
     assigned_agent = db.relationship("User", foreign_keys=[assigned_agent_id])
 
+    # Libellés citoyens des étapes de suivi.
+    _TRACK_STEPS = (
+        ("received", "Alerte reçue"),
+        ("assigned", "Prise en charge"),
+        ("resolved", "Résolue"),
+    )
+
+    def public_status(self):
+        """Vue publique et minimale pour le suivi citoyen (aucune donnée
+        sensible : ni nom/téléphone du déclarant, ni description, ni GPS exact —
+        seulement l'avancement du traitement)."""
+        received_at = _iso(self.created_at)
+        assigned_at = _iso(self.accepted_at)
+        resolved_at = _iso(self.closed_at)
+        done = {
+            "received": True,
+            "assigned": self.status in ("assignee", "cloturee"),
+            "resolved": self.status == "cloturee",
+        }
+        at = {"received": received_at, "assigned": assigned_at, "resolved": resolved_at}
+        steps = [
+            {"key": k, "label": label, "done": done[k], "at": at[k]}
+            for k, label in self._TRACK_STEPS
+        ]
+        # Prénom seul de l'agent (confiance sans exposer l'identité complète).
+        agent_first = None
+        if self.assigned_agent and self.assigned_agent.name:
+            agent_first = self.assigned_agent.name.split()[0]
+        return {
+            "reference": self.public_ref,
+            "type": self.type,
+            "neighborhood": self.neighborhood,
+            "status": self.status,
+            "created_at": received_at,
+            "accepted_at": assigned_at,
+            "closed_at": resolved_at,
+            "agent_first_name": agent_first,
+            "eta_moto_min": self.eta_moto_min,
+            "steps": steps,
+        }
+
     def to_dict(self):
         return {
             "id": self.id,
+            "reference": self.public_ref,
             "type": self.type,
             "description": self.description,
             "lat": self.lat,

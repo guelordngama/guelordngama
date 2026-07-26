@@ -4,6 +4,7 @@ Découplé des routes HTTP pour être testable et réutilisable. Émet les
 événements temps réel vers le centre de surveillance.
 """
 import logging
+import secrets
 from datetime import datetime
 
 from flask import current_app
@@ -20,6 +21,29 @@ log = logging.getLogger("safecity")
 
 def _emit(event, payload):
     socketio.emit(event, payload, room=current_app.config["SURVEILLANCE_ROOM"])
+
+
+# Alphabet sans caractères ambigus (0/O, 1/I) pour une référence facile à noter.
+_REF_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+
+def _generate_ref():
+    """Référence publique unique et lisible, ex. « SC-K7P2Q9 »."""
+    for _ in range(10):
+        code = "SC-" + "".join(secrets.choice(_REF_ALPHABET) for _ in range(6))
+        if not Alert.query.filter_by(public_ref=code).first():
+            return code
+    # Repli extrêmement improbable : ajoute de l'entropie.
+    return "SC-" + secrets.token_hex(5).upper()
+
+
+def track_alert(reference):
+    """Suivi citoyen d'une alerte par sa référence publique. Renvoie une vue
+    minimale (aucune donnée sensible) ou None si la référence est inconnue."""
+    if not reference:
+        return None
+    alert = Alert.query.filter_by(public_ref=reference.strip().upper()).first()
+    return alert.public_status() if alert else None
 
 
 def create_alert(data):
@@ -55,6 +79,7 @@ def create_alert(data):
         ai_score=ai["score"],
         ai_category=ai["category"],
         status="active",
+        public_ref=_generate_ref(),
         distance_m=dist,
         eta_moto_min=eta_moto,
         eta_walk_min=eta_walk,

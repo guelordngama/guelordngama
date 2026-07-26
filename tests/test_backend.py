@@ -138,6 +138,29 @@ def test_create_and_list_alert():
     assert isinstance(alerts, list) and len(alerts) == 1
 
 
+def test_citizen_track_alert_by_reference():
+    _, client = make_client()
+    r = client.post("/api/alerts", json={
+        "type": "vol", "description": "un vol au marché", "lat": -4.33, "lng": 15.31,
+    })
+    ref = r.get_json()["reference"]
+    assert ref and ref.startswith("SC-")
+
+    # Suivi public : avancement seulement, aucune donnée sensible.
+    t = client.get("/api/alerts/track/" + ref)
+    assert t.status_code == 200
+    d = t.get_json()
+    assert d["status"] == "active"
+    assert [s["key"] for s in d["steps"]] == ["received", "assigned", "resolved"]
+    assert d["steps"][0]["done"] is True and d["steps"][1]["done"] is False
+    for leaked in ("reporter_phone", "reporter_name", "description", "lat", "lng"):
+        assert leaked not in d, f"donnée sensible exposée : {leaked}"
+
+    # Référence inconnue → 404 ; casse insensible.
+    assert client.get("/api/alerts/track/SC-ZZZZZZ").status_code == 404
+    assert client.get("/api/alerts/track/" + ref.lower()).status_code == 200
+
+
 def test_list_alerts_pagination():
     _, client = make_client()
     for _ in range(3):

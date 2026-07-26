@@ -277,6 +277,16 @@
       <h2>Alerte envoyée</h2>
       <p class="confirm-sub">Le centre de surveillance a bien reçu votre signalement.</p>
 
+      <!-- Référence de suivi : à noter pour suivre l'alerte plus tard. -->
+      <div id="cf-ref-box" class="ref-box glass" hidden>
+        <span class="ref-label">Votre référence de suivi</span>
+        <strong id="cf-ref" class="ref-code">—</strong>
+        <span class="ref-hint">Notez-la pour suivre votre alerte, même après avoir fermé la page.</span>
+      </div>
+
+      <!-- Suivi en direct de l'avancement du traitement. -->
+      <ol id="cf-timeline" class="timeline glass" hidden></ol>
+
       <div class="glass confirm-card">
         <div class="cc-row"><span>Type</span><strong id="cf-type">—</strong></div>
         <div class="cc-row"><span>Urgence (IA)</span><strong id="cf-urgency">—</strong></div>
@@ -288,6 +298,34 @@
       <div id="mini-map" class="mini-map"></div>
 
       <button id="btn-new" class="btn-primary" type="button">Nouvelle alerte</button>
+      <button id="btn-track-later" class="btn-ghost" type="button">🔎 Suivre une alerte par référence</button>
+    </section>
+
+    <!-- ÉCRAN 4 : suivi d'une alerte par référence -->
+    <section id="screen-track" class="screen">
+      <div class="confirm-check">🔎</div>
+      <h2>Suivre une alerte</h2>
+      <p class="confirm-sub">Saisissez la référence reçue lors de votre signalement (ex. SC-K7P2Q9).</p>
+
+      <div class="glass confirm-card">
+        <label for="track-input" class="sr-only">Référence</label>
+        <input id="track-input" class="track-input" type="text" inputmode="text"
+               autocomplete="off" placeholder="SC-XXXXXX" maxlength="16" />
+        <button id="btn-track-go" class="btn-primary" type="button">Voir l'état</button>
+        <p id="track-error" class="track-error" hidden>Référence introuvable. Vérifiez la saisie.</p>
+      </div>
+
+      <div id="track-result" hidden>
+        <div class="glass confirm-card">
+          <div class="cc-row"><span>Référence</span><strong id="tk-ref">—</strong></div>
+          <div class="cc-row"><span>Type</span><strong id="tk-type">—</strong></div>
+          <div class="cc-row"><span>Quartier</span><strong id="tk-neighborhood">—</strong></div>
+          <div class="cc-row"><span>Agent</span><strong id="tk-agent">—</strong></div>
+        </div>
+        <ol id="tk-timeline" class="timeline glass"></ol>
+      </div>
+
+      <button id="btn-track-back" class="btn-ghost" type="button">← Retour</button>
     </section>
   </main>
 

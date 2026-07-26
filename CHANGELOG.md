@@ -2,6 +2,24 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.8.0] — 2026-07-26 — Suivi d'alerte pour le citoyen
+
+### Ajouté
+- **Suivi d'alerte côté citoyen** : chaque alerte reçoit une **référence
+  publique** lisible (ex. « SC-K7P2Q9 »). Le citoyen voit l'**avancement en
+  direct** de son signalement — *Alerte reçue → Prise en charge → Résolue* —
+  avec l'horodatage de chaque étape et le **prénom de l'agent** affecté.
+  - Sur l'écran de confirmation : référence mise en avant + chronologie qui se
+    **rafraîchit automatiquement** (toutes les 15 s, repli si le temps réel est
+    bloqué) jusqu'à la clôture, avec un message contextuel (« Un agent a été
+    affecté… », « Votre alerte a été traitée et clôturée »).
+  - Nouvel écran **« Suivre une alerte »** : le citoyen peut revenir plus tard
+    et retrouver l'état de son alerte en saisissant sa référence.
+  - Endpoint public `GET /api/alerts/track/<référence>` renvoyant uniquement
+    l'avancement — **aucune donnée sensible** (ni nom/téléphone du déclarant, ni
+    description, ni GPS exact), et référence non énumérable.
+- Migration `a2c4e6f80b13` : colonne `public_ref` (indexée, unique) sur `alerts`.
+
 ## [1.7.6] — 2026-07-26 — Temps réel : connexion WebSocket (résout « Hors ligne »)
 
 ### Corrigé

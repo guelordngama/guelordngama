@@ -62,6 +62,7 @@
     alert: $("screen-alert"),
     details: $("screen-details"),
     confirm: $("screen-confirm"),
+    track: $("screen-track"),
   };
 
   function show(name) {
@@ -741,6 +742,10 @@
     $("cf-eta").textContent = "—";
     $("cf-type").closest("#screen-confirm").querySelector(".confirm-sub").textContent =
       "📴 Pas de réseau : votre alerte est enregistrée et sera envoyée automatiquement au retour de la connexion.";
+    // Pas encore de référence (envoi différé) : on masque le suivi.
+    stopTrackPoll();
+    $("cf-ref-box").hidden = true;
+    $("cf-timeline").hidden = true;
     show("confirm");
   }
 
@@ -761,6 +766,90 @@
   // ---------------------------------------------------------------------- //
   // Écran de confirmation + mini-carte
   // ---------------------------------------------------------------------- //
+  // ---- Suivi d'alerte (référence + chronologie d'avancement) ----
+  const TRACK_LABELS = {
+    received: "Alerte reçue",
+    assigned: "Prise en charge",
+    resolved: "Résolue",
+  };
+
+  function fmtTime(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (isNaN(d)) return "";
+    return d.toLocaleString("fr-FR", {
+      day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
+    });
+  }
+
+  // Construit/rafraîchit une chronologie (élément <ol>) à partir des étapes.
+  function renderTimeline(ol, steps) {
+    ol.innerHTML = "";
+    (steps || []).forEach((s) => {
+      const li = document.createElement("li");
+      li.className = "tl-step" + (s.done ? " done" : "");
+      const icon = document.createElement("span");
+      icon.className = "tl-icon";
+      icon.textContent = s.done ? "✓" : "•";
+      const body = document.createElement("div");
+      const label = document.createElement("div");
+      label.className = "tl-label";
+      label.textContent = s.label || TRACK_LABELS[s.key] || s.key;
+      body.appendChild(label);
+      if (s.at) {
+        const when = document.createElement("div");
+        when.className = "tl-when";
+        when.textContent = fmtTime(s.at);
+        body.appendChild(when);
+      }
+      li.appendChild(icon);
+      li.appendChild(body);
+      ol.appendChild(li);
+    });
+  }
+
+  let trackPoll = null;      // intervalle de rafraîchissement du suivi (confirm)
+  function stopTrackPoll() {
+    if (trackPoll) { clearInterval(trackPoll); trackPoll = null; }
+  }
+
+  async function fetchTrack(ref) {
+    const res = await fetch(API + "/api/alerts/track/" + encodeURIComponent(ref));
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    return res.json();
+  }
+
+  // Suit l'alerte de l'écran de confirmation : affiche puis rafraîchit toutes
+  // les 15 s tant que l'alerte n'est pas résolue (repli si le socket est bloqué).
+  function startConfirmTracking(ref) {
+    stopTrackPoll();
+    if (!ref) return;
+    const box = $("cf-ref-box");
+    $("cf-ref").textContent = ref;
+    box.hidden = false;
+    const ol = $("cf-timeline");
+    ol.hidden = false;
+    const update = async () => {
+      try {
+        const st = await fetchTrack(ref);
+        renderTimeline(ol, st.steps);
+        const sub = document.querySelector("#screen-confirm .confirm-sub");
+        if (sub) {
+          if (st.status === "cloturee") {
+            sub.textContent = "✅ Votre alerte a été traitée et clôturée. Merci.";
+          } else if (st.status === "assignee") {
+            sub.textContent = st.agent_first_name
+              ? "🚓 Un agent (" + st.agent_first_name + ") a été affecté à votre alerte."
+              : "🚓 Votre alerte a été prise en charge.";
+          }
+        }
+        if (st.status === "cloturee") stopTrackPoll();
+      } catch (e) { /* réseau : on retentera au prochain tick */ }
+    };
+    update();
+    trackPoll = setInterval(update, 15000);
+  }
+
   let miniMap = null;
   function showConfirmation(alert) {
     const sub = document.querySelector("#screen-confirm .confirm-sub");
@@ -776,6 +865,8 @@
       alert.eta_moto_min != null ? alert.eta_moto_min + " min" : "—";
 
     show("confirm");
+    // Affiche la référence et démarre le suivi en direct de l'avancement.
+    startConfirmTracking(alert.reference);
 
     // Carte Leaflet centrée sur l'alerte.
     setTimeout(() => {
@@ -797,7 +888,43 @@
     }, 100);
   }
 
+  // ---- Navigation du suivi par référence ----
+  $("btn-track-later").addEventListener("click", () => {
+    $("track-result").hidden = true;
+    $("track-error").hidden = true;
+    show("track");
+  });
+  $("btn-track-back").addEventListener("click", () => {
+    // Revenir à l'écran précédent : confirmation si une alerte y est suivie,
+    // sinon l'écran d'alerte.
+    show($("cf-ref-box").hidden ? "alert" : "confirm");
+  });
+  async function runTrackLookup() {
+    const ref = ($("track-input").value || "").trim().toUpperCase();
+    if (!ref) return;
+    $("track-error").hidden = true;
+    try {
+      const st = await fetchTrack(ref);
+      $("tk-ref").textContent = st.reference || ref;
+      $("tk-type").textContent = capitalize(st.type || "—");
+      $("tk-neighborhood").textContent = st.neighborhood || "—";
+      $("tk-agent").textContent = st.agent_first_name || "—";
+      renderTimeline($("tk-timeline"), st.steps);
+      $("track-result").hidden = false;
+    } catch (e) {
+      $("track-result").hidden = true;
+      $("track-error").hidden = false;
+    }
+  }
+  $("btn-track-go").addEventListener("click", runTrackLookup);
+  $("track-input").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); runTrackLookup(); }
+  });
+
   $("btn-new").addEventListener("click", () => {
+    stopTrackPoll();
+    $("cf-ref-box").hidden = true;
+    $("cf-timeline").hidden = true;
     // Réinitialise l'état pour une nouvelle alerte.
     state.type = null;
     state.photo = null;
