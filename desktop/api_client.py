@@ -234,17 +234,30 @@ class ApiClient:
         return True
 
     def _connect_thread(self):
-        # Transport "polling" uniquement : le backend par défaut tourne sous
-        # Waitress (WSGI), qui ne gère PAS les websockets. Tenter une montée en
-        # websocket ferait échouer/tomber la connexion (indicateur "Hors ligne").
-        # Boucle de reconnexion pour survivre à un démarrage plus lent du backend.
+        # Ordre des transports : WebSocket EN PREMIER, puis long-polling en repli.
+        #
+        # Pourquoi : certains réseaux institutionnels (pare-feu de mairie, proxy
+        # filtrant) coupent le long-polling — des requêtes HTTP GET maintenues
+        # ouvertes ~25 s — alors qu'ils laissent passer les WebSockets (une seule
+        # connexion « upgradée »). Le serveur de production (gunicorn/eventlet) et
+        # Nginx gèrent les deux. En dev sous Waitress, seul le polling marche : la
+        # tentative WebSocket échoue proprement et on se rabat sur le polling.
+        # Personnalisable via SAFECITY_SOCKET_TRANSPORTS="polling,websocket".
+        import os
         import time
 
+        order = os.environ.get("SAFECITY_SOCKET_TRANSPORTS", "websocket,polling")
+        transports = [t.strip() for t in order.split(",") if t.strip()] \
+            or ["websocket", "polling"]
+
         for attempt in range(1, 61):  # ~3 min de tentatives (thread daemon)
-            try:
-                self.sio.connect(self.base_url, transports=["polling"])
-                return  # connecté : l'événement "connect" passe l'UI en ligne
-            except Exception as e:  # pragma: no cover
-                if attempt == 1 or attempt % 5 == 0:
-                    print(f"[SafeCity] Connexion temps réel (essai {attempt}) : {e}")
-                time.sleep(3)
+            for tr in transports:
+                try:
+                    self.sio.connect(self.base_url, transports=[tr])
+                    print(f"[SafeCity] Temps réel connecté via {tr}.")
+                    return  # connecté : l'événement "connect" passe l'UI en ligne
+                except Exception as e:  # pragma: no cover - dépend du réseau
+                    if attempt == 1 or attempt % 5 == 0:
+                        print(f"[SafeCity] Temps réel {tr} indisponible "
+                              f"(essai {attempt}) : {e}")
+            time.sleep(3)

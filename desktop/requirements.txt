@@ -8,6 +8,10 @@ PySide6>=6.7.0
 # Temps réel — garder >= 5.12 pour rester compatible avec le backend.
 python-socketio[client]>=5.12.0
 requests>=2.32.0
+# Transport WebSocket (indispensable là où le pare-feu coupe le long-polling).
+# Normalement tiré par python-socketio[client], mais on l'épingle pour garantir
+# que la montée en WebSocket est disponible.
+websocket-client>=1.7.0
 
 # Pour générer l'exécutable Windows :
 # pyinstaller>=6.10.0

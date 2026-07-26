@@ -2,6 +2,31 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.7.6] — 2026-07-26 — Temps réel : connexion WebSocket (résout « Hors ligne »)
+
+### Corrigé
+- **Poste opérateur bloqué sur « Hors ligne »** (le temps réel ne se connectait
+  pas depuis le réseau de la mairie). Le client était **verrouillé sur le
+  long-polling** (héritage de l'ancien serveur Waitress). Or les pare-feu
+  filtrants — comme celui de la mairie, qui bloque déjà les CDN externes —
+  coupent souvent le long-polling (requêtes HTTP maintenues ouvertes ~25 s) tout
+  en laissant passer les **WebSockets** (une seule connexion « upgradée »).
+  - Le poste opérateur tente désormais **WebSocket d'abord, puis se rabat sur le
+    long-polling**. Le serveur de production (gunicorn/eventlet) et Nginx gèrent
+    déjà les deux ; en dev sous Waitress, la tentative WebSocket échoue proprement
+    et le polling prend le relais.
+  - Ordre personnalisable via `SAFECITY_SOCKET_TRANSPORTS`
+    (ex. `"polling,websocket"`).
+  - `websocket-client` épinglé dans les dépendances du poste opérateur pour
+    garantir la disponibilité du transport WebSocket.
+
+### Vérifié
+- Chaîne complète reproduite localement (**gunicorn/eventlet derrière Nginx** avec
+  le `proxy.conf` de production) : **polling ET WebSocket se connectent** et
+  reçoivent les événements — la configuration Nginx `/socket.io/` est correcte.
+  Le blocage venait bien de la restriction au polling côté client, pas du serveur
+  ni du proxy.
+
 ## [1.7.5] — 2026-07-26 — Badge « messages non lus » fiable même hors ligne
 
 ### Corrigé
