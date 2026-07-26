@@ -2,6 +2,15 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.6.1] — 2026-07-25 — Message de vérification e-mail plus clair
+
+### Modifié
+- **Formulation e-mail-first** : le message affiché au citoyen ne mentionne plus
+  « Le SMS étant indisponible » (perçu comme un secours). Il indique simplement
+  « Un code de vérification à 6 chiffres a été envoyé à votre adresse e-mail »
+  (réponse API + écran de saisie du code). Cohérent avec un déploiement où
+  l'e-mail est la méthode principale.
+
 ## [1.6.0] — 2026-07-25 — Onglet « Infos » : présence & lecture par participant
 
 ### Ajouté

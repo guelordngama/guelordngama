@@ -219,8 +219,8 @@
     const intro = $("otp-intro");
     if (intro) {
       if (channel === "email") {
-        intro.innerHTML = "📧 Le SMS étant indisponible, un code de vérification a été " +
-          "envoyé à <strong>votre adresse e-mail</strong>. Saisissez-le pour activer votre compte.";
+        intro.innerHTML = "📧 Un code de vérification à 6 chiffres a été envoyé à " +
+          "<strong>votre adresse e-mail</strong>. Saisissez-le pour activer votre compte.";
       } else {
         intro.innerHTML = "📲 Un code de vérification a été envoyé par SMS au " +
           "<strong id=\"otp-phone\">" + phone + "</strong>. Saisissez-le pour activer votre compte.";

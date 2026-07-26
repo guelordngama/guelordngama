@@ -49,8 +49,8 @@ def _do_register():
     channel = getattr(user, "otp_channel", "sms")
     messages = {
         "sms": "Un code de vérification a été envoyé par SMS à votre numéro.",
-        "email": "Le SMS étant indisponible, un code de vérification a été envoyé "
-                 "à votre adresse e-mail.",
+        "email": "Un code de vérification à 6 chiffres a été envoyé à votre "
+                 "adresse e-mail.",
         "dev": "Un code de vérification a été généré (voir les journaux du serveur "
                "en développement).",
     }
