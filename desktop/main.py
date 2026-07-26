@@ -518,9 +518,13 @@ class MainWindow(QWidget):
         self._load_initial()
         self._start_realtime()
 
-        # Rafraîchissement périodique (filet de sécurité en plus du temps réel).
+        # Rafraîchissement périodique (filet de sécurité en plus du temps réel) :
+        # recharge aussi les ALERTES par REST, pour que rien ne dépende
+        # uniquement du socket. Si un événement « new_alert » est manqué (coupure
+        # réseau, socket tombée), l'alerte apparaît quand même en quelques
+        # secondes — sans avoir à redémarrer l'application.
         self._timer = QTimer(self)
-        self._timer.timeout.connect(self._refresh_stats)
+        self._timer.timeout.connect(self._periodic_refresh)
         self._timer.start(15000)
 
     # ---- Construction ----
@@ -1075,6 +1079,48 @@ class MainWindow(QWidget):
         self.page_history.set_alerts(alerts)
         self.page_map.set_alerts(alerts)
         self._refresh_stats()
+
+    def _periodic_refresh(self):
+        """Filet de sécurité (toutes les 15 s) : recharge les alertes par REST
+        puis les statistiques. Garantit que le tableau reste à jour même si un
+        événement temps réel a été manqué (coupure réseau, socket tombée)."""
+        # _refresh_alerts() appelle _refresh_all() qui rafraîchit déjà les stats ;
+        # on ne rappelle _refresh_stats() que si le rechargement des alertes a
+        # échoué (réseau), pour au moins tenter les compteurs.
+        if not self._refresh_alerts():
+            self._refresh_stats()
+
+    def _refresh_alerts(self):
+        """Recharge les alertes par REST et intègre celles qu'un événement
+        « new_alert » temps réel aurait pu manquer. Renvoie True si la requête a
+        abouti. N'ouvre PAS de pop-up par alerte (pour ne pas submerger
+        l'opérateur) mais notifie discrètement (son + badge + toast)."""
+        try:
+            alerts = self.api.get_alerts()
+        except Exception:
+            return False  # réseau momentanément indisponible : on retentera
+        if isinstance(alerts, dict):  # tolère une réponse paginée
+            alerts = alerts.get("items") or alerts.get("alerts") or []
+        new_ids = []
+        for a in alerts:
+            aid = a.get("id")
+            if aid is None:
+                continue
+            if aid not in self.alerts:
+                new_ids.append(aid)
+            self.alerts[aid] = a  # intègre aussi les changements de statut
+        if new_ids:
+            # Alertes rattrapées par le filet de sécurité : on notifie sans
+            # ouvrir un incident par alerte.
+            if self.stack.currentIndex() != self.IDX_ALERTS:
+                for aid in new_ids:
+                    self.page_live.mark_unread(aid)
+            self.alarm.play()
+            self.sidebar.set_badge(self.IDX_ALERTS, self.page_live.unread_count())
+            Toast(self, f"🚨 {len(new_ids)} nouvelle(s) alerte(s) reçue(s)",
+                  theme.ACCENT).show_for(4000)
+        self._refresh_all()
+        return True
 
     def _set_online(self, ok):
         self.sidebar.set_online(ok)

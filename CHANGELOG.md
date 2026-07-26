@@ -2,6 +2,26 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.7.3] — 2026-07-26 — Poste opérateur : alertes en direct fiabilisées
+
+### Corrigé
+- **Nouvelle alerte citoyenne qui n'apparaissait pas** sur le poste opérateur
+  sans redémarrer l'application. Le rafraîchissement périodique de sécurité
+  (toutes les 15 s) ne rechargeait que les **compteurs** de statistiques, pas la
+  **liste des alertes** : si un événement temps réel `new_alert` était manqué
+  (coupure réseau, socket tombée sur le réseau de la mairie), l'alerte restait
+  invisible jusqu'au prochain démarrage.
+  - Le filet de sécurité recharge désormais les alertes par **REST** et intègre
+    celles qu'un événement temps réel aurait pu manquer — l'alerte apparaît en
+    quelques secondes, **sans redémarrage**.
+  - Les alertes ainsi rattrapées sont **notifiées** (son + badge « non lu » +
+    toast) sans ouvrir un pop-up d'incident par alerte (pas de submersion).
+  - En cas de panne réseau, le rechargement est simplement retenté au tick
+    suivant.
+- Émission temps réel `new_alert` **vérifiée de bout en bout** (serveur eventlet
+  de production + client Socket.IO en long-polling) : le backend diffuse bien
+  l'alerte ; le correctif porte sur la robustesse côté poste opérateur.
+
 ## [1.7.2] — 2026-07-26 — Tuiles de carte servies par le serveur (proxy)
 
 ### Corrigé
