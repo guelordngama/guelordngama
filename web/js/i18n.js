@@ -206,13 +206,15 @@
     },
   };
 
-  var LANG_KEY = "safecity_lang";
+  // La langue démarre TOUJOURS en Français : elle n'est pas mémorisée entre les
+  // ouvertures/rechargements (choix produit). Le bouton SW/FR permet de basculer
+  // pendant la visite, mais chaque nouvelle ouverture repart en Français.
+  var _lang = "fr";
   function current() {
-    var l = localStorage.getItem(LANG_KEY);
-    return l === "sw" ? "sw" : "fr";
+    return _lang === "sw" ? "sw" : "fr";
   }
   function setLang(l) {
-    localStorage.setItem(LANG_KEY, l === "sw" ? "sw" : "fr");
+    _lang = l === "sw" ? "sw" : "fr";
     apply();
   }
   // Traduit une clé ; {name} etc. remplacés par vars. Repli : FR puis la clé.

@@ -2,6 +2,15 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.10.1] — 2026-07-27 — Langue : démarrage toujours en Français
+
+### Modifié
+- L'application citoyenne **démarre toujours en Français** à chaque ouverture.
+  Le choix de langue n'est plus mémorisé entre les visites (il l'était par
+  origine, ce qui pouvait afficher le Swahili « tout seul » sur une origine où il
+  avait été activé). Le bouton **FR/SW** reste disponible pour basculer pendant
+  la visite ; un rechargement repart en Français.
+
 ## [1.10.0] — 2026-07-26 — Application citoyenne bilingue (Français / Swahili)
 
 ### Ajouté
