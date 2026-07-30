@@ -2,6 +2,22 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.12.2] — 2026-07-30 — Proxy de tuiles : repli propre quand le CDN est injoignable
+
+### Corrigé
+- **Journal inondé de `502` / `<urlopen error timed out>`** sur le proxy de
+  tuiles quand la machine qui exécute le backend **ne peut pas joindre le CDN de
+  cartes** (réseau filtré, ou exécution en local derrière le pare-feu). Le proxy :
+  - **échoue vite** (délai réduit à 6 s au lieu de 12 s),
+  - après quelques échecs, **cesse de solliciter le réseau** pendant 60 s et sert
+    directement un **fond neutre** (PNG uni, HTTP 200) au lieu d'une erreur 502 —
+    la carte reste lisible (marqueurs/itinéraires) et se réessaie automatiquement,
+  - ne **journalise qu'une seule fois** (plus d'inondation du journal).
+- Rappel : pour afficher les **rues**, le serveur qui exécute le backend doit
+  avoir un accès Internet vers `basemaps.cartocdn.com`. En production (VPS) c'est
+  le cas ; en local derrière le pare-feu de la mairie, la carte affiche le fond
+  neutre.
+
 ## [1.12.1] — 2026-07-27 — Portail agents : médias du citoyen affichés
 
 ### Ajouté

@@ -113,6 +113,32 @@ def test_tile_proxy_rejects_out_of_bounds():
     assert client.get("/tiles/1/9/0.png").status_code == 400   # x hors plage
 
 
+def test_tile_proxy_serves_neutral_fallback_when_cdn_down():
+    # Quand le serveur ne peut pas joindre le CDN de tuiles, le proxy renvoie un
+    # fond neutre PNG (200) au lieu d'une erreur 502, sans bloquer.
+    import backend.api.tiles as tiles
+
+    tiles._fail_count = 0
+    tiles._cooldown_until = 0.0
+    original = tiles.urllib.request.urlopen
+
+    def _boom(*a, **k):
+        raise TimeoutError("timed out")
+
+    tiles.urllib.request.urlopen = _boom
+    try:
+        _, client = make_client()
+        r = client.get("/tiles/16/44823/33836.png")
+        assert r.status_code == 200
+        assert r.mimetype == "image/png"
+        assert r.data[:8] == b"\x89PNG\r\n\x1a\n"  # PNG valide
+        assert "max-age=30" in r.headers.get("Cache-Control", "")  # cache court
+    finally:
+        tiles.urllib.request.urlopen = original
+        tiles._fail_count = 0
+        tiles._cooldown_until = 0.0
+
+
 def test_security_headers_present():
     _, client = make_client()
     resp = client.get("/api/health")
