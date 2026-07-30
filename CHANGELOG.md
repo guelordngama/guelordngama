@@ -2,6 +2,31 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.14.0] — 2026-07-30 — Localisation fiable : vrai quartier + distances correctes
+
+### Corrigé
+- **Quartier « Zone XX » factice** remplacé par un **vrai géocodage inverse**
+  (OpenStreetMap/Nominatim) : le nom du quartier et l'adresse (rue, commune) sont
+  désormais réels. Le géocodage se fait **en arrière-plan**, sans ralentir
+  l'alerte, puis met à jour l'incident (le centre voit le quartier apparaître).
+  À défaut de réseau côté serveur, on affiche les **coordonnées GPS exactes** —
+  jamais un faux quartier.
+- **Distance équipe / temps estimé absurdes** (ex. 5 639 km, 13 534 min) :
+  - le point de référence par défaut passe de **Kinshasa** à **Lubumbashi** ;
+  - la distance est calculée depuis l'**équipe de patrouille la plus proche**
+    (positions réelles) et non depuis un point fixe ;
+  - les équipes de démonstration sont désormais **à Lubumbashi**.
+- L'**adresse d'une alerte contient toujours la position GPS exacte** — c'est le
+  localisateur fiable pour la patrouille (avec le marqueur sur la carte et
+  l'itinéraire), même sans nom de quartier.
+
+### Ajouté
+- Commande `python -m backend.manage relocate-teams` : repositionne vers le
+  centre-ville configuré les équipes de patrouille égarées (utile pour un
+  déploiement existant dont les équipes de démo étaient restées à Kinshasa).
+- Réglages : `SAFECITY_PATROL_LAT/LNG` (centre par défaut) et `SAFECITY_GEOCODING`
+  (activer/désactiver le géocodage).
+
 ## [1.13.1] — 2026-07-30 — Portail agents : reprise au dernier point de lecture
 
 ### Ajouté

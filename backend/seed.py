@@ -19,11 +19,12 @@ _DEMO_STAFF = [
 
 def seed_defaults(config):
     if Team.query.count() == 0:
+        # Équipes de patrouille situées à LUBUMBASHI (déploiement mairie).
         db.session.add_all(
             [
-                Team(name="Patrouille Avenue Lumumba", patrol_lat=-4.3217, patrol_lng=15.3125),
-                Team(name="Patrouille Centre-Ville", patrol_lat=-4.3050, patrol_lng=15.3080),
-                Team(name="Patrouille Kenya", patrol_lat=-4.3400, patrol_lng=15.3300),
+                Team(name="Patrouille Centre-Ville", patrol_lat=-11.6647, patrol_lng=27.4794),
+                Team(name="Patrouille Kenya", patrol_lat=-11.6520, patrol_lng=27.5010),
+                Team(name="Patrouille Katuba", patrol_lat=-11.6870, patrol_lng=27.4560),
             ]
         )
         log.info("Équipes de patrouille initialisées.")

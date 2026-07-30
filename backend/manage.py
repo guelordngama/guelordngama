@@ -10,7 +10,7 @@ import sys
 
 from . import create_app
 from .extensions import db
-from .models import ROLES, User
+from .models import ROLES, Team, User
 from .security import hash_password
 
 
@@ -42,6 +42,29 @@ def _list_staff(_args):
     with app.app_context():
         for u in User.query.filter(User.role != "citizen").order_by(User.role.desc()).all():
             print(f"  {u.id:>3}  {u.role:<10}  {u.name:<24}  {u.email}")
+
+
+def _relocate_teams(_args):
+    """Repositionne vers le centre-ville configuré les équipes de patrouille
+    situées trop loin (ex. anciennes équipes de démo restées à Kinshasa) — pour
+    que la « distance équipe » redevienne réaliste sur un déploiement existant."""
+    from .geo import haversine_m
+
+    app = create_app()
+    with app.app_context():
+        clat = app.config["DEFAULT_PATROL_LAT"]
+        clng = app.config["DEFAULT_PATROL_LNG"]
+        moved = 0
+        for t in Team.query.all():
+            if t.patrol_lat is None or t.patrol_lng is None:
+                continue
+            if haversine_m(t.patrol_lat, t.patrol_lng, clat, clng) > 100_000:  # > 100 km
+                t.patrol_lat, t.patrol_lng = clat, clng
+                moved += 1
+                print(f"  → {t.name} repositionnée")
+        if moved:
+            db.session.commit()
+        print(f"{moved} équipe(s) repositionnée(s) vers le centre ({clat}, {clng}).")
 
 
 def _list_citizens(_args):
@@ -158,6 +181,9 @@ def main(argv=None):
     sub.add_parser("list-staff", help="Lister les comptes personnels").set_defaults(func=_list_staff)
     sub.add_parser("list-citizens",
                    help="Lister les comptes citoyens inscrits").set_defaults(func=_list_citizens)
+    sub.add_parser("relocate-teams",
+                   help="Repositionner les équipes de patrouille égarées vers le "
+                        "centre-ville configuré").set_defaults(func=_relocate_teams)
 
     pg = sub.add_parser("purge-old", help="Supprimer les alertes clôturées anciennes (conservation)")
     pg.add_argument("--days", type=int, default=None,

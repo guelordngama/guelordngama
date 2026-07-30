@@ -12,7 +12,8 @@ from flask import current_app
 from ..ai.classifier import get_classifier
 from ..errors import NotFoundError
 from ..extensions import db, socketio
-from ..geo import compute_intervention, haversine_m, reverse_geocode
+from ..geo import (compute_intervention, coords_label, haversine_m,
+                   reverse_geocode)
 from ..models import Alert, Team
 from ..security import save_data_url
 
@@ -86,24 +87,56 @@ def _find_duplicate_primary(alert_type, lat, lng):
     return best
 
 
+def _intervention_from_nearest(lat, lng):
+    """Distance/ETA depuis l'équipe de patrouille la PLUS PROCHE (positions
+    réelles), sinon depuis le point de patrouille par défaut."""
+    teams = (Team.query
+             .filter(Team.patrol_lat.isnot(None), Team.patrol_lng.isnot(None))
+             .all())
+    if teams:
+        nearest = min(teams, key=lambda t: haversine_m(t.patrol_lat, t.patrol_lng, lat, lng))
+        plat, plng = nearest.patrol_lat, nearest.patrol_lng
+    else:
+        plat = current_app.config["DEFAULT_PATROL_LAT"]
+        plng = current_app.config["DEFAULT_PATROL_LNG"]
+    return compute_intervention(plat, plng, lat, lng)
+
+
+def _enrich_location(app, alert_id, lat, lng):
+    """Complète le quartier/adresse réels (géocodage) après coup, sans ralentir
+    la création de l'alerte, puis notifie le centre (alert_updated)."""
+    with app.app_context():
+        neigh, address = reverse_geocode(lat, lng)
+        alert = db.session.get(Alert, alert_id)
+        if not alert:
+            return
+        changed = False
+        if neigh and not alert.neighborhood:
+            alert.neighborhood = neigh
+            changed = True
+        if address and address != alert.address:
+            alert.address = address
+            changed = True
+        if changed:
+            db.session.commit()
+            _emit("alert_updated", alert.to_dict())
+
+
 def create_alert(data):
     """Crée une alerte à partir d'une charge utile déjà validée."""
     ai = get_classifier().classify(data["description"], data["type"])
 
-    neighborhood, address = reverse_geocode(data["lat"], data["lng"])
-    neighborhood = data.get("neighborhood") or neighborhood
-    address = data.get("address") or address
+    lat, lng = data["lat"], data["lng"]
+    # Adresse immédiate = coordonnées GPS exactes (localisateur fiable, sans
+    # dépendance réseau). Le vrai quartier est enrichi juste après en arrière-plan.
+    neighborhood = data.get("neighborhood") or None
+    address = data.get("address") or coords_label(lat, lng)
 
     photo_path = save_data_url(data.get("photo"), "image")
     audio_path = save_data_url(data.get("audio"), "audio")
     video_path = save_data_url(data.get("video"), "video")
 
-    dist, eta_moto, eta_walk = compute_intervention(
-        current_app.config["DEFAULT_PATROL_LAT"],
-        current_app.config["DEFAULT_PATROL_LNG"],
-        data["lat"],
-        data["lng"],
-    )
+    dist, eta_moto, eta_walk = _intervention_from_nearest(lat, lng)
 
     # Regroupement : cette alerte double-t-elle un incident déjà signalé ?
     primary = _find_duplicate_primary(data["type"], data["lat"], data["lng"])
@@ -148,6 +181,15 @@ def create_alert(data):
     log.info("Nouvelle alerte #%s type=%s urgence=%s", alert.id, alert.type, alert.urgency)
     payload = alert.to_dict()
     _emit("new_alert", payload)
+
+    # Géocodage inverse (quartier/adresse réels) en arrière-plan : n'ajoute AUCUNE
+    # latence à l'alerte, et met à jour l'incident dès que le quartier est connu.
+    if not neighborhood and current_app.config.get("GEOCODING_ENABLED", True):
+        app = current_app._get_current_object()
+        try:
+            socketio.start_background_task(_enrich_location, app, alert.id, lat, lng)
+        except Exception:  # pragma: no cover - repli si pas de boucle async
+            _enrich_location(app, alert.id, lat, lng)
     # Notifications push (e-mail / SMS) — non bloquant, jamais fatal.
     try:
         from . import notifications

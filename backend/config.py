@@ -75,8 +75,13 @@ class Config:
     DEDUP_WINDOW_MIN = float(os.environ.get("SAFECITY_DEDUP_WINDOW_MIN", "10"))
 
     # --- Position de patrouille par défaut (fallback pour la distance) ---
-    DEFAULT_PATROL_LAT = float(os.environ.get("SAFECITY_PATROL_LAT", "-4.3250"))
-    DEFAULT_PATROL_LNG = float(os.environ.get("SAFECITY_PATROL_LNG", "15.3222"))
+    # Centre-ville de Lubumbashi (déploiement mairie). Configurable par env.
+    DEFAULT_PATROL_LAT = float(os.environ.get("SAFECITY_PATROL_LAT", "-11.6647"))
+    DEFAULT_PATROL_LNG = float(os.environ.get("SAFECITY_PATROL_LNG", "27.4794"))
+
+    # --- Géocodage inverse (quartier/adresse réels via OpenStreetMap) ---
+    # Nécessite un accès Internet côté serveur. Désactivable par env.
+    GEOCODING_ENABLED = os.environ.get("SAFECITY_GEOCODING", "1") not in ("0", "false", "False")
 
     # --- Création de comptes personnels (console bureau) ---
     # Code d'invitation exigé pour créer un compte opérateur depuis le bureau.
@@ -202,6 +207,8 @@ class TestingConfig(Config):
     # Regroupement désactivé par défaut dans les tests (comportement déterministe) ;
     # les tests dédiés l'activent explicitement.
     DEDUP_ENABLED = False
+    # Pas d'appel réseau (Nominatim) pendant les tests.
+    GEOCODING_ENABLED = False
     # Tests hermétiques : on ignore toute passerelle e-mail/SMS issue d'un .env
     # local, pour que les tests ne dépendent pas de la configuration de la machine.
     SMTP_HOST = None

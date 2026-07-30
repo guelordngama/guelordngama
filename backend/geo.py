@@ -1,7 +1,11 @@
 """Fonctions géographiques : distance, temps d'intervention estimé,
 et résolution approximative du quartier / adresse à partir du GPS.
 """
+import json
 import math
+import threading
+import urllib.parse
+import urllib.request
 
 # Vitesses moyennes utilisées pour l'estimation du temps d'intervention.
 MOTO_SPEED_KMH = 25.0   # moto en zone urbaine
@@ -42,17 +46,50 @@ def compute_intervention(patrol_lat, patrol_lng, alert_lat, alert_lng):
     )
 
 
-def reverse_geocode(lat, lng):
-    """Résolution approximative quartier/adresse.
-
-    En production, on appellerait un service (Nominatim/OpenStreetMap). Pour
-    rester hors-ligne et sans dépendance réseau, on renvoie une désignation
-    lisible fondée sur les coordonnées. Le champ reste modifiable côté client.
-    """
+def coords_label(lat, lng):
+    """Libellé lisible des coordonnées exactes (localisateur toujours fiable)."""
     ns = "N" if lat >= 0 else "S"
     ew = "E" if lng >= 0 else "O"
-    address = f"{abs(lat):.5f}°{ns}, {abs(lng):.5f}°{ew}"
-    # Quartier "pseudo" stable dérivé des coordonnées (placeholder déterministe).
-    grid = int(abs(lat) * 1000) % 97 + int(abs(lng) * 1000) % 89
-    neighborhood = f"Zone {grid:02d}"
-    return neighborhood, address
+    return f"{abs(lat):.5f}°{ns}, {abs(lng):.5f}°{ew}"
+
+
+_GEO_CACHE = {}
+_GEO_LOCK = threading.Lock()
+
+
+def reverse_geocode(lat, lng, timeout=6):
+    """Résout le quartier et l'adresse réels via Nominatim (OpenStreetMap).
+
+    Renvoie ``(quartier, adresse)``. En cas d'indisponibilité (réseau, hors
+    ligne), on renvoie ``(None, coordonnées)`` — jamais un faux quartier : la
+    position GPS exacte reste le localisateur fiable pour la patrouille.
+    """
+    fallback = (None, coords_label(lat, lng))
+    key = (round(lat, 4), round(lng, 4))
+    with _GEO_LOCK:
+        if key in _GEO_CACHE:
+            return _GEO_CACHE[key]
+    try:
+        params = urllib.parse.urlencode({
+            "format": "jsonv2", "lat": lat, "lon": lng, "zoom": 16,
+            "addressdetails": 1, "accept-language": "fr",
+        })
+        url = "https://nominatim.openstreetmap.org/reverse?" + params
+        req = urllib.request.Request(url, headers={
+            "User-Agent": "SafeCity/1.0 (plateforme municipale de securite - Lubumbashi)",
+        })
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json.load(resp)
+        addr = data.get("address", {}) or {}
+        neigh = (addr.get("suburb") or addr.get("neighbourhood") or addr.get("quarter")
+                 or addr.get("city_district") or addr.get("residential")
+                 or addr.get("village") or addr.get("town") or addr.get("municipality"))
+        parts = [addr.get("road"), neigh, addr.get("city") or addr.get("town")]
+        address = ", ".join([p for p in parts if p]) or data.get("display_name") \
+            or coords_label(lat, lng)
+        result = (neigh, address)
+    except Exception:  # pragma: no cover - dépend du réseau du serveur
+        result = fallback
+    with _GEO_LOCK:
+        _GEO_CACHE[key] = result
+    return result

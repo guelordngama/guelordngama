@@ -158,7 +158,11 @@ def test_create_and_list_alert():
     assert alert["type"] == "braquage"
     assert alert["urgency"] == "critique"
     assert alert["distance_m"] is not None
-    assert alert["neighborhood"]
+    # L'adresse contient toujours la position exacte (les coordonnées GPS), même
+    # sans géocodage : c'est le localisateur fiable. Le quartier réel est ajouté
+    # ensuite par géocodage (désactivé pendant les tests → None ici, pas de faux).
+    assert alert["address"]
+    assert "°" in alert["address"]
 
     alerts = client.get("/api/alerts").get_json()
     assert isinstance(alerts, list) and len(alerts) == 1
