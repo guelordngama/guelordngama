@@ -631,8 +631,12 @@
       const descLine = a.description
         ? "📝 " + escapeHtml(a.description) + "<br>"
         : "";
+      const approxLine = a.position_approx
+        ? '<span class="alert-approx">⚠️ Position approximative (GPS non obtenu) — '
+          + 'rappeler le citoyen</span><br>'
+        : "";
       node.querySelector(".alert-meta").innerHTML =
-        dupLine +
+        dupLine + approxLine +
         "👤 " + (a.reporter_name || "Anonyme") + " · 📞 " + (a.reporter_phone || "—") + "<br>" +
         "📍 " + (a.neighborhood || "—") + " · 🕒 " + (a.time || "—") + "<br>" +
         descLine +

@@ -2,6 +2,28 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.15.0] — 2026-07-30 — Sécurité : fini le repli GPS sur Kinshasa
+
+### Corrigé (important)
+- **Quand le GPS du citoyen échouait, l'alerte partait avec une position codée en
+  dur à KINSHASA** (`-4.325, 15.3222`) : la carte affichait les rues de Kinshasa
+  et la distance atteignait ~1 566 km. Corrigé :
+  - le repli est désormais le **centre de Lubumbashi** (plus jamais Kinshasa) ;
+  - l'alerte est marquée **« position approximative »** et le champ est transmis
+    au serveur (nouvelle colonne `position_approx`, migration `d7f1a3c95e28`) ;
+  - pas de géocodage sur une position approximative (pas de faux quartier).
+
+### Ajouté
+- **Avertissement clair de position approximative** partout :
+  - **Site citoyen** : sur l'écran d'alerte, message « ⚠️ Position GPS non
+    obtenue » avec un lien **Réessayer** ; sur la confirmation, libellé
+    « 📍 Position approximative » + encart d'avertissement (FR/SW).
+  - **Poste opérateur** : bandeau orange « ⚠️ Position approximative — rappelez
+    le citoyen » dans la fenêtre d'incident.
+  - **Portail agents** : ligne « ⚠️ Position approximative » sur la carte d'alerte.
+- Retour visuel de géolocalisation sur le site citoyen (vert = obtenue, orange =
+  échec).
+
 ## [1.14.2] — 2026-07-30 — Poste opérateur & portail : position GPS exacte copiable
 
 ### Ajouté

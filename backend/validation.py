@@ -66,6 +66,7 @@ def validate_alert_payload(data):
         "photo": data.get("photo"),
         "audio": data.get("audio"),
         "video": data.get("video"),
+        "position_approx": bool(data.get("position_approx")),
         "reporter_id": data.get("reporter_id"),
     }
 

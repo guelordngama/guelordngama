@@ -138,6 +138,10 @@ class Alert(TimestampMixin, db.Model):
     reporter_name = db.Column(db.String(120))
     reporter_phone = db.Column(db.String(40))
 
+    # Position approximative : le GPS du citoyen n'a pas été obtenu, la position
+    # est un repli (centre-ville) — à signaler à l'opérateur et à la patrouille.
+    position_approx = db.Column(db.Boolean, default=False, nullable=False)
+
     # Pièces jointes (chemins relatifs dans /uploads)
     photo_path = db.Column(db.String(255))
     audio_path = db.Column(db.String(255))
@@ -223,6 +227,7 @@ class Alert(TimestampMixin, db.Model):
             "neighborhood": self.neighborhood,
             "reporter_name": self.reporter_name or "Citoyen anonyme",
             "reporter_phone": self.reporter_phone,
+            "position_approx": bool(self.position_approx),
             "photo_url": f"/uploads/{self.photo_path}" if self.photo_path else None,
             "audio_url": f"/uploads/{self.audio_path}" if self.audio_path else None,
             "video_url": f"/uploads/{self.video_path}" if self.video_path else None,

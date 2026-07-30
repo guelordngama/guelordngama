@@ -44,6 +44,10 @@
     });
   })();
 
+  // Centre-ville de Lubumbashi : repli UNIQUEMENT si le GPS est indisponible
+  // (l'alerte est alors marquée « position approximative »). Jamais Kinshasa.
+  const LBB_LAT = -11.6647, LBB_LNG = 27.4794;
+
   // État courant de l'alerte en cours de composition.
   const state = {
     lat: null,
@@ -509,19 +513,28 @@
       $("gps-text").textContent = "Géolocalisation non supportée par ce navigateur.";
       return;
     }
+    const box = $("gps-box");
+    if (box) box.classList.remove("gps-error", "gps-ok");
     $("gps-text").textContent = "Acquisition de la position…";
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         state.lat = pos.coords.latitude;
         state.lng = pos.coords.longitude;
-        $("gps-text").textContent =
-          "Position : " + state.lat.toFixed(5) + ", " + state.lng.toFixed(5) +
-          " (±" + Math.round(pos.coords.accuracy) + " m)";
+        if (box) { box.classList.remove("gps-error"); box.classList.add("gps-ok"); }
+        $("gps-text").innerHTML =
+          "✅ Position obtenue : <b>" + state.lat.toFixed(5) + ", " + state.lng.toFixed(5) +
+          "</b> (±" + Math.round(pos.coords.accuracy) + " m)";
         resolveNeighborhood();
       },
       (err) => {
-        $("gps-text").textContent = "Position indisponible : " + err.message +
-          ". Vous pouvez tout de même envoyer, une position par défaut sera utilisée.";
+        state.lat = null; state.lng = null;
+        if (box) { box.classList.remove("gps-ok"); box.classList.add("gps-error"); }
+        $("gps-text").innerHTML =
+          "⚠️ <b>Position GPS non obtenue</b> (" + err.message + "). " +
+          "Activez la localisation puis <a href=\"#\" id=\"gps-retry\">réessayez</a>. " +
+          "Sans GPS, l'alerte partira avec une <b>position approximative</b>.";
+        var r = $("gps-retry");
+        if (r) r.addEventListener("click", (e) => { e.preventDefault(); acquireGPS(); });
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
@@ -667,9 +680,12 @@
     btn.disabled = true;
     btn.textContent = "Envoi en cours…";
 
-    // Coordonnées par défaut si le GPS a échoué (centre-ville de démonstration).
-    const lat = state.lat != null ? state.lat : -4.325;
-    const lng = state.lng != null ? state.lng : 15.3222;
+    // Position : GPS réel si disponible, sinon repli sur le centre de Lubumbashi
+    // (JAMAIS Kinshasa) et l'alerte est marquée « position approximative » pour
+    // que l'opérateur et la patrouille sachent que ce n'est pas la position exacte.
+    const hasGPS = state.lat != null && state.lng != null;
+    const lat = hasGPS ? state.lat : LBB_LAT;
+    const lng = hasGPS ? state.lng : LBB_LNG;
 
     const auth = getAuth();
     const payload = {
@@ -680,6 +696,7 @@
       reporter_id: auth && auth.user ? auth.user.id : null,
       lat: lat,
       lng: lng,
+      position_approx: !hasGPS,
       photo: state.photo,
       audio: state.audio,
       video: state.video,
@@ -915,8 +932,14 @@
       alert.distance_m != null ? Math.round(alert.distance_m) + " m" : "—";
     $("cf-eta").textContent =
       alert.eta_moto_min != null ? alert.eta_moto_min + " min" : "—";
-    // Coordonnées GPS exactes : toujours affichées (localisateur fiable).
+    // Coordonnées GPS : affichées ; si approximatives, on avertit clairement.
     $("cf-coords-val").textContent = formatCoords(alert.lat, alert.lng);
+    const approx = !!alert.position_approx;
+    $("cf-coords").classList.toggle("approx", approx);
+    $("cf-approx").hidden = !approx;
+    document.querySelector("#cf-coords .cf-coords-label").textContent =
+      approx ? tr("confirm.coordsApprox", "📍 Position approximative")
+             : tr("confirm.coords", "📍 Position exacte");
 
     show("confirm");
     // Affiche la référence et démarre le suivi en direct de l'avancement.

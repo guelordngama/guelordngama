@@ -127,10 +127,16 @@ def create_alert(data):
     ai = get_classifier().classify(data["description"], data["type"])
 
     lat, lng = data["lat"], data["lng"]
+    position_approx = bool(data.get("position_approx"))
     # Adresse immédiate = coordonnées GPS exactes (localisateur fiable, sans
     # dépendance réseau). Le vrai quartier est enrichi juste après en arrière-plan.
     neighborhood = data.get("neighborhood") or None
-    address = data.get("address") or coords_label(lat, lng)
+    if position_approx:
+        # GPS non obtenu : on ne géocode pas (ce serait un faux quartier), et on
+        # signale clairement que la position n'est pas confirmée.
+        address = "Position approximative (GPS non obtenu)"
+    else:
+        address = data.get("address") or coords_label(lat, lng)
 
     photo_path = save_data_url(data.get("photo"), "image")
     audio_path = save_data_url(data.get("audio"), "audio")
@@ -161,6 +167,7 @@ def create_alert(data):
         distance_m=dist,
         eta_moto_min=eta_moto,
         eta_walk_min=eta_walk,
+        position_approx=position_approx,
         reporter_id=data.get("reporter_id"),
         duplicate_of_id=primary.id if primary else None,
     )
@@ -184,7 +191,9 @@ def create_alert(data):
 
     # Géocodage inverse (quartier/adresse réels) en arrière-plan : n'ajoute AUCUNE
     # latence à l'alerte, et met à jour l'incident dès que le quartier est connu.
-    if not neighborhood and current_app.config.get("GEOCODING_ENABLED", True):
+    # (Pas de géocodage si la position est approximative : ce serait trompeur.)
+    if not neighborhood and not position_approx \
+            and current_app.config.get("GEOCODING_ENABLED", True):
         app = current_app._get_current_object()
         try:
             socketio.start_background_task(_enrich_location, app, alert.id, lat, lng)

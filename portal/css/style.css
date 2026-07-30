@@ -125,6 +125,7 @@ input:focus, select:focus { outline: none; border-color: var(--accent); }
 /* Position GPS exacte cliquable (copie) sur les cartes d'alerte. */
 .alert-coords { color: var(--accent); font-weight: 600; cursor: pointer; text-decoration: underline dotted; }
 .alert-coords:hover { filter: brightness(1.15); }
+.alert-approx { color: #f59e0b; font-weight: 700; }
 /* Messages non lus depuis la dernière consultation + séparateur de reprise. */
 .chat-msg.unread { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .chat-divider-new { align-self: center; margin: 8px 0 4px; font-size: 10px; font-weight: 700;

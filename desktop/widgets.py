@@ -229,6 +229,18 @@ class IncidentPopup(QDialog):
         self._elapsed_timer.start(1000)
         self._tick_elapsed()
 
+        # Bandeau « position approximative » : le GPS du citoyen n'a pas été
+        # obtenu → la position n'est PAS fiable, la patrouille doit rappeler.
+        if alert.get("position_approx"):
+            warn = QLabel("⚠️  Position approximative — GPS du citoyen non obtenu. "
+                          "Rappelez le citoyen pour confirmer le lieu.")
+            warn.setAlignment(Qt.AlignCenter)
+            warn.setWordWrap(True)
+            warn.setStyleSheet(
+                "background: #f59e0b22; color: #f59e0b; font-weight: 800; "
+                "padding: 8px; font-size: 13px;")
+            root.addWidget(warn)
+
         # Bandeau « signalements liés » : plusieurs citoyens ont signalé le même
         # incident → une seule intervention suffit.
         dup = alert.get("duplicate_count") or 0
