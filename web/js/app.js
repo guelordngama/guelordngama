@@ -818,6 +818,13 @@
   const tr = (key, fallback) =>
     (window.t ? window.t(key) : null) || fallback || key;
 
+  // Coordonnées GPS formatées façon « 11.66470°S, 27.48000°E ».
+  function formatCoords(lat, lng) {
+    if (lat == null || lng == null) return "—";
+    const ns = lat >= 0 ? "N" : "S", ew = lng >= 0 ? "E" : "O";
+    return Math.abs(lat).toFixed(5) + "°" + ns + ", " + Math.abs(lng).toFixed(5) + "°" + ew;
+  }
+
   // Nom traduit d'un type d'incident (Vol/Wizi…), repli sur le type capitalisé.
   function typeLabel(type) {
     if (!type) return "—";
@@ -908,6 +915,8 @@
       alert.distance_m != null ? Math.round(alert.distance_m) + " m" : "—";
     $("cf-eta").textContent =
       alert.eta_moto_min != null ? alert.eta_moto_min + " min" : "—";
+    // Coordonnées GPS exactes : toujours affichées (localisateur fiable).
+    $("cf-coords-val").textContent = formatCoords(alert.lat, alert.lng);
 
     show("confirm");
     // Affiche la référence et démarre le suivi en direct de l'avancement.
@@ -938,6 +947,15 @@
     $("track-result").hidden = true;
     $("track-error").hidden = true;
     show("track");
+  });
+
+  // Cliquer sur la position exacte la copie (pratique pour la transmettre).
+  $("cf-coords").addEventListener("click", () => {
+    const v = $("cf-coords-val").textContent;
+    if (!v || v === "—") return;
+    const done = () => toast("📍 " + tr("confirm.coordsCopied", "Position copiée") + " : " + v);
+    if (navigator.clipboard) navigator.clipboard.writeText(v).then(done, done);
+    else done();
   });
   $("btn-track-back").addEventListener("click", () => {
     // Revenir à l'écran précédent : confirmation si une alerte y est suivie,

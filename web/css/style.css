@@ -337,7 +337,18 @@ input:focus, textarea:focus { outline: none; border-color: var(--accent); }
 .cc-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--line); }
 .cc-row:last-child { border-bottom: none; }
 .cc-row span { color: var(--muted); }
-.mini-map { height: 210px; border-radius: 16px; overflow: hidden; margin-bottom: 22px; border: 1px solid var(--line); }
+.mini-map { height: 210px; border-radius: 16px; overflow: hidden; margin-bottom: 12px; border: 1px solid var(--line); }
+/* Coordonnées GPS exactes sous la mini-carte (localisateur toujours visible). */
+.cf-coords {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 14px; margin-bottom: 20px; border-radius: 12px; cursor: pointer;
+  background: var(--accent-soft, rgba(61,139,255,0.10));
+  border: 1px solid rgba(61,139,255,0.35);
+}
+.cf-coords:active { filter: brightness(1.1); }
+.cf-coords .cf-coords-label { color: var(--muted); font-size: 13px; }
+.cf-coords strong { font-family: "Segoe UI", system-ui, monospace; letter-spacing: 0.02em;
+  color: var(--accent); font-size: 14px; }
 
 /* ---- Suivi d'alerte : référence + chronologie ---- */
 .btn-ghost {

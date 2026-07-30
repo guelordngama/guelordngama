@@ -2,6 +2,14 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.14.1] — 2026-07-30 — Site citoyen : coordonnées GPS exactes sous la carte
+
+### Ajouté
+- **Position GPS exacte affichée sous la mini-carte** de l'écran de confirmation
+  (ex. « 📍 Position exacte : 11.66470°S, 27.47940°E ») — toujours visible, même
+  quand le nom du quartier n'est pas encore connu. Un clic **copie** la position
+  (pratique pour la transmettre). Libellé traduit FR/SW.
+
 ## [1.14.0] — 2026-07-30 — Localisation fiable : vrai quartier + distances correctes
 
 ### Corrigé
