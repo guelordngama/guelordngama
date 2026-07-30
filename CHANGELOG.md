@@ -2,6 +2,19 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.15.3] — 2026-07-30 — Cartes qui fonctionnent : Leaflet & Socket.IO servis en local
+
+### Corrigé (cause de « la localisation ne marche pas »)
+- **Le site citoyen et le portail agents chargeaient Leaflet et Socket.IO depuis
+  des CDN externes** (`unpkg.com`, `cdn.socket.io`) — **bloqués par le pare-feu de
+  la mairie**. Résultat : la carte ne se chargeait pas, donc ni l'affichage de la
+  position, ni le placement manuel ne fonctionnaient.
+- Ces bibliothèques sont désormais **servies localement** (dossiers
+  `web/vendor/` et `portal/vendor/`), comme le fait déjà le poste opérateur.
+  Plus aucune dépendance à un CDN externe : la **carte s'affiche** et la
+  **localisation fonctionne** même derrière le pare-feu.
+  - Icônes de repère Leaflet servies localement aussi.
+
 ## [1.15.2] — 2026-07-30 — Site citoyen : bouton « Utiliser ma position GPS »
 
 ### Ajouté

@@ -4,6 +4,8 @@
 (function () {
   "use strict";
   const API = window.SAFECITY_CONFIG.API_BASE;
+  // Icônes de repère Leaflet servies localement (pas de CDN).
+  if (typeof L !== "undefined") L.Icon.Default.imagePath = "vendor/leaflet/images/";
   const URGENCY = { faible: "#22c55e", moyenne: "#eab308", haute: "#f97316", critique: "#ef4444" };
   const URG_LABEL = { faible: "Faible", moyenne: "Moyen", haute: "Élevé", critique: "Critique" };
 

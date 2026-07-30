@@ -6,6 +6,9 @@
 
   const API = window.SAFECITY_CONFIG.API_BASE;
 
+  // Icônes de repère Leaflet servies localement (pas de CDN).
+  if (typeof L !== "undefined") L.Icon.Default.imagePath = "vendor/leaflet/images/";
+
   // E-mail requis à l'inscription ? (vrai si aucun SMS n'est configuré côté
   // serveur : le code de vérification ne peut alors être envoyé que par e-mail).
   let emailRequired = false;
