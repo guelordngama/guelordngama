@@ -2,6 +2,22 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.13.0] — 2026-07-30 — Messagerie : reprise au dernier point de lecture
+
+### Ajouté
+- **Reprise automatique au dernier point de lecture** dans la messagerie du poste
+  opérateur. Chaque utilisateur mémorise l'endroit exact où il s'était arrêté ;
+  à la réouverture de la messagerie, la vue se positionne **sur le séparateur
+  « Nouveaux messages »** (et non tout en haut ou tout en bas).
+  - Les messages reçus depuis la dernière consultation apparaissent **juste
+    après** ce point, clairement identifiés comme **non lus** (surlignés + pastille).
+  - Le dernier point de lecture est **enregistré durablement** (par utilisateur),
+    donc conservé **même après fermeture et relance** de l'application.
+  - Au démarrage, le **badge** du menu Messagerie reflète le nombre de messages
+    reçus depuis la dernière lecture.
+  - Une fois la messagerie consultée, le point de lecture avance automatiquement
+    au dernier message (accusé de lecture ✓✓ inchangé).
+
 ## [1.12.4] — 2026-07-30 — Poste opérateur : message clair si dépendances temps réel manquantes
 
 ### Corrigé

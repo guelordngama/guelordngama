@@ -1094,19 +1094,26 @@ class ChatPage(QWidget):
             self.attach_label.setText("")
 
     # ---- Rendu des messages ----
-    def set_messages(self, msgs, unread_ids=None):
+    def set_messages(self, msgs, unread_ids=None, resume=False):
+        """Affiche les messages. Si ``resume`` et qu'il y a des non-lus, la vue
+        se positionne sur le séparateur « Nouveaux messages » (reprise au dernier
+        point de lecture) au lieu de descendre tout en bas."""
         unread_ids = unread_ids or set()
         self._clear_messages()
         self._last_day = None  # séparateur de date façon WhatsApp
         divider_done = False
+        resume_widget = None
         for m in msgs:
             self._maybe_add_date_divider(m)
             is_unread = m.get("id") in unread_ids
             if is_unread and not divider_done:
-                self._add_divider("Nouveaux messages")
+                resume_widget = self._add_divider("Nouveaux messages")
                 divider_done = True
             self._add_bubble(m, unread=is_unread)
-        self._scroll_to_bottom()
+        if resume and resume_widget is not None:
+            self._scroll_to_widget(resume_widget)  # reprise là où on s'était arrêté
+        else:
+            self._scroll_to_bottom()
 
     def add_message(self, m):
         self._maybe_add_date_divider(m)
@@ -1202,6 +1209,7 @@ class ChatPage(QWidget):
         lbl.setStyleSheet(
             f"color: {theme.ACCENT_2}; font-size: 11px; font-weight: bold; background: transparent;")
         self._msgs.insertWidget(self._msgs.count() - 1, lbl)
+        return lbl
 
     def _add_date_divider(self, label):
         """Pastille de date centrée (style WhatsApp) séparant les jours."""
@@ -1493,6 +1501,26 @@ class ChatPage(QWidget):
         from PySide6.QtCore import QTimer
         bar = self.scroll.verticalScrollBar()
         QTimer.singleShot(0, lambda: bar.setValue(bar.maximum()))
+
+    def _scroll_to_widget(self, w):
+        """Positionne la vue pour que le widget ``w`` (séparateur « Nouveaux
+        messages ») soit en haut : l'utilisateur reprend exactement au dernier
+        point de lecture, avec les nouveaux messages juste en dessous."""
+        from PySide6.QtCore import QPoint, QTimer
+
+        def go():
+            try:
+                self._msgs.activate()  # force le calcul de la mise en page
+                y = w.mapTo(self._host, QPoint(0, 0)).y()
+            except Exception:
+                return
+            bar = self.scroll.verticalScrollBar()
+            bar.setValue(max(0, min(bar.maximum(), y - 12)))
+
+        # Deux passes différées : la seconde garantit un positionnement correct
+        # une fois la mise en page entièrement calculée.
+        QTimer.singleShot(0, go)
+        QTimer.singleShot(120, go)
 
 
 # --------------------------------------------------------------------------- #

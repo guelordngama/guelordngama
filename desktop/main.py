@@ -871,22 +871,62 @@ class MainWindow(QWidget):
             self.sidebar.set_badge(self.IDX_AGENTS, len(self._unread_agent_ids))
 
     # ---- Messagerie ----
+    def _chat_last_read(self):
+        """Dernier message lu par cet utilisateur dans la messagerie (persistant,
+        conservé même après fermeture/relance de l'application)."""
+        from PySide6.QtCore import QSettings
+
+        uid = self.operator.get("id") or "anon"
+        v = QSettings("SafeCity", "Operateur").value(f"chat_last_read_{uid}", 0)
+        try:
+            return int(v)
+        except (TypeError, ValueError):
+            return 0
+
+    def _set_chat_last_read(self, mid):
+        from PySide6.QtCore import QSettings
+
+        try:
+            mid = int(mid)
+        except (TypeError, ValueError):
+            return
+        uid = self.operator.get("id") or "anon"
+        s = QSettings("SafeCity", "Operateur")
+        if int(s.value(f"chat_last_read_{uid}", 0) or 0) < mid:
+            s.setValue(f"chat_last_read_{uid}", mid)
+
     def _load_messages(self):
         try:
             msgs = self.api.get_messages(50)
-            # Affiche les messages non lus (surlignés + séparateur), puis efface.
-            self.page_chat.set_messages(msgs, unread_ids=set(self._unread_msg_ids))
-            # Synchronise le filet de sécurité : ces messages sont désormais vus.
-            for m in msgs if isinstance(msgs, list) else []:
-                if m.get("id") is not None:
-                    self._known_msg_ids.add(m["id"])
-            self._msg_bootstrapped = True
-            if self._unread_msg_ids:
-                self._unread_msg_ids = set()
-                self.sidebar.set_badge(self.IDX_CHAT, 0)
-            self._mark_read()  # j'ai ouvert la messagerie → accusé de lecture
         except Exception as e:
             QMessageBox.warning(self, "Messagerie", str(e))
+            return
+        msgs = msgs if isinstance(msgs, list) else []
+
+        # Reprise au dernier point de lecture : les messages postérieurs, venant
+        # d'autres utilisateurs, sont « non lus » (séparateur + surlignage), et la
+        # vue se positionne dessus au lieu de repartir du bas.
+        last_read = self._chat_last_read()
+        me = self.operator.get("id")
+        unread_ids = {m["id"] for m in msgs
+                      if m.get("id") is not None and m["id"] > last_read
+                      and m.get("sender_id") != me}
+        self.page_chat.set_messages(msgs, unread_ids=unread_ids, resume=True)
+
+        # Synchronise le filet de sécurité : ces messages sont désormais vus.
+        for m in msgs:
+            if m.get("id") is not None:
+                self._known_msg_ids.add(m["id"])
+        self._msg_bootstrapped = True
+
+        # L'utilisateur consulte la messagerie → on avance le point de lecture au
+        # dernier message et on efface le badge.
+        newest = max((m["id"] for m in msgs if m.get("id") is not None),
+                     default=last_read)
+        self._set_chat_last_read(newest)
+        self._unread_msg_ids = set()
+        self.sidebar.set_badge(self.IDX_CHAT, 0)
+        self._mark_read()  # accusé de lecture (✓✓) côté serveur
 
     def _mark_read(self):
         """Signale la lecture de la messagerie (non bloquant)."""
@@ -944,15 +984,21 @@ class MainWindow(QWidget):
         if msg.get("id") is not None:
             self._known_msg_ids.add(msg["id"])
         other = msg.get("sender_id") != self.operator.get("id")
+        on_chat = self.stack.currentIndex() == self.IDX_CHAT
         # Notification + badge « non lu » si on n'est pas sur la page Messagerie
         # et que le message vient d'un autre utilisateur.
-        if self.stack.currentIndex() != self.IDX_CHAT and other:
+        if not on_chat and other:
             self._unread_msg_ids.add(msg.get("id"))
             self.sidebar.set_badge(self.IDX_CHAT, len(self._unread_msg_ids))
             self.alarm.play_notify()  # son de réception (message)
             Toast(self, f"💬 {msg.get('sender_name')}: {msg.get('text', '')[:40]}", theme.ACCENT_2).show_for(3500)
-        elif self.stack.currentIndex() == self.IDX_CHAT and other:
-            self._mark_read()  # je suis sur la messagerie et je vois le message
+        elif on_chat:
+            # Sur la messagerie : le message est vu en direct → on avance le point
+            # de lecture persistant (pour ne pas le remontrer « non lu » plus tard).
+            if msg.get("id") is not None:
+                self._set_chat_last_read(msg["id"])
+            if other:
+                self._mark_read()
 
     # ---- Export de l'historique ----
     def _export_history(self, fmt):
@@ -1148,9 +1194,21 @@ class MainWindow(QWidget):
         for m in msgs:
             if m.get("id") is not None:
                 self._known_msg_ids.add(m["id"])
-        # Premier passage : on mémorise l'existant sans notifier l'historique.
+        # Premier passage (ex. au démarrage) : on n'annonce pas tout l'historique,
+        # mais on rétablit le badge « non lu » d'après le dernier point de lecture
+        # PERSISTANT — pour que l'utilisateur retrouve, même après relance, le
+        # nombre de messages reçus depuis sa dernière consultation.
         if not self._msg_bootstrapped:
             self._msg_bootstrapped = True
+            if self.stack.currentIndex() != self.IDX_CHAT:
+                last_read = self._chat_last_read()
+                me = self.operator.get("id")
+                backlog = [m for m in msgs if m.get("id") is not None
+                           and m["id"] > last_read and m.get("sender_id") != me]
+                for m in backlog:
+                    self._unread_msg_ids.add(m["id"])
+                if backlog:
+                    self.sidebar.set_badge(self.IDX_CHAT, len(self._unread_msg_ids))
             return
         # Nouveaux messages venant d'autres utilisateurs (pas les siens).
         others = [m for m in fresh
