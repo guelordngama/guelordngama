@@ -21,6 +21,15 @@ from PySide6.QtWidgets import (
 import theme
 
 
+def _fmt_coords(lat, lng):
+    """Coordonnées GPS lisibles : « 11.66470°S, 27.47940°E »."""
+    if lat is None or lng is None:
+        return "—"
+    ns = "N" if lat >= 0 else "S"
+    ew = "E" if lng >= 0 else "O"
+    return f"{abs(lat):.5f}°{ns}, {abs(lng):.5f}°{ew}"
+
+
 def _shadow(widget, blur=24, alpha=90):
     eff = QGraphicsDropShadowEffect(widget)
     eff.setBlurRadius(blur)
@@ -244,12 +253,13 @@ class IncidentPopup(QDialog):
         info = QGridLayout()
         info.setVerticalSpacing(8)
         info.setHorizontalSpacing(14)
+        self._coords_text = _fmt_coords(alert.get("lat"), alert.get("lng"))
         rows = [
             ("👤 Citoyen", alert.get("reporter_name") or "Citoyen anonyme"),
             ("📞 Téléphone", alert.get("reporter_phone") or "Non communiqué"),
             ("🕒 Heure", alert.get("time") or "—"),
             ("📍 Quartier", alert.get("neighborhood") or "—"),
-            ("🌐 Position", f"{alert.get('lat'):.5f}, {alert.get('lng'):.5f}"),
+            ("🌐 Position exacte", self._coords_text),
             ("📏 Distance équipe", f"{round(alert['distance_m'])} m" if alert.get("distance_m") is not None else "—"),
         ]
         for i, (k, v) in enumerate(rows):
@@ -286,6 +296,14 @@ class IncidentPopup(QDialog):
                 f"background: {theme.PANEL}; border: 1px solid {theme.BORDER}; "
                 f"border-radius: 10px; padding: 10px 12px; font-weight: 600;")
             body.addWidget(desc)
+
+        # Copier la position GPS exacte (pour la transmettre à une patrouille).
+        if self._coords_text != "—":
+            self.btn_copy_gps = QPushButton(f"📋  Copier la position GPS  ({self._coords_text})")
+            self.btn_copy_gps.setObjectName("ghost")
+            self.btn_copy_gps.setCursor(Qt.PointingHandCursor)
+            self.btn_copy_gps.clicked.connect(self._copy_coords)
+            body.addWidget(self.btn_copy_gps)
 
         # Message vocal joint par le citoyen : lecteur intégré (en urgence,
         # l'opérateur doit pouvoir l'écouter tout de suite).
@@ -398,6 +416,15 @@ class IncidentPopup(QDialog):
 
         phone = self.alert.get("reporter_phone") or "non communiqué"
         QMessageBox.information(self, "Appel", f"Appel du citoyen : {phone}")
+
+    def _copy_coords(self):
+        """Copie la position GPS exacte dans le presse-papiers."""
+        from PySide6.QtWidgets import QApplication
+
+        QApplication.clipboard().setText(self._coords_text)
+        self.btn_copy_gps.setText(f"✓  Position copiée  ({self._coords_text})")
+        QTimer.singleShot(1800, lambda: self.btn_copy_gps.setText(
+            f"📋  Copier la position GPS  ({self._coords_text})"))
 
     def _open_full_photo(self):
         """Affiche la photo du citoyen en grand dans une fenêtre."""

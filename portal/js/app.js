@@ -571,6 +571,13 @@
     }[c]));
   }
 
+  // Coordonnées GPS lisibles : « 11.66470°S, 27.47940°E ».
+  function fmtCoords(lat, lng) {
+    if (lat == null || lng == null) return "—";
+    const ns = lat >= 0 ? "N" : "S", ew = lng >= 0 ? "E" : "O";
+    return Math.abs(lat).toFixed(5) + "°" + ns + ", " + Math.abs(lng).toFixed(5) + "°" + ew;
+  }
+
   // Affiche les médias joints à une alerte (photo cliquable, vocal, vidéo).
   function renderAlertMedia(box, a) {
     if (!box) return;
@@ -629,8 +636,18 @@
         "👤 " + (a.reporter_name || "Anonyme") + " · 📞 " + (a.reporter_phone || "—") + "<br>" +
         "📍 " + (a.neighborhood || "—") + " · 🕒 " + (a.time || "—") + "<br>" +
         descLine +
-        "🌐 " + a.lat.toFixed(5) + ", " + a.lng.toFixed(5) +
-        (a.distance_m != null ? " · 📏 " + Math.round(a.distance_m) + " m" : "");
+        '🌐 <span class="alert-coords" title="Cliquer pour copier la position">'
+          + fmtCoords(a.lat, a.lng) + "</span>"
+        + (a.distance_m != null ? " · 📏 " + Math.round(a.distance_m) + " m" : "");
+      // Position GPS exacte cliquable → copie (pour la transmettre par radio/tel).
+      const coordsEl = node.querySelector(".alert-coords");
+      if (coordsEl) {
+        coordsEl.addEventListener("click", () => {
+          const v = fmtCoords(a.lat, a.lng);
+          const ok = () => { const o = coordsEl.textContent; coordsEl.textContent = "✓ copié"; setTimeout(() => { coordsEl.textContent = o; }, 1400); };
+          if (navigator.clipboard) navigator.clipboard.writeText(v).then(ok, ok); else ok();
+        });
+      }
 
       // Médias joints par le citoyen (photo / vocal / vidéo) : les agents sur le
       // terrain doivent aussi les voir, pas seulement l'opérateur.

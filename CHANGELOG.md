@@ -2,6 +2,16 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.14.2] — 2026-07-30 — Poste opérateur & portail : position GPS exacte copiable
+
+### Ajouté
+- **Poste opérateur** : dans la fenêtre d'incident, la ligne « Position exacte »
+  est formatée (ex. « 11.66470°S, 27.47940°E ») et un bouton **« 📋 Copier la
+  position GPS »** copie la position dans le presse-papiers (pour la transmettre
+  à une patrouille).
+- **Portail agents** : la position GPS de chaque alerte est formatée et
+  **cliquable** pour la copier (« ✓ copié »).
+
 ## [1.14.1] — 2026-07-30 — Site citoyen : coordonnées GPS exactes sous la carte
 
 ### Ajouté
