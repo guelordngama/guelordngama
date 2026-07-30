@@ -16,6 +16,50 @@ except Exception:  # pragma: no cover
     SOCKETIO_AVAILABLE = False
 
 
+def _module_available(name):
+    import importlib
+
+    try:
+        importlib.import_module(name)
+        return True
+    except Exception:
+        return False
+
+
+def _websocket_client_available():
+    """Vrai si le BON paquet « websocket-client » est présent.
+
+    Le paquet « websocket » (différent, incompatible) fournit aussi un module
+    « websocket » mais sans WebSocketException → provoque l'erreur
+    « module 'websocket' has no attribute 'WebSocketException' ». On distingue
+    les deux via cet attribut.
+    """
+    try:
+        import websocket
+        return hasattr(websocket, "WebSocketException")
+    except Exception:
+        return False
+
+
+def _print_realtime_deps_hint(have_requests, have_ws_client):
+    """Message unique et actionnable quand le temps réel ne peut pas démarrer
+    faute de dépendances Python (au lieu d'inonder la console d'erreurs)."""
+    print("[SafeCity] ⚠️  Temps réel désactivé : dépendances Python manquantes "
+          "sur ce poste.")
+    if not have_requests:
+        print("[SafeCity]     • paquet « requests » manquant (transport polling).")
+    if not have_ws_client:
+        print("[SafeCity]     • « websocket-client » manquant ou en conflit avec "
+              "le paquet « websocket ».")
+    print("[SafeCity]     Corriger (dans le dossier desktop) :")
+    print("[SafeCity]         pip install -r requirements.txt")
+    print("[SafeCity]     Si l'erreur « websocket » persiste :")
+    print("[SafeCity]         pip uninstall -y websocket  puis  "
+          "pip install websocket-client")
+    print("[SafeCity]     L'application reste utilisable : les alertes et messages "
+          "s'actualisent automatiquement toutes les 15 s.")
+
+
 class ApiClient:
     def __init__(self, base_url="http://localhost:5000"):
         self.base_url = base_url.rstrip("/")
@@ -247,17 +291,36 @@ class ApiClient:
         import time
 
         order = os.environ.get("SAFECITY_SOCKET_TRANSPORTS", "websocket,polling")
-        transports = [t.strip() for t in order.split(",") if t.strip()] \
+        wanted = [t.strip() for t in order.split(",") if t.strip()] \
             or ["websocket", "polling"]
 
-        for attempt in range(1, 61):  # ~3 min de tentatives (thread daemon)
+        # On ne tente QUE les transports dont la dépendance Python est présente :
+        #  - polling  → paquet « requests »
+        #  - websocket → paquet « websocket-client » (PAS le paquet « websocket »)
+        # Cela évite d'inonder la console de « requests package is not installed »
+        # ou « module 'websocket' has no attribute 'WebSocketException' ».
+        have_requests = _module_available("requests")
+        have_ws_client = _websocket_client_available()
+        transports = []
+        for tr in wanted:
+            if tr == "polling" and not have_requests:
+                continue
+            if tr == "websocket" and not have_ws_client:
+                continue
+            transports.append(tr)
+
+        if not transports:
+            _print_realtime_deps_hint(have_requests, have_ws_client)
+            return  # rien d'utilisable : l'app fonctionne via l'actualisation REST
+
+        for attempt in range(1, 41):  # ~2 min de tentatives (thread daemon)
             for tr in transports:
                 try:
                     self.sio.connect(self.base_url, transports=[tr])
                     print(f"[SafeCity] Temps réel connecté via {tr}.")
                     return  # connecté : l'événement "connect" passe l'UI en ligne
                 except Exception as e:  # pragma: no cover - dépend du réseau
-                    if attempt == 1 or attempt % 5 == 0:
+                    if attempt == 1 or attempt % 10 == 0:
                         print(f"[SafeCity] Temps réel {tr} indisponible "
                               f"(essai {attempt}) : {e}")
             time.sleep(3)

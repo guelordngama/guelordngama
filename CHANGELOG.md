@@ -2,6 +2,21 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.12.4] — 2026-07-30 — Poste opérateur : message clair si dépendances temps réel manquantes
+
+### Corrigé
+- **Console inondée** de `requests package is not installed` et de
+  `module 'websocket' has no attribute 'WebSocketException'` quand le poste
+  n'a pas les bonnes dépendances Python pour le temps réel.
+  - L'app **ne tente plus** un transport dont la dépendance manque (polling →
+    `requests` ; websocket → `websocket-client`).
+  - Si aucun transport n'est utilisable, elle affiche **un seul message clair et
+    actionnable** (commandes `pip` à lancer) au lieu de dizaines d'erreurs.
+  - L'application reste utilisable : alertes et messages s'actualisent
+    automatiquement toutes les 15 s (filet de sécurité REST).
+- Note ajoutée dans `desktop/requirements.txt` sur le **conflit** entre le paquet
+  `websocket` (incompatible) et `websocket-client` (requis).
+
 ## [1.12.3] — 2026-07-30 — Poste opérateur : carte en ligne même en backend local
 
 ### Modifié

@@ -11,6 +11,11 @@ requests>=2.32.0
 # Transport WebSocket (indispensable là où le pare-feu coupe le long-polling).
 # Normalement tiré par python-socketio[client], mais on l'épingle pour garantir
 # que la montée en WebSocket est disponible.
+#
+# ATTENTION : c'est bien « websocket-client » qu'il faut, PAS le paquet
+# « websocket » (différent, incompatible). Si vous voyez l'erreur
+# « module 'websocket' has no attribute 'WebSocketException' », désinstallez le
+# mauvais paquet :  pip uninstall -y websocket  puis  pip install websocket-client
 websocket-client>=1.7.0
 
 # Pour générer l'exécutable Windows :
