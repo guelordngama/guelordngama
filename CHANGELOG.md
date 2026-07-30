@@ -2,6 +2,15 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.12.1] — 2026-07-27 — Portail agents : médias du citoyen affichés
+
+### Ajouté
+- **Photo, vocal et vidéo du citoyen affichés dans le portail agents** (et plus
+  seulement au poste opérateur). Sur chaque carte d'alerte : **photo** cliquable
+  (ouverture en grand), lecteur **audio** et lecteur **vidéo** intégrés, ainsi
+  que la **description** du signalement. Les agents sur le terrain disposent
+  ainsi de tout le contexte média.
+
 ## [1.12.0] — 2026-07-27 — Le citoyen peut joindre une vidéo à son alerte
 
 ### Ajouté

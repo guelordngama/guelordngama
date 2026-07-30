@@ -514,6 +514,38 @@
     renderList();
   }
 
+  function escapeHtml(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+  }
+
+  // Affiche les médias joints à une alerte (photo cliquable, vocal, vidéo).
+  function renderAlertMedia(box, a) {
+    if (!box) return;
+    box.innerHTML = "";
+    const abs = (u) => (u && u.charAt(0) === "/" ? API + u : u);
+    if (a.photo_url) {
+      const link = document.createElement("a");
+      link.href = abs(a.photo_url); link.target = "_blank"; link.rel = "noopener";
+      const img = document.createElement("img");
+      img.className = "alert-photo"; img.src = abs(a.photo_url);
+      img.alt = "Photo du citoyen"; img.loading = "lazy";
+      link.appendChild(img); box.appendChild(link);
+    }
+    if (a.audio_url) {
+      const au = document.createElement("audio");
+      au.controls = true; au.preload = "none"; au.src = abs(a.audio_url);
+      box.appendChild(au);
+    }
+    if (a.video_url) {
+      const vi = document.createElement("video");
+      vi.controls = true; vi.preload = "metadata"; vi.src = abs(a.video_url);
+      vi.className = "alert-video";
+      box.appendChild(vi);
+    }
+  }
+
   function renderList() {
     const list = $("alerts-list");
     const items = Object.values(state.alerts).sort((x, y) => (y.created_at || "").localeCompare(x.created_at || ""));
@@ -538,12 +570,20 @@
       const dupLine = dup > 0
         ? "🔁 " + (dup + 1) + " signalements du même incident (regroupés)<br>"
         : "";
+      const descLine = a.description
+        ? "📝 " + escapeHtml(a.description) + "<br>"
+        : "";
       node.querySelector(".alert-meta").innerHTML =
         dupLine +
         "👤 " + (a.reporter_name || "Anonyme") + " · 📞 " + (a.reporter_phone || "—") + "<br>" +
         "📍 " + (a.neighborhood || "—") + " · 🕒 " + (a.time || "—") + "<br>" +
+        descLine +
         "🌐 " + a.lat.toFixed(5) + ", " + a.lng.toFixed(5) +
         (a.distance_m != null ? " · 📏 " + Math.round(a.distance_m) + " m" : "");
+
+      // Médias joints par le citoyen (photo / vocal / vidéo) : les agents sur le
+      // terrain doivent aussi les voir, pas seulement l'opérateur.
+      renderAlertMedia(node.querySelector(".alert-media"), a);
       const accepted = a.assigned_agent && state.agent && a.assigned_agent.id === state.agent.id;
       if (accepted) card.classList.add("accepted");
       const bAccept = node.querySelector(".btn-accept");
