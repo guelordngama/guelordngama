@@ -158,11 +158,57 @@
     if (state.socket) state.socket.on("chat_message", addMessage);
   }
 
+  // Dernier point de lecture de la messagerie (persistant, par agent) : conservé
+  // même après fermeture/relance, pour reprendre là où on s'était arrêté.
+  function chatLastRead() {
+    const id = state.agent && state.agent.id;
+    const v = parseInt(localStorage.getItem("chat_last_read_" + id) || "0", 10);
+    return isNaN(v) ? 0 : v;
+  }
+  function setChatLastRead(mid) {
+    const id = state.agent && state.agent.id;
+    if (!id || !mid) return;
+    if (mid > chatLastRead()) localStorage.setItem("chat_last_read_" + id, String(mid));
+  }
+  function addChatDivider(box, label) {
+    const el = document.createElement("div");
+    el.className = "chat-divider-new";
+    el.textContent = "──  " + label + "  ──";
+    box.appendChild(el);
+    return el;
+  }
+
   async function loadMessages() {
     state.lastChatDay = null;
-    $("chat-messages").innerHTML = "";
-    try { (await api("GET", "/api/messages?limit=40")).forEach(addMessage); } catch (e) {}
+    const box = $("chat-messages");
+    box.innerHTML = "";
+    let msgs = [];
+    try { msgs = await api("GET", "/api/messages?limit=40"); } catch (e) {}
+    if (!Array.isArray(msgs)) msgs = [];
+
+    // Reprise au dernier point de lecture : les messages postérieurs, venant
+    // d'autres, sont « non lus » (séparateur + surlignage), et la vue se
+    // positionne dessus au lieu de descendre tout en bas.
+    const lastRead = chatLastRead();
+    const meId = state.agent && state.agent.id;
+    let dividerEl = null, dividerDone = false, maxId = lastRead;
+    msgs.forEach((m) => {
+      const isUnread = m.id && m.id > lastRead && m.sender_id !== meId;
+      if (isUnread && !dividerDone) { dividerEl = addChatDivider(box, "Nouveaux messages"); dividerDone = true; }
+      addMessage(m, { unread: isUnread, noScroll: true });
+      if (m.id && m.id > maxId) maxId = m.id;
+    });
+
     state.chatReady = true;  // les messages suivants déclencheront un bip
+    // Positionnement : sur le séparateur si présent, sinon en bas.
+    if (dividerEl) {
+      const br = box.getBoundingClientRect(), er = dividerEl.getBoundingClientRect();
+      box.scrollTop += (er.top - br.top) - 8;
+    } else {
+      box.scrollTop = box.scrollHeight;
+    }
+    // Consultation → on avance le point de lecture + accusé de lecture.
+    setChatLastRead(maxId);
     markRead();              // j'ai ouvert la messagerie → accusé de lecture
   }
   let chatAttachment = null;
@@ -330,20 +376,22 @@
     box.appendChild(sep);
   }
 
-  function addMessage(m) {
+  function addMessage(m, opts) {
+    opts = opts || {};
     const box = $("chat-messages");
     const mine = state.agent && m.sender_id === state.agent.id;
-    if (!mine && state.chatReady) {
+    if (!mine && state.chatReady && !opts.noScroll) {
       soundPing();  // bip pour un message entrant
       notify("💬 Nouveau message — SafeCity",
              (m.sender_name || "Centre") + " : " + (m.text || "pièce jointe"));
     }
     maybeAddDateDivider(box, m);
     const div = document.createElement("div");
-    div.className = "chat-msg " + (mine ? "mine" : "other");
+    div.className = "chat-msg " + (mine ? "mine" : "other") + (opts.unread ? " unread" : "");
     const who = document.createElement("span");
     who.className = "who";
-    who.textContent = (mine ? "Moi" : (m.sender_name || "Centre")) + " · " + (m.time || "");
+    who.textContent = (opts.unread && !mine ? "🔵 " : "")
+      + (mine ? "Moi" : (m.sender_name || "Centre")) + " · " + (m.time || "");
     div.appendChild(who);
     if (m.text) { const txt = document.createElement("span"); txt.textContent = m.text; div.appendChild(txt); }
     if (m.voice_url) {
@@ -387,8 +435,11 @@
       updateTick(div);
     }
     box.appendChild(div);
-    box.scrollTop = box.scrollHeight;
-    if (!mine) markRead();  // j'ai « vu » un message reçu
+    if (!opts.noScroll) {
+      box.scrollTop = box.scrollHeight;
+      if (!mine) markRead();          // j'ai « vu » un message reçu (en direct)
+      if (m.id) setChatLastRead(m.id); // je consulte → avance le point de lecture
+    }
   }
 
   // ---- Accusés de lecture ----

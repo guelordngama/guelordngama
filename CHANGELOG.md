@@ -2,6 +2,15 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.13.1] — 2026-07-30 — Portail agents : reprise au dernier point de lecture
+
+### Ajouté
+- **Reprise au dernier point de lecture** aussi dans la messagerie du **portail
+  agents** (comme au poste opérateur). Chaque agent mémorise durablement (par
+  agent) l'endroit où il s'était arrêté ; à la réouverture, la vue se positionne
+  sur le séparateur **« Nouveaux messages »** et les messages reçus depuis sont
+  **surlignés comme non lus**. Conservé même après fermeture/relance (navigateur).
+
 ## [1.13.0] — 2026-07-30 — Messagerie : reprise au dernier point de lecture
 
 ### Ajouté

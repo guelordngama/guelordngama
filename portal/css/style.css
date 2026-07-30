@@ -122,6 +122,10 @@ input:focus, select:focus { outline: none; border-color: var(--accent); }
 .chat-msg .who { font-size: 10px; color: var(--muted); display: block; margin-bottom: 2px; }
 .chat-msg.mine { align-self: flex-end; background: rgba(61,139,255,0.18); border: 1px solid rgba(61,139,255,0.4); }
 .chat-msg.other { align-self: flex-start; background: rgba(94,234,212,0.12); border: 1px solid rgba(94,234,212,0.3); }
+/* Messages non lus depuis la dernière consultation + séparateur de reprise. */
+.chat-msg.unread { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.chat-divider-new { align-self: center; margin: 8px 0 4px; font-size: 10px; font-weight: 700;
+  letter-spacing: 0.04em; color: var(--accent); }
 .chat-date { align-self: center; margin: 6px 0; padding: 3px 12px; border-radius: 10px;
   background: rgba(0,0,0,0.35); color: var(--muted); font-size: 11px; font-weight: 600; }
 .chat-input { display: flex; gap: 8px; align-items: center; }
