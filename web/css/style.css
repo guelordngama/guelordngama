@@ -360,6 +360,7 @@ input:focus, textarea:focus { outline: none; border-color: var(--accent); }
 .pick-map { height: 210px; border-radius: 12px; overflow: hidden; border: 1px solid var(--line);
   background: #e9edf2; cursor: crosshair; }
 .pick-map .leaflet-container { background: #e9edf2; }
+.pick-gps-btn { margin-top: 10px; width: 100%; }
 
 /* État de la géolocalisation sur l'écran d'alerte. */
 .gps-box.gps-ok { border-color: rgba(34,197,94,0.5); }

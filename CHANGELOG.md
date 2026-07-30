@@ -2,6 +2,14 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.15.2] — 2026-07-30 — Site citoyen : bouton « Utiliser ma position GPS »
+
+### Ajouté
+- Bouton **« 📍 Utiliser ma position GPS »** sous la carte de placement : recentre
+  le repère sur la position GPS et l'utilise (annule un placement manuel). Si le
+  GPS n'est pas disponible, la **position déjà placée est conservée** (plus
+  effacée), avec un message adapté. Libellé FR/SW.
+
 ## [1.15.1] — 2026-07-30 — Site citoyen : placement manuel de la position sur la carte
 
 ### Ajouté

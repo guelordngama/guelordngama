@@ -531,12 +531,22 @@
         resolveNeighborhood();
       },
       (err) => {
-        state.lat = null; state.lng = null;
-        if (box) { box.classList.remove("gps-ok"); box.classList.add("gps-error"); }
+        if (box) box.classList.remove("gps-ok");
+        // Une position existe déjà (placée à la main, ou GPS précédent) : on la
+        // conserve au lieu de l'effacer.
+        if (state.lat != null && state.lng != null) {
+          $("gps-text").innerHTML =
+            "⚠️ GPS indisponible pour l'instant — <b>position actuelle conservée</b> : "
+            + formatCoords(state.lat, state.lng)
+            + ". Vous pouvez aussi toucher la carte pour l'ajuster.";
+          return;
+        }
+        if (box) box.classList.add("gps-error");
         $("gps-text").innerHTML =
           "⚠️ <b>Position GPS non obtenue</b> (" + err.message + "). " +
-          "Activez la localisation puis <a href=\"#\" id=\"gps-retry\">réessayez</a>. " +
-          "Sans GPS, l'alerte partira avec une <b>position approximative</b>.";
+          "Activez la localisation puis <a href=\"#\" id=\"gps-retry\">réessayez</a>, " +
+          "ou <b>touchez la carte</b> pour placer votre position. " +
+          "Sinon l'alerte partira avec une <b>position approximative</b>.";
         var r = $("gps-retry");
         if (r) r.addEventListener("click", (e) => { e.preventDefault(); acquireGPS(); });
       },
@@ -598,6 +608,13 @@
     if (state.lat == null) acquireGPS();
     show("details");
     setTimeout(initPickMap, 120);  // carte visible → on l'initialise
+  });
+
+  // Recentrer sur la position GPS (annule un éventuel placement manuel).
+  $("btn-use-gps").addEventListener("click", () => {
+    state.manual = false;
+    $("gps-text").textContent = "Acquisition de la position…";
+    acquireGPS();
   });
   $("btn-back").addEventListener("click", () => show("alert"));
 
