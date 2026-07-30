@@ -262,13 +262,18 @@ class IncidentPopup(QDialog):
             info.addWidget(vl, i, 1)
         content.addLayout(info, 1)
 
+        self._photo_pixmap = None
         if alert.get("photo_url"):
             self.photo_label = QLabel("📷\nChargement…")
             self.photo_label.setFixedSize(190, 140)
             self.photo_label.setAlignment(Qt.AlignCenter)
+            self.photo_label.setCursor(Qt.PointingHandCursor)
+            self.photo_label.setToolTip("Cliquer pour agrandir")
             self.photo_label.setStyleSheet(
                 f"background: {theme.PANEL}; border: 1px solid {theme.BORDER}; "
                 f"border-radius: 10px; color: {theme.MUTED};")
+            # Clic sur la miniature → photo en grand.
+            self.photo_label.mousePressEvent = lambda _e: self._open_full_photo()
             content.addWidget(self.photo_label, 0, Qt.AlignTop)
             self._load_photo(alert["photo_url"])
         body.addLayout(content)
@@ -281,6 +286,21 @@ class IncidentPopup(QDialog):
                 f"background: {theme.PANEL}; border: 1px solid {theme.BORDER}; "
                 f"border-radius: 10px; padding: 10px 12px; font-weight: 600;")
             body.addWidget(desc)
+
+        # Message vocal joint par le citoyen : lecteur intégré (en urgence,
+        # l'opérateur doit pouvoir l'écouter tout de suite).
+        self._player = None
+        self._audio_out = None
+        audio_rel = alert.get("audio_url")
+        if audio_rel:
+            self._audio_url = (self.api_base + audio_rel
+                               if audio_rel.startswith("/") else audio_rel)
+            self.btn_voice = QPushButton("🎧  Écouter le message vocal du citoyen")
+            self.btn_voice.setObjectName("warn")
+            self.btn_voice.setMinimumHeight(42)
+            self.btn_voice.setCursor(Qt.PointingHandCursor)
+            self.btn_voice.clicked.connect(self._toggle_voice)
+            body.addWidget(self.btn_voice)
 
         # Boutons d'action — « Accepter » mis en avant sur toute la largeur.
         b_accept = QPushButton("✅  Accepter l'intervention")
@@ -348,6 +368,7 @@ class IncidentPopup(QDialog):
                     pix = QPixmap()
                     pix.loadFromData(bytes(reply.readAll().data()))
                     if not pix.isNull():
+                        self._photo_pixmap = pix  # conservée pour l'agrandissement
                         self.photo_label.setPixmap(pix.scaled(
                             190, 140, Qt.KeepAspectRatio, Qt.SmoothTransformation))
                     else:
@@ -365,6 +386,66 @@ class IncidentPopup(QDialog):
 
         phone = self.alert.get("reporter_phone") or "non communiqué"
         QMessageBox.information(self, "Appel", f"Appel du citoyen : {phone}")
+
+    def _open_full_photo(self):
+        """Affiche la photo du citoyen en grand dans une fenêtre."""
+        if self._photo_pixmap is None or self._photo_pixmap.isNull():
+            return
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel as _QLabel
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("📷 Photo du citoyen")
+        dlg.setStyleSheet(theme.QSS + f"QDialog {{ background: {theme.BG}; }}")
+        lay = QVBoxLayout(dlg)
+        lay.setContentsMargins(10, 10, 10, 10)
+        lbl = _QLabel()
+        lbl.setAlignment(Qt.AlignCenter)
+        lbl.setPixmap(self._photo_pixmap.scaled(
+            820, 620, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        lay.addWidget(lbl)
+        dlg.exec()
+
+    # ---- Lecture du message vocal joint à l'alerte ----
+    def _toggle_voice(self):
+        try:
+            from PySide6.QtCore import QUrl
+            from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
+        except Exception:
+            self.btn_voice.setText("🔊 Lecture audio non disponible sur ce poste")
+            self.btn_voice.setEnabled(False)
+            return
+
+        if self._player is None:
+            self._audio_out = QAudioOutput()
+            self._player = QMediaPlayer()
+            self._player.setAudioOutput(self._audio_out)
+            self._player.playbackStateChanged.connect(self._on_voice_state)
+            self._player.errorOccurred.connect(self._on_voice_error)
+
+        # Clic pendant la lecture → arrêt.
+        if self._player.playbackState() != QMediaPlayer.PlaybackState.StoppedState:
+            self._player.stop()
+            self._reset_voice_btn()
+            return
+
+        self._audio_out.setVolume(1.0)
+        self._player.setSource(QUrl(self._audio_url))
+        self._player.play()
+        self.btn_voice.setText("⏹  Arrêter le message vocal")
+
+    def _reset_voice_btn(self):
+        if hasattr(self, "btn_voice"):
+            self.btn_voice.setText("🎧  Écouter le message vocal du citoyen")
+
+    def _on_voice_state(self, state):
+        from PySide6.QtMultimedia import QMediaPlayer
+
+        if state == QMediaPlayer.PlaybackState.StoppedState:
+            self._reset_voice_btn()
+
+    def _on_voice_error(self, *_a):
+        if hasattr(self, "btn_voice"):
+            self.btn_voice.setText("🔊 Impossible de lire ce vocal (réseau ou format)")
 
 
 class AgentDialog(QDialog):

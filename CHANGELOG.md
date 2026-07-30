@@ -2,6 +2,17 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.11.0] — 2026-07-27 — Poste opérateur : écouter le vocal du citoyen + photo en grand
+
+### Corrigé / Ajouté
+- **Message vocal joint par le citoyen désormais écoutable** sur le poste
+  opérateur. Le citoyen pouvait joindre un vocal à son alerte et le backend le
+  stockait bien (`audio_url`), mais la fenêtre d'incident n'offrait **aucun moyen
+  de l'écouter**. Ajout d'un bouton **« 🎧 Écouter le message vocal du citoyen »**
+  (lecture/arrêt, gestion d'erreur réseau/format).
+- **Photo du citoyen agrandissable** : la miniature de la fenêtre d'incident est
+  maintenant **cliquable** pour afficher la photo en grand.
+
 ## [1.10.1] — 2026-07-27 — Langue : démarrage toujours en Français
 
 ### Modifié
