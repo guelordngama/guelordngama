@@ -302,6 +302,18 @@ class IncidentPopup(QDialog):
             self.btn_voice.clicked.connect(self._toggle_voice)
             body.addWidget(self.btn_voice)
 
+        # Vidéo jointe par le citoyen : lecteur intégré (fenêtre dédiée).
+        video_rel = alert.get("video_url")
+        if video_rel:
+            self._video_url = (self.api_base + video_rel
+                               if video_rel.startswith("/") else video_rel)
+            self.btn_video = QPushButton("🎬  Voir la vidéo du citoyen")
+            self.btn_video.setObjectName("warn")
+            self.btn_video.setMinimumHeight(42)
+            self.btn_video.setCursor(Qt.PointingHandCursor)
+            self.btn_video.clicked.connect(self._open_citizen_video)
+            body.addWidget(self.btn_video)
+
         # Boutons d'action — « Accepter » mis en avant sur toute la largeur.
         b_accept = QPushButton("✅  Accepter l'intervention")
         b_accept.setObjectName("success")
@@ -446,6 +458,57 @@ class IncidentPopup(QDialog):
     def _on_voice_error(self, *_a):
         if hasattr(self, "btn_voice"):
             self.btn_voice.setText("🔊 Impossible de lire ce vocal (réseau ou format)")
+
+    # ---- Lecture de la vidéo jointe à l'alerte ----
+    def _open_citizen_video(self):
+        try:
+            from PySide6.QtCore import QUrl
+            from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
+            from PySide6.QtMultimediaWidgets import QVideoWidget
+            from PySide6.QtWidgets import QDialog, QHBoxLayout, QVBoxLayout
+        except Exception:
+            self._open_video_external()
+            return
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("🎬 Vidéo du citoyen")
+        dlg.resize(760, 520)
+        dlg.setStyleSheet(theme.QSS + f"QDialog {{ background: {theme.BG}; }}")
+        lay = QVBoxLayout(dlg)
+        video_w = QVideoWidget()
+        lay.addWidget(video_w, 1)
+        bar = QHBoxLayout()
+        b_play = QPushButton("⏸  Pause")
+        b_ext = QPushButton("Ouvrir dans le lecteur système")
+        b_ext.setObjectName("ghost")
+        bar.addWidget(b_play)
+        bar.addStretch()
+        bar.addWidget(b_ext)
+        lay.addLayout(bar)
+
+        player = QMediaPlayer(dlg)
+        audio = QAudioOutput(dlg)
+        player.setAudioOutput(audio)
+        player.setVideoOutput(video_w)
+        player.setSource(QUrl(self._video_url))
+        player.play()
+
+        def toggle():
+            if player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
+                player.pause(); b_play.setText("▶  Lire")
+            else:
+                player.play(); b_play.setText("⏸  Pause")
+
+        b_play.clicked.connect(toggle)
+        b_ext.clicked.connect(self._open_video_external)
+        dlg.finished.connect(lambda _=0: player.stop())
+        dlg.exec()
+
+    def _open_video_external(self):
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+
+        QDesktopServices.openUrl(QUrl(self._video_url))
 
 
 class AgentDialog(QDialog):

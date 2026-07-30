@@ -53,6 +53,7 @@
     type: null,
     photo: null, // data URL
     audio: null, // data URL
+    video: null, // data URL
   };
 
   // --- Raccourcis DOM ---
@@ -612,6 +613,28 @@
     }
   });
 
+  // ---------------------------------------------------------------------- //
+  // Vidéo (fichier ou capture caméra)
+  // ---------------------------------------------------------------------- //
+  // Limite côté client : la vidéo est encodée en base64 (~+33 %) dans la requête
+  // JSON, qui est plafonnée à 32 Mo côté serveur. On refuse au-delas de ~18 Mo.
+  const MAX_VIDEO_MB = 18;
+  $("video-input").addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > MAX_VIDEO_MB * 1024 * 1024) {
+      toast("⚠️ Vidéo trop lourde (max " + MAX_VIDEO_MB + " Mo). Filmez plus court.");
+      e.target.value = "";
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      state.video = reader.result;
+      renderPreview();
+    };
+    reader.readAsDataURL(file);
+  });
+
   function renderPreview() {
     const box = $("attach-preview");
     box.innerHTML = "";
@@ -625,6 +648,14 @@
       audio.controls = true;
       audio.src = state.audio;
       box.appendChild(audio);
+    }
+    if (state.video) {
+      const video = document.createElement("video");
+      video.controls = true;
+      video.src = state.video;
+      video.style.maxWidth = "100%";
+      video.style.borderRadius = "10px";
+      box.appendChild(video);
     }
   }
 
@@ -651,6 +682,7 @@
       lng: lng,
       photo: state.photo,
       audio: state.audio,
+      video: state.video,
     };
 
     try {
@@ -942,6 +974,7 @@
     state.type = null;
     state.photo = null;
     state.audio = null;
+    state.video = null;
     $("description").value = "";
     $("citizen-name").value = "";
     $("citizen-phone").value = "";

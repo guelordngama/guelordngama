@@ -65,6 +65,7 @@ def validate_alert_payload(data):
         "reporter_phone": clean_text(data.get("reporter_phone"), 40) or None,
         "photo": data.get("photo"),
         "audio": data.get("audio"),
+        "video": data.get("video"),
         "reporter_id": data.get("reporter_id"),
     }
 

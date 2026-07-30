@@ -161,6 +161,21 @@ def test_citizen_track_alert_by_reference():
     assert client.get("/api/alerts/track/" + ref.lower()).status_code == 200
 
 
+def test_citizen_alert_accepts_video():
+    import base64
+    _, client = make_client()
+    vid = "data:video/mp4;base64," + base64.b64encode(b"FAKEMP4DATA0123456789").decode()
+    r = client.post("/api/alerts", json={
+        "type": "accident", "description": "accident filmé",
+        "lat": -4.33, "lng": 15.31, "video": vid,
+    })
+    assert r.status_code == 201
+    d = r.get_json()
+    assert d["video_url"] and d["video_url"].endswith(".mp4")
+    # Le fichier est bien servi.
+    assert client.get(d["video_url"]).status_code == 200
+
+
 def test_duplicate_alerts_are_grouped():
     app, client = make_client()
     app.config["DEDUP_ENABLED"] = True

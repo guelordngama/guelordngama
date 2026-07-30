@@ -2,6 +2,19 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.12.0] — 2026-07-27 — Le citoyen peut joindre une vidéo à son alerte
+
+### Ajouté
+- **Envoi de vidéo depuis le site citoyen** : en plus de la photo et du vocal, le
+  citoyen peut désormais **joindre une vidéo** à son alerte (bouton 🎬 Vidéo,
+  fichier ou capture caméra), avec aperçu avant envoi. Limite ~18 Mo côté client
+  (pour rester sous la taille de requête autorisée) et message si trop lourd.
+  Bouton traduit **FR/SW** (Vidéo / Video).
+- **Poste opérateur** : bouton **« 🎬 Voir la vidéo du citoyen »** dans la fenêtre
+  d'incident (lecteur intégré QVideoWidget + repli lecteur système).
+- Backend : colonne `video_path` sur `alerts` (migration `c6e0a2b48d19`),
+  validation et sauvegarde de la vidéo, `video_url` renvoyé par l'API.
+
 ## [1.11.0] — 2026-07-27 — Poste opérateur : écouter le vocal du citoyen + photo en grand
 
 ### Corrigé / Ajouté

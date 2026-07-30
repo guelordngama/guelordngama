@@ -96,6 +96,7 @@ def create_alert(data):
 
     photo_path = save_data_url(data.get("photo"), "image")
     audio_path = save_data_url(data.get("audio"), "audio")
+    video_path = save_data_url(data.get("video"), "video")
 
     dist, eta_moto, eta_walk = compute_intervention(
         current_app.config["DEFAULT_PATROL_LAT"],
@@ -118,6 +119,7 @@ def create_alert(data):
         reporter_phone=data.get("reporter_phone"),
         photo_path=photo_path,
         audio_path=audio_path,
+        video_path=video_path,
         urgency=ai["urgency"],
         ai_score=ai["score"],
         ai_category=ai["category"],

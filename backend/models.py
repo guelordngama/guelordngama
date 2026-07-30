@@ -141,6 +141,7 @@ class Alert(TimestampMixin, db.Model):
     # Pièces jointes (chemins relatifs dans /uploads)
     photo_path = db.Column(db.String(255))
     audio_path = db.Column(db.String(255))
+    video_path = db.Column(db.String(255))
 
     # Résultat de l'analyse IA
     urgency = db.Column(db.String(20), default="moyenne")  # faible|moyenne|haute|critique
@@ -224,6 +225,7 @@ class Alert(TimestampMixin, db.Model):
             "reporter_phone": self.reporter_phone,
             "photo_url": f"/uploads/{self.photo_path}" if self.photo_path else None,
             "audio_url": f"/uploads/{self.audio_path}" if self.audio_path else None,
+            "video_url": f"/uploads/{self.video_path}" if self.video_path else None,
             "urgency": self.urgency,
             "ai_score": round(self.ai_score or 0.0, 3),
             "ai_category": self.ai_category,
