@@ -265,6 +265,14 @@
         <div><span class="ls-label" data-i18n="details.position">Position</span><span id="ls-address">—</span></div>
       </div>
 
+      <!-- Placement manuel : le citoyen touche/déplace le repère pour indiquer
+           sa position exacte, surtout si le GPS ne fonctionne pas. -->
+      <div class="glass pick-wrap">
+        <p class="pick-hint">📍 <span data-i18n="details.pickHint">Touchez la carte
+          pour indiquer votre position exacte (utile si le GPS ne marche pas).</span></p>
+        <div id="pick-map" class="pick-map"></div>
+      </div>
+
       <div class="legal-notice">
         <span class="legal-icon">⚖️</span>
         <p>

@@ -518,12 +518,16 @@
     $("gps-text").textContent = "Acquisition de la position…";
     navigator.geolocation.getCurrentPosition(
       (pos) => {
+        // Ne pas écraser un point placé manuellement par le citoyen.
+        if (state.manual) return;
         state.lat = pos.coords.latitude;
         state.lng = pos.coords.longitude;
         if (box) { box.classList.remove("gps-error"); box.classList.add("gps-ok"); }
         $("gps-text").innerHTML =
           "✅ Position obtenue : <b>" + state.lat.toFixed(5) + ", " + state.lng.toFixed(5) +
           "</b> (±" + Math.round(pos.coords.accuracy) + " m)";
+        if (pickMarker) pickMarker.setLatLng([state.lat, state.lng]);
+        if (pickMap) pickMap.setView([state.lat, state.lng], 15);
         resolveNeighborhood();
       },
       (err) => {
@@ -553,11 +557,47 @@
   }
 
   // ---------------------------------------------------------------------- //
+  // Placement manuel de la position sur la carte
+  // ---------------------------------------------------------------------- //
+  let pickMap = null, pickMarker = null;
+  function setPickedPosition(latlng) {
+    state.lat = latlng.lat;
+    state.lng = latlng.lng;
+    state.manual = true;      // choix volontaire → position considérée fiable
+    state.neighborhood = null; state.address = null;
+    if (pickMarker) pickMarker.setLatLng(latlng);
+    const box = $("gps-box");
+    if (box) { box.classList.remove("gps-error"); box.classList.add("gps-ok"); }
+    $("gps-text").innerHTML = "📍 <b>" + tr("details.manualSet", "Position placée à la main")
+      + "</b> : " + formatCoords(latlng.lat, latlng.lng);
+    resolveNeighborhood();
+  }
+  function initPickMap() {
+    if (typeof L === "undefined") return;  // Leaflet indisponible
+    const center = (state.lat != null && state.lng != null)
+      ? [state.lat, state.lng] : [LBB_LAT, LBB_LNG];
+    if (!pickMap) {
+      pickMap = L.map("pick-map").setView(center, 15);
+      L.tileLayer(API + "/tiles/{z}/{x}/{y}.png",
+        { attribution: "© OpenStreetMap © CARTO", maxZoom: 20 }).addTo(pickMap);
+      pickMarker = L.marker(center, { draggable: true }).addTo(pickMap);
+      pickMap.on("click", (e) => setPickedPosition(e.latlng));
+      pickMarker.on("dragend", () => setPickedPosition(pickMarker.getLatLng()));
+    } else {
+      pickMap.setView(center, 15);
+      pickMarker.setLatLng(center);
+    }
+    // La carte a été créée dans un conteneur masqué : recalcule sa taille.
+    setTimeout(() => { if (pickMap) pickMap.invalidateSize(); }, 200);
+  }
+
+  // ---------------------------------------------------------------------- //
   // Écran 1 -> 2 : bouton ALERTE
   // ---------------------------------------------------------------------- //
   $("btn-alert").addEventListener("click", () => {
     if (state.lat == null) acquireGPS();
     show("details");
+    setTimeout(initPickMap, 120);  // carte visible → on l'initialise
   });
   $("btn-back").addEventListener("click", () => show("alert"));
 
@@ -1016,6 +1056,7 @@
     state.photo = null;
     state.audio = null;
     state.video = null;
+    state.manual = false;
     $("description").value = "";
     $("citizen-name").value = "";
     $("citizen-phone").value = "";

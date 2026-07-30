@@ -354,6 +354,13 @@ input:focus, textarea:focus { outline: none; border-color: var(--accent); }
 .cf-coords.approx strong { color: #f59e0b; }
 .cf-approx { margin: -8px 0 18px; color: #f59e0b; font-size: 12.5px; text-align: center; }
 
+/* Placement manuel de la position sur la carte (écran de détails). */
+.pick-wrap { padding: 12px; margin-bottom: 14px; }
+.pick-hint { margin: 0 0 8px; font-size: 12.5px; color: var(--muted); }
+.pick-map { height: 210px; border-radius: 12px; overflow: hidden; border: 1px solid var(--line);
+  background: #e9edf2; cursor: crosshair; }
+.pick-map .leaflet-container { background: #e9edf2; }
+
 /* État de la géolocalisation sur l'écran d'alerte. */
 .gps-box.gps-ok { border-color: rgba(34,197,94,0.5); }
 .gps-box.gps-error { border-color: rgba(245,158,11,0.6); background: rgba(245,158,11,0.10); }

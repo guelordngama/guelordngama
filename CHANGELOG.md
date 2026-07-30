@@ -2,6 +2,16 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.15.1] — 2026-07-30 — Site citoyen : placement manuel de la position sur la carte
+
+### Ajouté
+- **Placement manuel de la position** sur l'écran de détails : le citoyen
+  **touche (ou déplace le repère sur) la carte** pour indiquer son emplacement
+  exact — particulièrement utile quand le GPS ne fonctionne pas. Le point choisi
+  devient la position envoyée (traitée comme **exacte**, sans avertissement
+  « approximative »). Si le GPS se résout ensuite, il n'écrase pas le choix
+  manuel. Aide traduite FR/SW.
+
 ## [1.15.0] — 2026-07-30 — Sécurité : fini le repli GPS sur Kinshasa
 
 ### Corrigé (important)
