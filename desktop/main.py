@@ -65,6 +65,32 @@ DEFAULT_API_BASE = "https://safecity-lubumbashi.com"
 API_BASE = os.environ.get("SAFECITY_API", DEFAULT_API_BASE)
 
 
+def _resolve_tile_base(api_base):
+    """URL du serveur qui fournit les tuiles de la carte.
+
+    La carte doit rester EN LIGNE même quand le poste opérateur est connecté à un
+    backend LOCAL (127.0.0.1) : ce dernier, derrière le pare-feu, ne peut pas
+    joindre le CDN de cartes. On fait donc passer les tuiles par le serveur en
+    ligne (production), déjà autorisé et connecté à Internet. Réglable via
+    SAFECITY_TILES.
+    """
+    import re
+
+    forced = os.environ.get("SAFECITY_TILES")
+    if forced:
+        return forced.rstrip("/")
+    b = (api_base or "").rstrip("/")
+    host = re.sub(r"^https?://", "", b).split("/")[0].split(":")[0].lower()
+    is_local = (
+        host in ("localhost", "127.0.0.1", "") or host.startswith("192.168.")
+        or host.startswith("10.") or host.startswith("172.")
+    )
+    # Backend local ou non-HTTPS → on prend les tuiles en ligne (production).
+    if is_local or not b.startswith("https://"):
+        return DEFAULT_API_BASE
+    return b
+
+
 def app_icon():
     """Icône d'application (bouclier SafeCity) rendue à la volée, sans fichier."""
     from PySide6.QtGui import QColor, QFont, QIcon, QLinearGradient, QPainter, QPixmap
@@ -598,7 +624,9 @@ class MainWindow(QWidget):
         self.stack = QStackedWidget()
         self.page_dashboard = DashboardPage()
         self.page_live = LiveAlertsPage()
-        self.page_map = MapPage(API_BASE)
+        # La carte prend ses tuiles sur le serveur EN LIGNE (production) même si
+        # les données viennent d'un backend local → carte toujours en ligne.
+        self.page_map = MapPage(_resolve_tile_base(API_BASE))
         self.page_agents = AgentsPage()
         self.page_citizens = PeoplePage(["Nom", "Téléphone", "Email", "Inscrit le"])
         self.page_history = HistoryPage()

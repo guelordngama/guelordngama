@@ -2,6 +2,18 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.12.3] — 2026-07-30 — Poste opérateur : carte en ligne même en backend local
+
+### Modifié
+- **La carte du poste opérateur prend désormais ses tuiles sur le serveur EN
+  LIGNE** (production `safecity-lubumbashi.com`, déjà autorisé et connecté à
+  Internet), **même quand les données viennent d'un backend local** (`127.0.0.1`).
+  Ainsi la carte affiche les vraies rues en local aussi, sans dépendre de l'accès
+  Internet de la machine de développement.
+  - Un backend local / LAN → tuiles prises en ligne (production).
+  - Une connexion à la production réelle → tuiles de ce même serveur.
+  - Réglable via la variable `SAFECITY_TILES` (ex. un autre serveur de tuiles).
+
 ## [1.12.2] — 2026-07-30 — Proxy de tuiles : repli propre quand le CDN est injoignable
 
 ### Corrigé
