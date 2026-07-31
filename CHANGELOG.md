@@ -2,6 +2,24 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.15.4] — 2026-07-31 — Console moins alarmante : journaux d'accès aux tuiles masqués
+
+### Corrigé (« regarde ce qui s'affiche » — mur rouge dans la console)
+- La console du backend (bouton Run PyCharm) se remplissait de lignes rouges
+  `"GET /tiles/…/….png HTTP/1.1" 200` — ce sont les **journaux d'accès normaux**
+  de Werkzeug (rouge car écrits sur stderr), **pas des erreurs** (`200` = succès).
+  Une seule vue de carte génère des dizaines de ces lignes.
+- Ces lignes `/tiles` sont désormais **filtrées** du journal Werkzeug
+  (`_MuteTileAccessLog`). Les vraies erreurs (4xx/5xx, autres routes) restent
+  visibles. La console redevient lisible.
+
+### Note (pas un bug)
+- Le WARNING « Fond de carte indisponible … WinError 10054 » signifie que **le
+  poste qui exécute le backend** (ce PC) n'a pas d'accès Internet vers le CDN de
+  tuiles CARTO. Le repli sur fond neutre (200) fonctionne déjà et n'est journalisé
+  qu'une fois. Sur le serveur `safecity-lubumbashi.com` (avec Internet), les tuiles
+  se chargent et se mettent en cache normalement.
+
 ## [1.15.3] — 2026-07-30 — Cartes qui fonctionnent : Leaflet & Socket.IO servis en local
 
 ### Corrigé (cause de « la localisation ne marche pas »)
