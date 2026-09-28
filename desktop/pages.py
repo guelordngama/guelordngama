@@ -1829,6 +1829,261 @@ class AboutPage(QWidget):
 # --------------------------------------------------------------------------- #
 # Helpers de remplissage
 # --------------------------------------------------------------------------- #
+# --------------------------------------------------------------------------- #
+# Centre de notifications
+# --------------------------------------------------------------------------- #
+NOTIF_KINDS = {
+    # clé : (icône, libellé du filtre, couleur)
+    "alert": ("🚨", "Alertes", "#ef4444"),
+    "update": ("🚔", "Interventions", "#f97316"),
+    "message": ("💬", "Messages", "#2563eb"),
+    "agent": ("👮", "Agents", "#0e9488"),
+    "system": ("⚙️", "Système", "#64748b"),
+}
+
+
+def _relative_time(iso):
+    """« à l'instant », « il y a 5 min », « hier à 14:32 », « 12/09 à 08:10 »."""
+    from datetime import datetime, timedelta
+
+    try:
+        dt = datetime.fromisoformat(iso)
+    except Exception:
+        return ""
+    now = datetime.now()
+    sec = (now - dt).total_seconds()
+    if sec < 45:
+        return "à l'instant"
+    if sec < 3600:
+        return f"il y a {int(sec // 60) or 1} min"
+    if dt.date() == now.date():
+        return f"aujourd'hui à {dt:%H:%M}"
+    if dt.date() == (now - timedelta(days=1)).date():
+        return f"hier à {dt:%H:%M}"
+    return f"{dt:%d/%m} à {dt:%H:%M}"
+
+
+class NotificationsPage(QWidget):
+    """Liste chronologique de tout ce qui arrive au centre (alertes, prises en
+    charge, messages, agents, connexion), avec filtres, « non lu » et
+    préférences par catégorie."""
+
+    open_notification = Signal(dict)   # clic sur une notification
+    mark_all_read = Signal()
+    clear_all = Signal()
+    prefs_changed = Signal(dict)       # {"alert": bool, ..., "desktop": bool}
+
+    def __init__(self):
+        super().__init__()
+        self._items = []
+        self._filter = "all"
+        root = QVBoxLayout(self)
+        root.setContentsMargins(24, 20, 24, 20)
+        root.setSpacing(14)
+
+        # En-tête : titre + actions
+        head = QHBoxLayout()
+        col = QVBoxLayout()
+        col.setSpacing(2)
+        self.title = QLabel("Notifications")
+        self.title.setObjectName("pageTitle")
+        self.sub = QLabel("Tout ce qui arrive au centre, en temps réel.")
+        self.sub.setObjectName("muted")
+        col.addWidget(self.title)
+        col.addWidget(self.sub)
+        head.addLayout(col)
+        head.addStretch()
+        self.btn_read = QPushButton("✓ Tout marquer comme lu")
+        self.btn_read.setObjectName("ghost")
+        self.btn_read.setCursor(Qt.PointingHandCursor)
+        self.btn_read.clicked.connect(self.mark_all_read.emit)
+        self.btn_clear = QPushButton("🗑 Effacer")
+        self.btn_clear.setObjectName("ghost")
+        self.btn_clear.setCursor(Qt.PointingHandCursor)
+        self.btn_clear.clicked.connect(self.clear_all.emit)
+        head.addWidget(self.btn_read)
+        head.addWidget(self.btn_clear)
+        root.addLayout(head)
+
+        # Filtres par catégorie
+        self._filter_btns = {}
+        frow = QHBoxLayout()
+        frow.setSpacing(8)
+        for key, label in [("all", "Toutes"), ("unread", "Non lues")] + [
+                (k, f"{v[0]} {v[1]}") for k, v in NOTIF_KINDS.items()]:
+            b = QPushButton(label)
+            b.setCheckable(True)
+            b.setCursor(Qt.PointingHandCursor)
+            b.clicked.connect(lambda _=False, k=key: self._set_filter(k))
+            self._filter_btns[key] = b
+            frow.addWidget(b)
+        frow.addStretch()
+        root.addLayout(frow)
+
+        body = QHBoxLayout()
+        body.setSpacing(16)
+
+        # Liste défilante
+        list_card = QFrame()
+        list_card.setObjectName("card")
+        lc = QVBoxLayout(list_card)
+        lc.setContentsMargins(6, 6, 6, 6)
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setFrameShape(QScrollArea.NoFrame)
+        holder = QWidget()
+        self._list = QVBoxLayout(holder)
+        self._list.setContentsMargins(8, 8, 8, 8)
+        self._list.setSpacing(8)
+        self._list.addStretch()
+        self.scroll.setWidget(holder)
+        lc.addWidget(self.scroll)
+        body.addWidget(list_card, 3)
+
+        # Préférences
+        from PySide6.QtWidgets import QCheckBox
+
+        prefs = Card("Préférences")
+        hint = QLabel("Choisissez ce qui doit vous être notifié.")
+        hint.setObjectName("muted")
+        hint.setWordWrap(True)
+        prefs.add(hint)
+        self._pref_boxes = {}
+        for k, (icon, label, _c) in NOTIF_KINDS.items():
+            cb = QCheckBox(f"{icon}  {label}")
+            cb.setChecked(True)
+            cb.toggled.connect(self._emit_prefs)
+            self._pref_boxes[k] = cb
+            prefs.add(cb)
+        sep = QFrame()
+        sep.setFixedHeight(1)
+        sep.setStyleSheet(f"background: {theme.BORDER};")
+        prefs.add(sep)
+        self.cb_desktop = QCheckBox("🖥  Notifications Windows")
+        self.cb_desktop.setChecked(True)
+        self.cb_desktop.setToolTip(
+            "Affiche une bulle système quand la fenêtre est réduite ou en arrière-plan.")
+        self.cb_desktop.toggled.connect(self._emit_prefs)
+        prefs.add(self.cb_desktop)
+        dhint = QLabel("Bulle système quand l'application est réduite ou masquée.")
+        dhint.setObjectName("muted")
+        dhint.setWordWrap(True)
+        dhint.setStyleSheet("font-size: 11px;")
+        prefs.add(dhint)
+        prefs.v.addStretch()
+        prefs.setFixedWidth(280)
+        body.addWidget(prefs, 0)
+        root.addLayout(body, 1)
+
+        self._set_filter("all", render=False)
+
+    # ---- Préférences ----
+    def set_prefs(self, prefs):
+        for k, cb in self._pref_boxes.items():
+            cb.blockSignals(True)
+            cb.setChecked(bool(prefs.get(k, True)))
+            cb.blockSignals(False)
+        self.cb_desktop.blockSignals(True)
+        self.cb_desktop.setChecked(bool(prefs.get("desktop", True)))
+        self.cb_desktop.blockSignals(False)
+
+    def _emit_prefs(self, *_):
+        d = {k: cb.isChecked() for k, cb in self._pref_boxes.items()}
+        d["desktop"] = self.cb_desktop.isChecked()
+        self.prefs_changed.emit(d)
+
+    # ---- Filtres ----
+    def _set_filter(self, key, render=True):
+        self._filter = key
+        for k, b in self._filter_btns.items():
+            b.setChecked(k == key)
+            b.setObjectName("" if k == key else "ghost")
+            b.style().unpolish(b)
+            b.style().polish(b)
+        if render:
+            self._render()
+
+    # ---- Données ----
+    def set_notifications(self, items):
+        self._items = list(items)
+        self._render()
+
+    def _render(self):
+        _clear(self._list)
+        items = self._items
+        if self._filter == "unread":
+            items = [n for n in items if not n.get("read")]
+        elif self._filter != "all":
+            items = [n for n in items if n.get("kind") == self._filter]
+        unread = sum(1 for n in self._items if not n.get("read"))
+        self.sub.setText(f"{len(self._items)} notification(s) · {unread} non lue(s)"
+                         if self._items else "Tout ce qui arrive au centre, en temps réel.")
+        self.btn_read.setEnabled(unread > 0)
+        self.btn_clear.setEnabled(bool(self._items))
+        if not items:
+            empty = QLabel("🔔\n\nAucune notification pour le moment.\n"
+                           "Les nouvelles alertes, messages et mouvements d'agents "
+                           "apparaîtront ici.")
+            empty.setAlignment(Qt.AlignCenter)
+            empty.setObjectName("muted")
+            empty.setWordWrap(True)
+            empty.setMinimumHeight(260)
+            self._list.addWidget(empty)
+        for n in items:
+            self._list.addWidget(self._row(n))
+        self._list.addStretch()
+
+    def _row(self, n):
+        icon, _label, color = NOTIF_KINDS.get(n.get("kind"), NOTIF_KINDS["system"])
+        color = n.get("color") or color
+        unread = not n.get("read")
+        row = QFrame()
+        row.setObjectName("notifRow")
+        row.setCursor(Qt.PointingHandCursor)
+        bg = theme.tint(theme.ACCENT, 0.07) if unread else theme.PANEL
+        row.setStyleSheet(
+            f"QFrame#notifRow {{ background: {bg}; border: 1px solid {theme.BORDER};"
+            f" border-left: 4px solid {color}; border-radius: 12px; }}"
+            f"QFrame#notifRow:hover {{ border-color: {theme.ACCENT}; border-left: 4px solid {color}; }}"
+            "QFrame#notifRow QLabel { background: transparent; border: none; }")
+        h = QHBoxLayout(row)
+        h.setContentsMargins(12, 10, 14, 10)
+        h.setSpacing(12)
+        ic = QLabel(icon)
+        ic.setAlignment(Qt.AlignCenter)
+        ic.setFixedSize(38, 38)
+        ic.setStyleSheet(f"background: {theme.tint(color, 0.14)}; border-radius: 19px; font-size: 17px;")
+        h.addWidget(ic, 0, Qt.AlignTop)
+        col = QVBoxLayout()
+        col.setSpacing(2)
+        t = QLabel(n.get("title") or "")
+        t.setStyleSheet(f"font-weight: {'800' if unread else '600'}; font-size: 13.5px;")
+        t.setWordWrap(True)
+        col.addWidget(t)
+        if n.get("body"):
+            b = QLabel(n["body"])
+            b.setObjectName("muted")
+            b.setWordWrap(True)
+            b.setStyleSheet("font-size: 12.5px;")
+            col.addWidget(b)
+        h.addLayout(col, 1)
+        right = QVBoxLayout()
+        right.setSpacing(4)
+        when = QLabel(_relative_time(n.get("ts")))
+        when.setObjectName("muted")
+        when.setStyleSheet("font-size: 11.5px;")
+        right.addWidget(when, 0, Qt.AlignRight)
+        if unread:
+            dot = QLabel("●")
+            dot.setStyleSheet(f"color: {theme.ACCENT}; font-size: 12px;")
+            right.addWidget(dot, 0, Qt.AlignRight)
+        right.addStretch()
+        h.addLayout(right)
+        row.mousePressEvent = lambda ev, n=n: (
+            self.open_notification.emit(n) if ev.button() == Qt.LeftButton else None)
+        return row
+
+
 def _fill_alert_table(table, alerts, with_citizen=False, hide_distance=False, unread_ids=None):
     unread_ids = unread_ids or set()
     table.setRowCount(len(alerts))

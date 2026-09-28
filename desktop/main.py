@@ -49,6 +49,7 @@ from pages import (
     HistoryPage,
     LiveAlertsPage,
     MapPage,
+    NotificationsPage,
     PeoplePage,
     ReportsPage,
     SettingsPage,
@@ -513,6 +514,7 @@ class Sidebar(QFrame):
         ("📈", "Performances"),
         ("📄", "Rapports"),
         ("💬", "Messagerie"),
+        ("🔔", "Notifications"),
         ("⚙️", "Paramètres"),
         ("ℹ️", "À propos"),
     ]
@@ -520,7 +522,7 @@ class Sidebar(QFrame):
     def __init__(self):
         super().__init__()
         self.setObjectName("sidebar")
-        self.setFixedWidth(260)
+        self.setFixedWidth(284)
         root = QVBoxLayout(self)
         root.setContentsMargins(14, 18, 14, 14)
         root.setSpacing(4)
@@ -618,6 +620,8 @@ class MainWindow(QWidget):
     IDX_MAP = 2
     IDX_AGENTS = 3
     IDX_CHAT = 9
+    IDX_NOTIF = 10
+    NOTIF_MAX = 200          # notifications conservées (les plus récentes)
 
     def __init__(self, api, operator):
         super().__init__()
@@ -633,6 +637,10 @@ class MainWindow(QWidget):
         # REST) pour détecter les nouveaux même si le socket est hors ligne.
         self._known_msg_ids = set()
         self._msg_bootstrapped = False
+        # Centre de notifications (persistant par utilisateur).
+        self._notif_seq = 0
+        self._online_state = None
+        self._notifs, self._notif_prefs = self._load_notifications()
 
         self.setObjectName("root")
         self.setWindowTitle(
@@ -704,6 +712,14 @@ class MainWindow(QWidget):
         self.btn_sound.clicked.connect(self._toggle_sound)
         tl.addWidget(self.btn_sound)
         tl.addSpacing(8)
+        self.btn_bell = QPushButton("🔔")
+        self.btn_bell.setObjectName("ghost")
+        self.btn_bell.setMinimumWidth(46)
+        self.btn_bell.setToolTip("Notifications")
+        self.btn_bell.setCursor(Qt.PointingHandCursor)
+        self.btn_bell.clicked.connect(lambda: self._navigate(self.IDX_NOTIF))
+        tl.addWidget(self.btn_bell)
+        tl.addSpacing(8)
         self.btn_theme = QPushButton("☀️" if theme.current_mode() == "light" else "🌙")
         self.btn_theme.setObjectName("ghost")
         self.btn_theme.setFixedWidth(46)
@@ -735,12 +751,14 @@ class MainWindow(QWidget):
         self.page_analytics = AnalyticsPage()
         self.page_reports = ReportsPage()
         self.page_chat = ChatPage(self.operator, API_BASE)
+        self.page_notifications = NotificationsPage()
         self.page_settings = SettingsPage(API_BASE, self.operator)
         self.page_about = AboutPage()
         for p in (
             self.page_dashboard, self.page_live, self.page_map, self.page_agents,
             self.page_citizens, self.page_history, self.page_stats, self.page_analytics,
-            self.page_reports, self.page_chat, self.page_settings, self.page_about,
+            self.page_reports, self.page_chat, self.page_notifications,
+            self.page_settings, self.page_about,
         ):
             self.stack.addWidget(p)
         right.addWidget(self.stack, 1)
@@ -788,6 +806,19 @@ class MainWindow(QWidget):
         self.page_agents.request_route.connect(self._route_agent)
         self.page_agents.request_history.connect(self._agent_history)
         self.page_chat.send.connect(self._send_message)
+        self.page_notifications.open_notification.connect(self._open_notification)
+        self.page_notifications.mark_all_read.connect(self._notifs_mark_all_read)
+        self.page_notifications.clear_all.connect(self._notifs_clear)
+        self.page_notifications.prefs_changed.connect(self._notifs_set_prefs)
+        self.page_notifications.set_prefs(self._notif_prefs)
+        self._setup_tray()
+        self._update_notif_ui()
+        # Les « il y a 5 min » vieillissent : on rafraîchit l'affichage chaque minute.
+        self._notif_timer = QTimer(self)
+        self._notif_timer.timeout.connect(
+            lambda: self.page_notifications.set_notifications(self._notifs)
+            if self.stack.currentIndex() == self.IDX_NOTIF else None)
+        self._notif_timer.start(60000)
         self.page_settings.change_password.connect(self._change_password)
         self.page_settings.server_changed.connect(self._save_server_url)
         self.page_history.export_csv.connect(lambda: self._export_history("csv"))
@@ -903,12 +934,16 @@ class MainWindow(QWidget):
         self.page_title.setText(Sidebar.ITEMS[idx][1])
         if idx == self.IDX_AGENTS:
             self._load_agents()  # affiche puis efface les « non lus » agents
+            self._notifs_mark_read(lambda n: n.get("kind") == "agent")
         elif idx == 4:
             self._load_citizens()
         elif idx == 7:
             self._load_analytics(self.page_analytics.period.currentData())
         elif idx == self.IDX_CHAT:
             self._load_messages()  # affiche puis efface les « non lus » messages
+            self._notifs_mark_read(lambda n: n.get("kind") == "message")
+        elif idx == self.IDX_NOTIF:
+            self.page_notifications.set_notifications(self._notifs)
         # Les alertes gardent leur marquage par élément (effacé à l'ouverture de
         # chaque incident) ; les autres sections n'ont pas de badge.
 
@@ -993,6 +1028,8 @@ class MainWindow(QWidget):
         # rafraîchissement de position GPS.
         prev = self.page_agents.agents.get(agent["id"])
         significant = prev is None or prev.get("availability") != agent.get("availability")
+        if significant:
+            self._notify_agent(prev, agent)
         self.page_agents.update_agent(agent)
         try:
             self._push_agents()
@@ -1003,6 +1040,9 @@ class MainWindow(QWidget):
             self.sidebar.set_badge(self.IDX_AGENTS, len(self._unread_agent_ids))
 
     def _on_agent_deleted(self, agent_id):
+        gone = self.page_agents.agents.get(agent_id) or {}
+        self._notify("agent", f"👮 Agent retiré : {gone.get('name') or 'agent #' + str(agent_id)}",
+                     "Le compte a été supprimé.", ref={"agent_id": agent_id})
         self.page_agents.remove_agent(agent_id)
         self._push_agents()
         if self.stack.currentIndex() != self.IDX_AGENTS:
@@ -1126,6 +1166,8 @@ class MainWindow(QWidget):
         on_chat = self.stack.currentIndex() == self.IDX_CHAT
         # Notification + badge « non lu » si on n'est pas sur la page Messagerie
         # et que le message vient d'un autre utilisateur.
+        if other:
+            self._notify_message(msg, read=on_chat)
         if not on_chat and other:
             self._unread_msg_ids.add(msg.get("id"))
             self.sidebar.set_badge(self.IDX_CHAT, len(self._unread_msg_ids))
@@ -1275,6 +1317,8 @@ class MainWindow(QWidget):
         Toast(self, "Itinéraire le plus rapide tracé 🧭", theme.ACCENT).show_for(2500)
 
     def _on_new_alert(self, alert):
+        if alert["id"] not in self.alerts:
+            self._notify_new_alert(alert)
         self.alerts[alert["id"]] = alert
         # Marque l'alerte « non lue » si on ne consulte pas déjà la liste.
         if self.stack.currentIndex() != self.IDX_ALERTS:
@@ -1289,6 +1333,7 @@ class MainWindow(QWidget):
         self._open_incident(alert)
 
     def _on_alert_updated(self, alert):
+        self._note_alert_change(self.alerts.get(alert["id"]), alert)
         self.alerts[alert["id"]] = alert
         self._refresh_all()
         self.page_map.add_alert(alert)
@@ -1360,6 +1405,8 @@ class MainWindow(QWidget):
             self._load_messages()
         else:
             for m in others:
+                self._notify_message(m)
+            for m in others:
                 self._unread_msg_ids.add(m["id"])
             self.sidebar.set_badge(self.IDX_CHAT, len(self._unread_msg_ids))
             self.alarm.play_notify()
@@ -1384,6 +1431,9 @@ class MainWindow(QWidget):
                 continue
             if aid not in self.alerts:
                 new_ids.append(aid)
+                self._notify_new_alert(a)
+            else:
+                self._note_alert_change(self.alerts.get(aid), a)
             self.alerts[aid] = a  # intègre aussi les changements de statut
         if new_ids:
             # Alertes rattrapées par le filet de sécurité : on notifie sans
@@ -1399,6 +1449,15 @@ class MainWindow(QWidget):
         return True
 
     def _set_online(self, ok):
+        if self._online_state is not None and ok != self._online_state:
+            if ok:
+                self._notify("system", "🟢 Connexion au serveur rétablie",
+                             "Le temps réel fonctionne de nouveau.", color="#16a34a")
+            else:
+                self._notify("system", "🔴 Connexion au serveur perdue",
+                             "Les données sont rechargées automatiquement toutes les 15 s.",
+                             color="#ef4444")
+        self._online_state = ok
         self.sidebar.set_online(ok)
         self.status_conn.setText("🟢 Connecté au serveur" if ok else "🔴 Hors ligne")
 
@@ -1453,6 +1512,7 @@ class MainWindow(QWidget):
         self.page_live.mark_read(alert_id)
         self.sidebar.set_badge(self.IDX_ALERTS, self.page_live.unread_count())
         self.page_live.set_alerts(self._sorted_alerts())
+        self._notifs_mark_read(lambda n: (n.get("ref") or {}).get("alert_id") == alert_id)
 
     # ---- Actions opérateur ----
     def _focus_on_map(self, alert_id):
@@ -1559,6 +1619,199 @@ class MainWindow(QWidget):
         except Exception as e:
             self.page_reports.set_status(f"Échec : {e}", ok=False)
             QMessageBox.warning(self, "Rapport", str(e))
+
+    # ------------------------------------------------------------------ #
+    # Centre de notifications
+    # ------------------------------------------------------------------ #
+    def _notif_key(self):
+        return f"notifications_{self.operator.get('id', 0)}"
+
+    def _load_notifications(self):
+        import json
+        from PySide6.QtCore import QSettings
+
+        st = QSettings("SafeCity", "Operateur")
+        try:
+            items = json.loads(st.value(self._notif_key(), "[]") or "[]")
+        except Exception:
+            items = []
+        try:
+            prefs = json.loads(st.value("notif_prefs", "{}") or "{}")
+        except Exception:
+            prefs = {}
+        self._notif_seq = max([n.get("id", 0) for n in items] + [0])
+        return items[: self.NOTIF_MAX], prefs
+
+    def _save_notifications(self):
+        import json
+        from PySide6.QtCore import QSettings
+
+        QSettings("SafeCity", "Operateur").setValue(
+            self._notif_key(), json.dumps(self._notifs[: self.NOTIF_MAX], ensure_ascii=False))
+
+    def _notify(self, kind, title, body="", ref=None, color=None, read=False):
+        """Ajoute une notification (si la catégorie est activée)."""
+        from datetime import datetime
+
+        if not self._notif_prefs.get(kind, True):
+            return
+        self._notif_seq += 1
+        n = {"id": self._notif_seq, "kind": kind, "title": title, "body": body,
+             "ts": datetime.now().isoformat(timespec="seconds"), "read": bool(read),
+             "ref": ref or {}}
+        if color:
+            n["color"] = color
+        self._notifs.insert(0, n)
+        del self._notifs[self.NOTIF_MAX:]
+        self._save_notifications()
+        self._update_notif_ui()
+        if not read:
+            self._desktop_notify(title, body)
+
+    def _update_notif_ui(self):
+        unread = sum(1 for n in self._notifs if not n.get("read"))
+        self.sidebar.set_badge(self.IDX_NOTIF, unread)
+        self.btn_bell.setText(f"🔔 {unread if unread < 100 else '99+'}" if unread else "🔔")
+        self.btn_bell.setStyleSheet(
+            "QPushButton { background: #ef4444; color: white; border: none; }" if unread else "")
+        if self.stack.currentIndex() == self.IDX_NOTIF:
+            self.page_notifications.set_notifications(self._notifs)
+
+    def _notifs_mark_read(self, pred):
+        changed = False
+        for n in self._notifs:
+            if not n.get("read") and pred(n):
+                n["read"] = True
+                changed = True
+        if changed:
+            self._save_notifications()
+            self._update_notif_ui()
+
+    def _notifs_mark_all_read(self):
+        self._notifs_mark_read(lambda n: True)
+
+    def _notifs_clear(self):
+        if not self._notifs:
+            return
+        if QMessageBox.question(self, "Notifications",
+                                "Effacer toutes les notifications ?") != QMessageBox.Yes:
+            return
+        self._notifs = []
+        self._save_notifications()
+        self._update_notif_ui()
+        self.page_notifications.set_notifications(self._notifs)
+
+    def _notifs_set_prefs(self, prefs):
+        import json
+        from PySide6.QtCore import QSettings
+
+        self._notif_prefs = dict(prefs)
+        QSettings("SafeCity", "Operateur").setValue("notif_prefs", json.dumps(self._notif_prefs))
+
+    def _open_notification(self, n):
+        """Clic sur une notification : la marque lue et ouvre ce qu'elle concerne."""
+        self._notifs_mark_read(lambda x: x.get("id") == n.get("id"))
+        ref = n.get("ref") or {}
+        kind = n.get("kind")
+        if ref.get("alert_id") is not None and ref["alert_id"] in self.alerts:
+            self._open_incident_by_id(ref["alert_id"])
+        elif kind == "message":
+            self._navigate(self.IDX_CHAT)
+        elif kind == "agent":
+            self._navigate(self.IDX_AGENTS)
+        elif ref.get("alert_id") is not None:
+            Toast(self, "Cette alerte n'est plus active.", theme.MUTED).show_for(2500)
+
+    # ---- Construction des notifications ----
+    @staticmethod
+    def _alert_label(a):
+        t = (a.get("type") or "alerte").capitalize()
+        where = a.get("neighborhood") or a.get("commune") or ""
+        ref = a.get("reference")
+        return t, " · ".join(x for x in (where, f"#{ref}" if ref else "") if x)
+
+    def _notify_new_alert(self, a):
+        t, where = self._alert_label(a)
+        self._notify("alert", f"🚨 Nouvelle alerte : {t} ({theme.urgency_label(a.get('urgency'))})",
+                     where, ref={"alert_id": a.get("id")},
+                     color=theme.urgency_color(a.get("urgency")))
+
+    def _note_alert_change(self, prev, new):
+        """Changement de statut / d'agent d'une alerte connue → notification."""
+        if not prev:
+            return
+        t, where = self._alert_label(new)
+        agent = (new.get("assigned_agent") or {}).get("name")
+        prev_agent = (prev.get("assigned_agent") or {}).get("name")
+        ref = {"alert_id": new.get("id")}
+        if prev.get("status") != new.get("status"):
+            if new.get("status") == "assignee":
+                self._notify("update", f"🚔 Alerte prise en charge : {t}",
+                             " · ".join(x for x in (where, agent and f"Agent : {agent}") if x),
+                             ref=ref, color="#f97316")
+            elif new.get("status") == "cloturee":
+                self._notify("update", f"✅ Alerte clôturée : {t}", where, ref=ref, color="#16a34a")
+        elif agent and agent != prev_agent:
+            self._notify("update", f"👮 {agent} affecté à l'alerte : {t}", where,
+                         ref=ref, color="#f97316")
+
+    def _notify_message(self, m, read=False):
+        who = m.get("sender_name") or "Utilisateur"
+        text = (m.get("text") or "").strip()
+        if not text:
+            text = "🎤 Message vocal" if m.get("voice_url") else "📎 Pièce jointe"
+        self._notify("message", f"💬 Message de {who}", text[:140],
+                     ref={"message_id": m.get("id")}, read=read)
+
+    _AVAIL = {"available": "Disponible", "busy": "En intervention", "offline": "Hors service"}
+
+    def _notify_agent(self, prev, agent):
+        name = agent.get("name") or "Agent"
+        if prev is None:
+            self._notify("agent", f"👮 Nouvel agent : {name}",
+                         self._AVAIL.get(agent.get("availability"), ""),
+                         ref={"agent_id": agent.get("id")})
+            return
+        state = self._AVAIL.get(agent.get("availability"), agent.get("availability") or "—")
+        color = {"available": "#16a34a", "busy": "#f97316"}.get(agent.get("availability"), "#64748b")
+        self._notify("agent", f"👮 {name} : {state}",
+                     f"Avant : {self._AVAIL.get(prev.get('availability'), '—')}",
+                     ref={"agent_id": agent.get("id")}, color=color)
+
+    # ---- Notifications système (Windows) ----
+    def _setup_tray(self):
+        from PySide6.QtWidgets import QMenu, QSystemTrayIcon
+
+        self.tray = None
+        if not QSystemTrayIcon.isSystemTrayAvailable():
+            return
+        self.tray = QSystemTrayIcon(app_icon(), self)
+        self.tray.setToolTip("SafeCity — Centre de commandement")
+        menu = QMenu(self)
+        menu.addAction("Ouvrir SafeCity", self._bring_to_front)
+        menu.addAction("Notifications", lambda: (self._bring_to_front(),
+                                                 self._navigate(self.IDX_NOTIF)))
+        self.tray.setContextMenu(menu)
+        self.tray.activated.connect(lambda reason: self._bring_to_front()
+                                    if reason == QSystemTrayIcon.Trigger else None)
+        self.tray.messageClicked.connect(lambda: (self._bring_to_front(),
+                                                  self._navigate(self.IDX_NOTIF)))
+        self.tray.show()
+
+    def _bring_to_front(self):
+        self.showNormal()
+        self.raise_()
+        self.activateWindow()
+
+    def _desktop_notify(self, title, body):
+        """Bulle Windows quand la fenêtre est réduite ou en arrière-plan."""
+        if not self._notif_prefs.get("desktop", True) or not getattr(self, "tray", None):
+            return
+        if self.isActiveWindow() and not self.isMinimized():
+            return  # déjà sous les yeux de l'opérateur (toast + son suffisent)
+        from PySide6.QtWidgets import QSystemTrayIcon
+
+        self.tray.showMessage(title, body or "SafeCity", QSystemTrayIcon.Information, 6000)
 
     def _logout(self):
         if QMessageBox.question(self, "Déconnexion", "Se déconnecter ?") == QMessageBox.Yes:

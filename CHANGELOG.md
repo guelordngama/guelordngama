@@ -2,6 +2,26 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.17.0] — 2026-09-28 — Poste opérateur : centre de notifications
+
+### Ajouté
+- **Section « Notifications »** dans le menu du poste opérateur, et une
+  **cloche 🔔** dans la barre supérieure avec le nombre de notifications non lues.
+- Tout ce qui arrive y est enregistré, dans l'ordre chronologique :
+  nouvelle alerte, alerte prise en charge / clôturée, agent affecté à une alerte,
+  message reçu, changement de disponibilité d'un agent (nouvel agent, agent
+  retiré), connexion au serveur perdue / rétablie.
+- Clic sur une notification : ouvre l'incident concerné, la messagerie ou la
+  page des agents, et la marque comme lue. Consulter l'incident, la messagerie
+  ou les agents marque aussi les notifications correspondantes comme lues.
+- Filtres (Toutes, Non lues, Alertes, Interventions, Messages, Agents, Système),
+  « Tout marquer comme lu » et « Effacer ».
+- **Préférences** : activer/désactiver chaque catégorie, et les
+  **notifications Windows** (bulle système quand l'application est réduite ou en
+  arrière-plan ; clic sur la bulle = retour à l'application).
+- Les notifications (200 dernières) et les préférences sont **conservées après
+  fermeture et relance** de l'application.
+
 ## [1.16.0] — 2026-09-28 — Nouveau design (site citoyen, portail agents, poste opérateur)
 
 ### Changé — refonte visuelle calquée sur la maquette
