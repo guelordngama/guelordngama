@@ -4,6 +4,8 @@ limitation du débit (anti force brute) et validation des fichiers envoyés.
 import base64
 import binascii
 import datetime
+import hashlib
+import hmac
 import os
 import threading
 import time
@@ -203,3 +205,41 @@ def save_data_url(data_url, kind):
     with open(os.path.join(upload_dir, filename), "wb") as fh:
         fh.write(raw)
     return filename
+
+
+# --------------------------------------------------------------------------- #
+# Liens signés pour les pièces jointes (photos, vocaux, vidéos)
+# --------------------------------------------------------------------------- #
+# Les balises <img>/<audio>/<video> et le lecteur de Qt ne savent pas envoyer
+# d'en-tête d'authentification : chaque lien de média porte donc une signature
+# HMAC et une date d'expiration. Ces liens ne figurent que dans des données
+# réservées au personnel ; sans signature valide, le fichier est refusé.
+UPLOAD_TTL_S = 24 * 3600
+
+
+def _upload_sig(filename, exp):
+    key = (current_app.config.get("SECRET_KEY") or "").encode()
+    mac = hmac.new(key, f"upload:{filename}:{exp}".encode(), hashlib.sha256).digest()
+    return base64.urlsafe_b64encode(mac[:24]).decode().rstrip("=")
+
+
+def signed_upload_url(filename):
+    """« /uploads/<fichier>?exp=…&sig=… » valable ~24 h.
+
+    L'expiration est arrondie à l'heure : le lien reste identique pendant une
+    heure (cache navigateur, pas de rechargement des médias à chaque rendu)."""
+    if not filename:
+        return None
+    ttl = int(current_app.config.get("UPLOAD_URL_TTL_S", UPLOAD_TTL_S))
+    exp = (int(time.time()) // 3600 + 1) * 3600 + ttl
+    return f"/uploads/{filename}?exp={exp}&sig={_upload_sig(filename, exp)}"
+
+
+def verify_upload_signature(filename, exp, sig):
+    try:
+        exp = int(exp)
+    except (TypeError, ValueError):
+        return False
+    if exp < time.time() or not sig:
+        return False
+    return hmac.compare_digest(_upload_sig(filename, exp), str(sig))

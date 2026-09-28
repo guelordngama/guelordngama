@@ -2,6 +2,22 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.21.2] — 2026-09-28 — SÉCURITÉ : photos, vocaux et vidéos protégés
+
+### Sécurité
+- Les pièces jointes (photos, vocaux et vidéos des alertes et de la messagerie)
+  étaient servies à quiconque connaissait leur adresse. Elles exigent
+  maintenant un **lien signé et expirant** (signature HMAC, validité ~24 h,
+  stable pendant une heure pour le cache) — fourni uniquement dans les données
+  réservées au personnel — ou un jeton du personnel. Sinon : **403**.
+- Refusés : lien sans signature, signature falsifiée, signature d'un autre
+  fichier, date d'expiration modifiée, lien expiré, compte citoyen.
+- Réponses en cache **privé** uniquement (jamais dans un proxy partagé),
+  sans en-tête Referer.
+- Aucune modification nécessaire côté applications : les balises
+  photo / audio / vidéo du portail et le lecteur du poste opérateur utilisent
+  directement les liens signés (vérifié de bout en bout).
+
 ## [1.21.1] — 2026-09-28 — SÉCURITÉ : fuite de données personnelles corrigée
 
 ### Sécurité (important — mettre à jour serveur ET postes opérateur ensemble)

@@ -12,6 +12,7 @@ from datetime import datetime, timedelta, timezone
 import os
 
 from .extensions import db
+from .security import signed_upload_url
 
 # Types de danger acceptés (correspond au sélecteur de l'app citoyenne).
 DANGER_TYPES = ["vol", "braquage", "incendie", "accident", "violence", "autre"]
@@ -242,9 +243,10 @@ class Alert(TimestampMixin, db.Model):
             "reporter_name": self.reporter_name or "Citoyen anonyme",
             "reporter_phone": self.reporter_phone,
             "position_approx": bool(self.position_approx),
-            "photo_url": f"/uploads/{self.photo_path}" if self.photo_path else None,
-            "audio_url": f"/uploads/{self.audio_path}" if self.audio_path else None,
-            "video_url": f"/uploads/{self.video_path}" if self.video_path else None,
+            # Liens signés et expirants (voir security.signed_upload_url).
+            "photo_url": signed_upload_url(self.photo_path),
+            "audio_url": signed_upload_url(self.audio_path),
+            "video_url": signed_upload_url(self.video_path),
             "urgency": self.urgency,
             "ai_score": round(self.ai_score or 0.0, 3),
             "ai_category": self.ai_category,
@@ -294,10 +296,10 @@ class Message(TimestampMixin, db.Model):
             "sender_role": self.sender_role,
             "text": self.text,
             "alert_id": self.alert_id,
-            "attachment_url": f"/uploads/{self.attachment_path}" if self.attachment_path else None,
-            "voice_url": f"/uploads/{self.voice_path}" if self.voice_path else None,
+            "attachment_url": signed_upload_url(self.attachment_path),
+            "voice_url": signed_upload_url(self.voice_path),
             "voice_duration": self.voice_duration,
-            "video_url": f"/uploads/{self.video_path}" if self.video_path else None,
+            "video_url": signed_upload_url(self.video_path),
             "created_at": _iso(self.created_at),
             "time": local_str(self.created_at, "%H:%M"),
         }

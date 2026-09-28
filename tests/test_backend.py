@@ -337,6 +337,43 @@ def test_security_realtime_only_for_staff():
         c.disconnect()
 
 
+def test_security_uploads_signed_links():
+    """Photos / vocaux / vidéos : lien signé et expirant obligatoire."""
+    import base64, time
+    from types import SimpleNamespace
+    from backend.security import generate_token, _upload_sig
+    app, client = make_client()
+    img = "data:image/png;base64," + base64.b64encode(b"\x89PNG fake").decode()
+    a = client.post("/api/alerts", json={"type": "vol", "description": "vol", "lat": -11.66,
+                                         "lng": 27.48, "photo": img}).get_json()
+    url = a["photo_url"]
+    path, query = url.split("?")
+    fname = path.rsplit("/", 1)[1]
+    assert "exp=" in query and "sig=" in query
+    assert client.get(url).status_code == 200                       # lien signé valide
+    r = client.get(url)
+    assert "private" in r.headers.get("Cache-Control", "")
+    assert client.get(path).status_code == 403                      # sans signature
+    assert client.get(path + "?exp=9999999999&sig=AAAA").status_code == 403   # falsifié
+    exp = query.split("exp=")[1].split("&")[0]
+    sig = query.split("sig=")[1]
+    other = client.post("/api/alerts", json={"type": "vol", "description": "vol", "lat": -11.66,
+                                             "lng": 27.48, "photo": img}).get_json()["photo_url"]
+    other_path = other.split("?")[0]
+    assert client.get(f"{other_path}?exp={exp}&sig={sig}").status_code == 403   # autre fichier
+    with app.app_context():
+        old = int(time.time()) - 10
+        expired = f"{path}?exp={old}&sig={_upload_sig(fname, old)}"
+    assert client.get(expired).status_code == 403                   # expiré
+    assert client.get(f"{path}?exp={int(exp) + 3600}&sig={sig}").status_code == 403  # exp modifiée
+    assert client.get("/uploads/../config.py?exp=9999999999&sig=x").status_code in (403, 404)
+    # Personnel : accès aussi par en-tête (outils internes) ; citoyen : refusé.
+    assert client.get(path, headers=_login(client)).status_code == 200
+    with app.app_context():
+        cit = generate_token(SimpleNamespace(id=999, role="citizen", email="c@x", name="C"))
+    assert client.get(path, headers={"Authorization": "Bearer " + cit}).status_code == 403
+
+
 def test_citizen_track_alert_by_reference():
     _, client = make_client()
     r = client.post("/api/alerts", json={
@@ -370,7 +407,7 @@ def test_citizen_alert_accepts_video():
     })
     assert r.status_code == 201
     d = r.get_json()
-    assert d["video_url"] and d["video_url"].endswith(".mp4")
+    assert d["video_url"] and d["video_url"].split("?")[0].endswith(".mp4")
     # Le fichier est bien servi.
     assert client.get(d["video_url"]).status_code == 200
 
@@ -1025,9 +1062,9 @@ def test_video_message_accepted():
     raw = base64.b64encode(b"\x00\x00\x00\x18ftypmp42").decode()
     r = client.post("/api/messages", json={"video": "data:video/mp4;base64," + raw}, headers=h)
     assert r.status_code == 201, r.get_json()
-    assert r.get_json()["video_url"].endswith(".mp4")
+    assert r.get_json()["video_url"].split("?")[0].endswith(".mp4")
     q = client.post("/api/messages", json={"video": "data:video/quicktime;base64," + raw}, headers=h)
-    assert q.get_json()["video_url"].endswith(".mov")
+    assert q.get_json()["video_url"].split("?")[0].endswith(".mov")
 
 
 def test_voice_message_mp4_accepted_as_m4a():
@@ -1039,7 +1076,7 @@ def test_voice_message_mp4_accepted_as_m4a():
     durl = "data:audio/mp4;base64," + base64.b64encode(b"\x00\x00\x00\x20ftypM4A ").decode()
     r = client.post("/api/messages", json={"voice": durl, "voice_duration": 11}, headers=h)
     assert r.status_code == 201, r.get_json()
-    assert r.get_json()["voice_url"].endswith(".m4a")
+    assert r.get_json()["voice_url"].split("?")[0].endswith(".m4a")
 
 
 # --------------------------------------------------------------------------- #
