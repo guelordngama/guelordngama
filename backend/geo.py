@@ -186,3 +186,55 @@ def reverse_geocode(lat, lng, timeout=6):
     if not d:
         return (None, coords_label(lat, lng))
     return (d.get("neighborhood") or d.get("commune"), d.get("address"))
+
+
+# --------------------------------------------------------------------------- #
+# Itinéraire routier (agent -> alerte)
+# --------------------------------------------------------------------------- #
+_ROUTE_CACHE = {}
+_ROUTE_TTL = 300          # s : un trajet change peu en 5 min
+OSRM_URL = "https://router.project-osrm.org/route/v1/driving/"
+
+
+def _direct_route(a_lat, a_lng, b_lat, b_lng):
+    """Repli sans service de routage : ligne droite, distance routière estimée
+    (+30 % de détours) et durée à la vitesse moyenne d'une moto en ville."""
+    d = haversine_m(a_lat, a_lng, b_lat, b_lng) * 1.3
+    return {"source": "direct", "coordinates": [[a_lat, a_lng], [b_lat, b_lng]],
+            "distance_m": round(d), "duration_s": round((d / 1000.0) / MOTO_SPEED_KMH * 3600)}
+
+
+def route(a_lat, a_lng, b_lat, b_lng, timeout=6):
+    """Itinéraire le plus rapide entre deux points (OSRM / OpenStreetMap).
+
+    Renvoie {source: "osrm"|"direct", coordinates: [[lat, lng], …],
+    distance_m, duration_s}. Le poste opérateur n'appelle jamais OSRM
+    directement (pare-feu) : c'est le serveur qui le fait, avec cache.
+    """
+    key = (round(a_lat, 3), round(a_lng, 3), round(b_lat, 4), round(b_lng, 4))  # ~100 m / 10 m
+    now = time.monotonic()
+    with _GEO_LOCK:
+        hit = _ROUTE_CACHE.get(key)
+        if hit and now - hit[0] < _ROUTE_TTL:
+            return hit[1]
+    try:
+        url = (f"{OSRM_URL}{a_lng:.6f},{a_lat:.6f};{b_lng:.6f},{b_lat:.6f}"
+               "?overview=full&geometries=geojson")
+        req = urllib.request.Request(url, headers={
+            "User-Agent": "SafeCity/1.0 (plateforme municipale de securite - Lubumbashi)"})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json.load(resp)
+        r = (data.get("routes") or [None])[0]
+        if not r:
+            raise ValueError("aucun itinéraire")
+        result = {"source": "osrm",
+                  "coordinates": [[c[1], c[0]] for c in r["geometry"]["coordinates"]],
+                  "distance_m": round(r.get("distance") or 0),
+                  "duration_s": round(r.get("duration") or 0)}
+    except Exception:  # pragma: no cover - dépend du réseau du serveur
+        return _direct_route(a_lat, a_lng, b_lat, b_lng)   # non mis en cache
+    with _GEO_LOCK:
+        if len(_ROUTE_CACHE) > 2000:
+            _ROUTE_CACHE.clear()
+        _ROUTE_CACHE[key] = (now, result)
+    return result

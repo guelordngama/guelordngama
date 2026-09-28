@@ -28,6 +28,7 @@ try:
     from PySide6.QtWebEngineWidgets import QWebEngineView
 
     WEBENGINE_AVAILABLE = True
+
 except Exception:  # pragma: no cover
     WEBENGINE_AVAILABLE = False
 
@@ -526,16 +527,22 @@ class LiveAlertsPage(QWidget):
 # Carte interactive
 # --------------------------------------------------------------------------- #
 class MapPage(QWidget):
+    """Carte en temps réel : alertes, citoyens, agents (disponibles / en
+    intervention), trajets agent -> alerte, quartier et rue (map.html)."""
+
+    link_clicked = Signal(str)   # commandes de la carte : « alert/12 », « assign/12/3 »
+
     def __init__(self, api_base=None):
         super().__init__()
         # URL du serveur SafeCity : sert à faire passer les tuiles de carte par le
         # proxy /tiles/ du backend (contourne le blocage des CDN par le pare-feu).
         self.api_base = api_base
         root = QVBoxLayout(self)
-        root.setContentsMargins(24, 20, 24, 24)
+        root.setContentsMargins(0, 0, 0, 0)
         self.ready = False
         if WEBENGINE_AVAILABLE:
             self.view = QWebEngineView()
+            self.view.urlChanged.connect(self._on_url_changed)
             self.view.loadFinished.connect(self._on_loaded)
             self.view.load(QUrl.fromLocalFile(os.path.join(BASE_DIR, "map.html")))
             root.addWidget(self.view)
@@ -554,6 +561,14 @@ class MapPage(QWidget):
         self._pending = None
         self._pending_agents = None
         self._pending_patrols = None
+        self._pending_routes = None
+
+    def _on_url_changed(self, url):
+        """Boutons de la carte (« Ouvrir la fiche », « Affecter ») : map.html
+        écrit « #cmd=alert/12&t=… » dans l'URL ; on transmet « alert/12 »."""
+        frag = url.fragment()
+        if frag.startswith("cmd="):
+            self.link_clicked.emit(frag[4:].split("&t=")[0])
 
     def _on_loaded(self, ok):
         self.ready = ok
@@ -570,6 +585,8 @@ class MapPage(QWidget):
             self.set_patrols(self._pending_patrols)
         if self._pending_agents is not None:
             self.set_agents(self._pending_agents)
+        if self._pending_routes is not None:
+            self.set_routes(self._pending_routes)
 
     def _run(self, js):
         if self.view and self.ready:
@@ -598,6 +615,20 @@ class MapPage(QWidget):
             self._pending_agents = agents
             return
         self._run(f"window.setAgents({json.dumps(agents)});")
+
+    def set_routes(self, routes):
+        """Trajets agent -> alerte : {alert_id: {coordinates, distance_m, duration_s, source}}."""
+        import json
+
+        if not self.ready:
+            self._pending_routes = routes
+            return
+        self._run(f"window.setRoutes({json.dumps({str(k): v for k, v in routes.items()})});")
+
+    def show_route_geometry(self, route, label=""):
+        import json
+
+        self._run(f"window.showRouteGeometry({json.dumps(route)}, {json.dumps(label)});")
 
     def focus_agent(self, lat, lng):
         self._run(f"window.focusAgentAt({lat}, {lng});")

@@ -17,7 +17,7 @@ import sys
 # Import robuste : ajoute le dossier au chemin puis imports absolus.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from PySide6.QtCore import Qt, QThread, QTimer, Signal
+from PySide6.QtCore import QObject, QRunnable, Qt, QThread, QThreadPool, QTimer, Signal
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QApplication,
@@ -139,6 +139,29 @@ def app_icon():
 # --------------------------------------------------------------------------- #
 # Pont temps réel Socket.IO -> signaux Qt
 # --------------------------------------------------------------------------- #
+class _RouteSignals(QObject):
+    done = Signal(object, object, object)   # alert_id, clé, itinéraire (ou None)
+
+
+class RouteJob(QRunnable):
+    """Calcule un itinéraire via le serveur, hors du fil de l'interface.
+
+    ``signals`` est un objet unique appartenant à la fenêtre (fil principal) :
+    le résultat revient donc toujours dans le fil de l'interface."""
+
+    def __init__(self, api, signals, alert_id, key, a, b):
+        super().__init__()
+        self.api, self.signals = api, signals
+        self.alert_id, self.key, self.a, self.b = alert_id, key, a, b
+
+    def run(self):
+        try:
+            r = self.api.get_route(self.a[0], self.a[1], self.b[0], self.b[1])
+        except Exception:
+            r = None
+        self.signals.done.emit(self.alert_id, self.key, r)
+
+
 class RealtimeBridge(QThread):
     new_alert = Signal(dict)
     alert_updated = Signal(dict)
@@ -506,7 +529,7 @@ class Sidebar(QFrame):
     ITEMS = [
         ("🏠", "Tableau de bord"),
         ("🚨", "Alertes en direct"),
-        ("🗺️", "Carte interactive"),
+        ("🗺️", "Carte en temps réel"),
         ("👮", "Gestion des agents"),
         ("👥", "Gestion des citoyens"),
         ("📜", "Historique"),
@@ -641,6 +664,18 @@ class MainWindow(QWidget):
         self._notif_seq = 0
         self._online_state = None
         self._notifs, self._notif_prefs = self._load_notifications()
+        # Trajets agent -> alerte affichés sur la carte temps réel.
+        self._routes = {}          # alert_id -> itinéraire
+        self._route_keys = {}      # alert_id -> clé (positions arrondies)
+        self._route_pending = set()
+        self._route_pool = QThreadPool(self)
+        self._route_pool.setMaxThreadCount(2)
+        self._route_signals = _RouteSignals(self)
+        self._route_signals.done.connect(self._on_route_ready)
+        self._manual_route_label = ""
+        self._route_timer = QTimer(self)
+        self._route_timer.setSingleShot(True)
+        self._route_timer.timeout.connect(self._update_routes)
 
         self.setObjectName("root")
         self.setWindowTitle(
@@ -806,6 +841,7 @@ class MainWindow(QWidget):
         self.page_agents.request_route.connect(self._route_agent)
         self.page_agents.request_history.connect(self._agent_history)
         self.page_chat.send.connect(self._send_message)
+        self.page_map.link_clicked.connect(self._on_map_link)
         self.page_notifications.open_notification.connect(self._open_notification)
         self.page_notifications.mark_all_read.connect(self._notifs_mark_all_read)
         self.page_notifications.clear_all.connect(self._notifs_clear)
@@ -978,6 +1014,75 @@ class MainWindow(QWidget):
         agents = list(self.page_agents.agents.values())
         self.page_map.set_agents(agents)
         self.page_dashboard.set_agents(agents)
+        self._route_timer.start(800)
+
+    # ---- Carte temps réel : trajets et actions ----
+    def _update_routes(self):
+        """(Re)calcule les trajets agent -> alerte des interventions en cours.
+
+        Un trajet n'est redemandé que si l'agent a bougé d'environ 100 m (clé
+        arrondie) : pas de requête à chaque position GPS."""
+        wanted = {}
+        for aid, a in self.alerts.items():
+            ag_ref = a.get("assigned_agent") or {}
+            ag = self.page_agents.agents.get(ag_ref.get("id")) if ag_ref else None
+            if a.get("status") != "assignee" or not ag or ag.get("lat") is None:
+                continue
+            key = (round(ag["lat"], 3), round(ag["lng"], 3), a["lat"], a["lng"])
+            wanted[aid] = key
+            if self._route_keys.get(aid) == key or aid in self._route_pending:
+                continue
+            self._route_pending.add(aid)
+            self._route_pool.start(RouteJob(self.api, self._route_signals, aid, key,
+                                            (ag["lat"], ag["lng"]), (a["lat"], a["lng"])))
+        # Interventions terminées / réaffectées : on retire leurs trajets.
+        stale = [aid for aid in self._routes if aid not in wanted]
+        for aid in stale:
+            self._routes.pop(aid, None)
+            self._route_keys.pop(aid, None)
+        if stale:
+            self.page_map.set_routes(self._routes)
+
+    def _on_route_ready(self, alert_id, key, route):
+        if key == "manual":           # bouton « Itinéraire » d'un agent
+            if route:
+                self.page_map.show_route_geometry(route, self._manual_route_label)
+            return
+        self._route_pending.discard(alert_id)
+        if route and route.get("coordinates"):
+            self._routes[alert_id] = route
+            self._route_keys[alert_id] = key
+            self.page_map.set_routes(self._routes)
+
+    def _on_map_link(self, url):
+        """Boutons de la carte : « Ouvrir la fiche », « Affecter <agent> »."""
+        parts = url.strip("/").split("/")
+        try:
+            if parts[0] == "alert":
+                self._open_incident_by_id(int(parts[1]))
+            elif parts[0] == "assign":
+                self._assign_from_map(int(parts[1]), int(parts[2]))
+        except (IndexError, ValueError):
+            pass
+
+    def _assign_from_map(self, alert_id, agent_id):
+        alert = self.alerts.get(alert_id)
+        agent = self.page_agents.agents.get(agent_id)
+        if not alert or not agent:
+            return
+        if QMessageBox.question(
+                self, "Affecter un agent",
+                f"Affecter {agent.get('name')} à l'alerte « {(alert.get('type') or '').capitalize()} »"
+                f"{' #' + alert['reference'] if alert.get('reference') else ''} ?") != QMessageBox.Yes:
+            return
+        try:
+            updated = self.api.assign_agent(alert_id, agent_id)
+            self._on_alert_updated(updated)
+            self._load_agents()
+            self.alarm.play_ack()
+            Toast(self, f"👮 {agent.get('name')} affecté", "#eab308").show_for(2500)
+        except Exception as e:
+            QMessageBox.warning(self, "Erreur", str(e))
 
     def _load_analytics(self, period):
         try:
@@ -1313,7 +1418,12 @@ class MainWindow(QWidget):
             return
         self._navigate(2)
         self._push_agents()
+        # Tracé immédiat (ligne directe) puis remplacé par le vrai trajet routier
+        # calculé par le serveur (le PC opérateur n'appelle pas OSRM : pare-feu).
         self.page_map.show_route(agent["lat"], agent["lng"], alert["lat"], alert["lng"])
+        self._manual_route_label = f"{agent.get('name')} → {(alert.get('type') or '').capitalize()}"
+        self._route_pool.start(RouteJob(self.api, self._route_signals, alert["id"], "manual",
+                                        (agent["lat"], agent["lng"]), (alert["lat"], alert["lng"])))
         Toast(self, "Itinéraire le plus rapide tracé 🧭", theme.ACCENT).show_for(2500)
 
     def _on_new_alert(self, alert):
@@ -1344,6 +1454,7 @@ class MainWindow(QWidget):
         return sorted(self.alerts.values(), key=lambda a: a["created_at"], reverse=True)
 
     def _refresh_all(self):
+        self._route_timer.start(800)        # trajets à recalculer si besoin
         alerts = self._sorted_alerts()
         self.page_dashboard.set_alerts(alerts)
         self.page_live.set_alerts(alerts)

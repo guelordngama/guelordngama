@@ -10,8 +10,8 @@ limitation de débit. Aucun lieu n'est inventé : champ inconnu = null.
 """
 from flask import Blueprint, current_app, jsonify, request
 
-from ..geo import default_city, reverse_geocode_details
-from ..security import rate_limit
+from ..geo import default_city, reverse_geocode_details, route as compute_route
+from ..security import rate_limit, require_auth
 from ..validation import validate_coordinates
 
 bp = Blueprint("geo", __name__, url_prefix="/api/geo")
@@ -35,3 +35,23 @@ def reverse():
         "commune": details.get("commune"),
         "city": details.get("city") or empty["city"],
     })
+
+
+@bp.get("/route")
+@require_auth(roles=["operator", "supervisor", "admin", "agent"])
+@rate_limit(120, 60, scope="geo_route")
+def route():
+    """Itinéraire agent -> alerte : ?from=lat,lng&to=lat,lng (réservé au personnel)."""
+    from ..errors import ValidationError
+
+    def pt(name):
+        raw = (request.args.get(name) or "").split(",")
+        if len(raw) != 2:
+            raise ValidationError(f"Paramètre « {name} » attendu : lat,lng")
+        return validate_coordinates(raw[0], raw[1])
+
+    a, b = pt("from"), pt("to")
+    if not current_app.config.get("GEOCODING_ENABLED", True):
+        from ..geo import _direct_route
+        return jsonify(_direct_route(a[0], a[1], b[0], b[1]))
+    return jsonify(compute_route(a[0], a[1], b[0], b[1]))

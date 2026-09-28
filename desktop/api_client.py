@@ -190,6 +190,12 @@ class ApiClient:
     def get_stats(self):
         return self._request("GET", "/api/stats")
 
+    def get_route(self, a_lat, a_lng, b_lat, b_lng):
+        """Itinéraire (calculé par le serveur SafeCity) : coordonnées + distance/durée."""
+        return self._request(
+            "GET", f"/api/geo/route?from={a_lat:.6f},{a_lng:.6f}&to={b_lat:.6f},{b_lng:.6f}",
+            auth=True)
+
     def get_teams(self):
         return self._request("GET", "/api/teams")
 

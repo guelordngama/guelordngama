@@ -2,6 +2,39 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.20.0] — 2026-09-28 — Poste opérateur : carte en temps réel
+
+### Ajouté
+- **Carte en temps réel** (menu renommé « Carte en temps réel ») avec un
+  panneau latéral :
+  - compteurs : alertes en attente, en intervention, agents disponibles, agents
+    occupés ;
+  - liste des alertes (en attente d'abord, par urgence) avec **rue, quartier,
+    commune**, citoyen, téléphone, heure, agent affecté + distance / durée, ou
+    l'agent disponible le plus proche ; puis la liste des agents ;
+  - cases à cocher par couche : Alertes, Citoyens, Agents disponibles, Agents en
+    intervention, Trajets, Agent le plus proche, Précision GPS, Patrouilles.
+- Sur la carte : alertes (pulsation tant qu'elles sont **en attente**),
+  **citoyens** (nom), **agents disponibles** (vert) et **en intervention**
+  (orange) avec initiales, **trajet** agent → alerte (tracé routier, distance et
+  durée), ligne vers l'**agent disponible le plus proche** pour les alertes en
+  attente, cercle de précision GPS.
+- Fiche complète dans chaque bulle d'alerte (type, citoyen, téléphone, commune,
+  avenue / rue, quartier, ville, GPS, précision, heure, statut, agent) avec
+  « Ouvrir la fiche » et « Affecter <agent le plus proche> ».
+- Mise à jour **en direct sans fermer les bulles ouvertes** ; positions d'agent
+  anciennes (> 10 min) grisées.
+- Serveur : `GET /api/geo/route` (réservé au personnel) — itinéraire calculé par
+  le serveur (OSRM) avec cache ; repli en ligne droite estimée si le service est
+  indisponible.
+- Les trajets sont calculés **en arrière-plan** (l'interface ne se fige jamais)
+  et seulement quand l'agent a bougé d'environ 100 m.
+
+### Corrigé
+- La carte de l'opérateur était centrée sur **Kinshasa** : centrée sur Lubumbashi.
+- Les itinéraires étaient demandés à OSRM directement depuis le PC opérateur
+  (bloqué par le pare-feu de la mairie) : ils passent par le serveur SafeCity.
+
 ## [1.19.0] — 2026-09-28 — Site citoyen : GPS précis et adresse détaillée
 
 ### Ajouté

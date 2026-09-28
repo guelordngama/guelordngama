@@ -5,192 +5,566 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Carte SafeCity</title>
   <!-- Leaflet embarqué localement : la carte fonctionne SANS Internet.
-       (Seules les tuiles de fond nécessitent le réseau.) -->
+       (Seules les tuiles de fond nécessitent le réseau, via le serveur SafeCity.) -->
   <link rel="stylesheet" href="vendor/leaflet/leaflet.css" />
   <script src="vendor/leaflet/leaflet.js"></script>
   <style>
-    html, body, #map { height: 100%; margin: 0; background: #e9edf2; }
-    .leaflet-container { background: #e9edf2; }
-    .alert-popup b { color: #ef4444; }
-    .legend {
-      background: rgba(16,26,46,0.92); color: #e6ecf5; padding: 10px 12px;
-      border-radius: 10px; font: 12px 'Segoe UI', sans-serif; line-height: 1.7;
-      border: 1px solid #233250;
-    }
-    .legend i { display:inline-block; width:12px; height:12px; border-radius:50%;
-      margin-right:6px; vertical-align:middle; }
+    :root { --ink:#16223c; --muted:#64748b; --line:#e3e9f2; --bg:#f5f7fb; --blue:#2563eb;
+            --red:#ef4444; --orange:#f97316; --green:#16a34a; }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; font-family: 'Segoe UI', Inter, Arial, sans-serif; color: var(--ink); }
+    #wrap { display: flex; height: 100%; }
+    #map { flex: 1; height: 100%; background: #e9edf2; }
+    .leaflet-container { background: #e9edf2; font-family: inherit; }
+
+    /* ---- Panneau latéral ---- */
+    #panel { width: 340px; flex-shrink: 0; height: 100%; display: flex; flex-direction: column;
+             background: #fff; border-right: 1px solid var(--line); }
+    #panel.collapsed { display: none; }
+    .p-head { padding: 14px 16px 10px; border-bottom: 1px solid var(--line); }
+    .p-title { display: flex; align-items: center; justify-content: space-between; }
+    .p-title h1 { margin: 0; font-size: 16px; font-weight: 800; }
+    .live { font-size: 11px; font-weight: 800; color: var(--green); display: flex; align-items: center; gap: 6px; }
+    .live i { width: 8px; height: 8px; border-radius: 50%; background: var(--green); animation: blink 1.4s infinite; }
+    @keyframes blink { 50% { opacity: .25; } }
+    .counters { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 12px; }
+    .ctr { border-radius: 10px; padding: 7px 4px; text-align: center; background: var(--bg); border: 1px solid var(--line); }
+    .ctr b { display: block; font-size: 18px; font-weight: 800; }
+    .ctr span { font-size: 10px; color: var(--muted); font-weight: 700; line-height: 1.2; display: block; }
+    .layers { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 8px; margin-top: 10px; font-size: 12px; }
+    .layers label { display: flex; align-items: center; gap: 6px; cursor: pointer; white-space: nowrap; }
+    .layers input { accent-color: var(--blue); }
+    .p-list { flex: 1; overflow-y: auto; padding: 10px 12px 16px; background: var(--bg); }
+    .p-section { font-size: 11px; font-weight: 800; color: var(--muted); letter-spacing: .06em; margin: 8px 4px 6px; }
+    .item { background: #fff; border: 1px solid var(--line); border-left: 4px solid var(--red); border-radius: 11px;
+            padding: 9px 11px; margin-bottom: 8px; cursor: pointer; }
+    .item:hover { border-color: var(--blue); }
+    .item.sel { box-shadow: 0 0 0 2px var(--blue); }
+    .it-top { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+    .it-type { font-weight: 800; font-size: 13px; }
+    .pill { font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 999px; white-space: nowrap; }
+    .it-line { font-size: 12px; margin-top: 4px; color: var(--ink); line-height: 1.4; }
+    .it-line.m { color: var(--muted); }
+    .it-actions { display: flex; gap: 6px; margin-top: 7px; }
+    .btn { font: inherit; font-size: 11.5px; font-weight: 700; border-radius: 8px; padding: 5px 9px; cursor: pointer;
+           border: 1px solid var(--line); background: #fff; color: var(--ink); text-decoration: none; }
+    .btn.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+    .empty { text-align: center; color: var(--muted); font-size: 12.5px; padding: 18px 8px; }
+    #toggle { position: absolute; z-index: 1000; left: 10px; top: 80px; }
+
+    /* ---- Marqueurs ---- */
+    .mk-alert { position: relative; width: 22px; height: 22px; }
+    .mk-alert .core { position: absolute; inset: 3px; border-radius: 50%; border: 3px solid #fff;
+                      box-shadow: 0 1px 4px rgba(0,0,0,.45); }
+    .mk-alert .ring { position: absolute; inset: -6px; border-radius: 50%; border: 3px solid; opacity: .7;
+                      animation: pulse 1.6s ease-out infinite; }
+    @keyframes pulse { 0% { transform: scale(.5); opacity: .9; } 100% { transform: scale(1.5); opacity: 0; } }
+    .mk-label { background: #fff; border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px 2px 4px;
+                font-size: 11px; font-weight: 700; white-space: nowrap; box-shadow: 0 1px 4px rgba(0,0,0,.25);
+                display: inline-flex; align-items: center; gap: 4px; }
+    .mk-label .av { width: 18px; height: 18px; border-radius: 50%; color: #fff; display: inline-grid;
+                    place-items: center; font-size: 9.5px; font-weight: 800; }
+    .mk-agent.stale { opacity: .55; filter: grayscale(.5); }
+    .route-label { background: rgba(22,34,60,.9); color: #fff; border: none; border-radius: 8px; font-weight: 700;
+                   font-size: 11px; padding: 3px 7px; box-shadow: none; }
+    .route-label::before { display: none; }
+
+    /* ---- Fiches (popups) ---- */
+    .leaflet-popup-content { margin: 12px 14px; font-size: 12.5px; }
+    .fiche h3 { margin: 0 0 6px; font-size: 14px; }
+    .fiche table { border-collapse: collapse; }
+    .fiche td { padding: 1.5px 0; vertical-align: top; }
+    .fiche td:first-child { color: var(--muted); font-weight: 600; padding-right: 10px; white-space: nowrap; }
+    .fiche td:last-child { font-weight: 700; }
+    .fiche .sep td { padding-top: 5px; border-top: 1px solid var(--line); }
+    .fiche .acts { margin-top: 8px; display: flex; gap: 6px; }
+    .legend { background: rgba(255,255,255,.95); color: var(--ink); padding: 8px 10px; border-radius: 10px;
+              font-size: 11px; line-height: 1.7; border: 1px solid var(--line); box-shadow: 0 2px 8px rgba(0,0,0,.12); }
+    .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
   </style>
 </head>
 <body>
+<div id="wrap">
+  <aside id="panel">
+    <div class="p-head">
+      <div class="p-title"><h1>🗺️ Carte en temps réel</h1><span class="live"><i></i>EN DIRECT</span></div>
+      <div class="counters">
+        <div class="ctr" style="border-color:#fecaca"><b id="c-wait" style="color:var(--red)">0</b><span>Alertes en attente</span></div>
+        <div class="ctr" style="border-color:#fed7aa"><b id="c-prog" style="color:var(--orange)">0</b><span>En intervention</span></div>
+        <div class="ctr" style="border-color:#bbf7d0"><b id="c-free" style="color:var(--green)">0</b><span>Agents disponibles</span></div>
+        <div class="ctr"><b id="c-busy" style="color:var(--orange)">0</b><span>Agents occupés</span></div>
+      </div>
+      <div class="layers" id="layers"></div>
+    </div>
+    <div class="p-list" id="list"></div>
+  </aside>
   <div id="map"></div>
-  <script>
-    // Icônes Leaflet par défaut servies localement.
-    L.Icon.Default.imagePath = "vendor/leaflet/images/";
+</div>
+<script>
+  L.Icon.Default.imagePath = "vendor/leaflet/images/";
+  // Centre de Lubumbashi (jamais Kinshasa).
+  var map = L.map("map", { zoomControl: true }).setView([-11.6647, 27.4794], 13);
 
-    var map = L.map("map", { zoomControl: true }).setView([-4.325, 15.3222], 13);
+  // ---------------------------------------------------------------------- //
+  // Fond de carte (proxy /tiles/ du serveur SafeCity : contourne le pare-feu)
+  // ---------------------------------------------------------------------- //
+  var tiles = null, tileErrors = 0, offlineBadge = null;
+  function buildTiles(url) {
+    if (tiles) { map.removeLayer(tiles); tiles = null; }
+    tileErrors = 0;
+    if (offlineBadge) { map.removeControl(offlineBadge); offlineBadge = null; }
+    tiles = L.tileLayer(url, { attribution: "© OpenStreetMap © CARTO", maxZoom: 20 }).addTo(map);
+    tiles.on("tileerror", function () {
+      if (++tileErrors === 4 && !offlineBadge) {
+        offlineBadge = L.control({ position: "topright" });
+        offlineBadge.onAdd = function () {
+          var d = L.DomUtil.create("div", "legend");
+          d.innerHTML = "⚠️ Fond de carte hors-ligne — positions actives";
+          return d;
+        };
+        offlineBadge.addTo(map);
+      }
+    });
+  }
+  window.setTileServer = function (base) {
+    if (!base) return;
+    buildTiles(String(base).replace(/\/+$/, "") + "/tiles/{z}/{x}/{y}.png");
+  };
+  buildTiles("/tiles/{z}/{x}/{y}.png");
 
-    // Fond de carte coloré (style OpenStreetMap « Voyager »). Les tuiles sont
-    // servies par le serveur SafeCity lui-même (proxy /tiles/…), ce qui contourne
-    // le blocage des CDN externes par le pare-feu de la mairie : le client ne
-    // contacte que le domaine SafeCity, déjà autorisé. Si le réseau est absent,
-    // la carte reste utilisable (fond uni) et les marqueurs/itinéraires s'affichent.
-    var tiles = null;
-    var tileErrors = 0;
-    var offlineBadge = null;
+  // ---------------------------------------------------------------------- //
+  // Données et utilitaires
+  // ---------------------------------------------------------------------- //
+  var URGENCY = { faible: "#22c55e", moyenne: "#eab308", haute: "#f97316", critique: "#ef4444" };
+  var URG_LABEL = { faible: "Faible", moyenne: "Moyen", haute: "Élevé", critique: "Critique" };
+  var URG_RANK = { critique: 0, haute: 1, moyenne: 2, faible: 3 };
+  var TYPE_NAMES = { vol: "Vol", braquage: "Braquage", incendie: "Incendie", accident: "Accident",
+                     violence: "Violence", agression: "Agression", autre: "Autre" };
+  var STATUS = { active: ["EN ATTENTE", "#ef4444"], assignee: ["PRISE EN CHARGE", "#f97316"],
+                 cloturee: ["CLÔTURÉE", "#16a34a"] };
+  var AVAIL = { available: ["Disponible", "#16a34a"], busy: ["En intervention", "#f97316"],
+                offline: ["Hors service", "#64748b"] };
 
-    function buildTiles(url) {
-      if (tiles) { map.removeLayer(tiles); tiles = null; }
-      tileErrors = 0;
-      if (offlineBadge) { map.removeControl(offlineBadge); offlineBadge = null; }
-      tiles = L.tileLayer(url, {
-        attribution: "© OpenStreetMap © CARTO", maxZoom: 20,
-      }).addTo(map);
-      tiles.on("tileerror", function () {
-        if (++tileErrors === 4 && !offlineBadge) {  // réseau probablement indisponible
-          offlineBadge = L.control({ position: "topleft" });
-          offlineBadge.onAdd = function () {
-            var d = L.DomUtil.create("div", "legend");
-            d.innerHTML = "⚠️ Fond de carte hors-ligne — marqueurs actifs";
-            return d;
-          };
-          offlineBadge.addTo(map);
-        }
-      });
+  var alerts = {}, agents = {}, routes = {}, selected = null;
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; });
+  }
+  function gps(lat, lng) { return lat == null ? "—" : (+lat).toFixed(6) + ", " + (+lng).toFixed(6); }
+  function dist(a, b) {
+    var R = 6371000, r = Math.PI / 180, dLat = (b[0] - a[0]) * r, dLng = (b[1] - a[1]) * r;
+    var x = Math.pow(Math.sin(dLat / 2), 2) + Math.cos(a[0] * r) * Math.cos(b[0] * r) * Math.pow(Math.sin(dLng / 2), 2);
+    return 2 * R * Math.asin(Math.min(1, Math.sqrt(x)));
+  }
+  function km(m) { return m < 1000 ? Math.round(m) + " m" : (m / 1000).toFixed(1).replace(".", ",") + " km"; }
+  function mins(s) { return Math.max(1, Math.round(s / 60)) + " min"; }
+  function initials(name) {
+    var p = String(name || "").split(/\s+/).filter(Boolean);
+    if (!p.length) return "?";
+    var b = p[1] ? (/^\d+$/.test(p[1]) ? (p[1].replace(/^0+/, "")[0] || p[1].slice(-1)) : p[1][0]) : "";
+    return (p[0][0] + b).toUpperCase();
+  }
+  function streetParts(street) {
+    var s = String(street || "").trim(), low = s.toLowerCase();
+    var kinds = [[["avenue ", "av. ", "av "], "Avenue"], [["rue "], "Rue"], [["boulevard ", "bd "], "Boulevard"],
+                 [["route "], "Route"], [["chaussée "], "Chaussée"]];
+    for (var i = 0; i < kinds.length; i++) for (var j = 0; j < kinds[i][0].length; j++)
+      if (low.indexOf(kinds[i][0][j]) === 0) return [kinds[i][1], s.slice(kinds[i][0][j].length).trim() || s];
+    return ["Avenue / Rue", s];
+  }
+  function placeLine(a) {
+    var st = a.street ? streetParts(a.street) : null;
+    var parts = [];
+    if (st) parts.push((st[0] === "Avenue / Rue" ? "" : st[0] + " ") + st[1]);
+    if (a.neighborhood) parts.push(a.neighborhood);
+    var s = parts.join(", ");
+    if (a.commune) s += (s ? " — " : "") + "commune " + a.commune;
+    return s || (a.position_approx ? "Position approximative" : "Adresse en cours de recherche…");
+  }
+  // Rang de tri (0 = le plus prioritaire) ; valeur inconnue à la fin.
+  function rank(table, key) { return Object.prototype.hasOwnProperty.call(table, key) ? table[key] : 99; }
+  function precision(a) {
+    if (a.position_approx) return "⚠️ Approximative";
+    if (a.position_manual) return "Placée à la main";
+    return a.gps_accuracy_m != null ? "±" + Math.round(a.gps_accuracy_m) + " m" : "Non communiquée";
+  }
+  function agentPos(ag) { return ag && ag.lat != null && ag.lng != null ? [ag.lat, ag.lng] : null; }
+  function ageMin(iso) {
+    if (!iso) return null;
+    var t = Date.parse(/[zZ]|[+-]\d\d:?\d\d$/.test(iso) ? iso : iso + "Z");
+    return isNaN(t) ? null : Math.round((Date.now() - t) / 60000);
+  }
+  // Commande vers le poste opérateur (Qt) : on change le fragment de l'URL,
+  // que Qt reçoit via urlChanged (« #cmd=alert/12&t=… »). Capture = avant que
+  // Leaflet ne bloque la propagation du clic dans les fiches.
+  function send(cmd) { window.location.hash = "cmd=" + cmd + "&t=" + Date.now(); }
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest && e.target.closest("[data-cmd]");
+    if (!b) return;
+    e.preventDefault();
+    e.stopPropagation();
+    send(b.getAttribute("data-cmd"));
+  }, true);
+
+  // ---------------------------------------------------------------------- //
+  // Couches
+  // ---------------------------------------------------------------------- //
+  var L_ALERTS = L.layerGroup().addTo(map), L_CITIZENS = L.layerGroup().addTo(map),
+      L_FREE = L.layerGroup().addTo(map), L_BUSY = L.layerGroup().addTo(map),
+      L_ROUTES = L.layerGroup().addTo(map), L_NEAREST = L.layerGroup().addTo(map),
+      L_ACC = L.layerGroup().addTo(map), L_PATROLS = L.layerGroup().addTo(map);
+  var LAYERS = [
+    ["🚨 Alertes", L_ALERTS], ["👤 Citoyens", L_CITIZENS],
+    ["🟢 Agents disponibles", L_FREE], ["🟠 Agents en intervention", L_BUSY],
+    ["🧭 Trajets", L_ROUTES], ["📏 Agent le plus proche", L_NEAREST],
+    ["◎ Précision GPS", L_ACC], ["🚓 Patrouilles", L_PATROLS]];
+  (function () {
+    var host = document.getElementById("layers");
+    LAYERS.forEach(function (l, i) {
+      var lab = document.createElement("label");
+      lab.innerHTML = '<input type="checkbox" checked data-i="' + i + '"> ' + l[0];
+      host.appendChild(lab);
+    });
+    host.addEventListener("change", function (e) {
+      var l = LAYERS[+e.target.dataset.i][1];
+      if (e.target.checked) map.addLayer(l); else map.removeLayer(l);
+    });
+  })();
+
+  var mAlert = {}, mCitizen = {}, mAcc = {}, mAgent = {}, lRoute = {}, lNearest = {};
+
+  function alertIcon(a) {
+    var c = URGENCY[a.urgency] || "#ef4444";
+    var ring = a.status === "active" ? '<div class="ring" style="border-color:' + c + '"></div>' : "";
+    return L.divIcon({ className: "", iconSize: [22, 22], iconAnchor: [11, 11], popupAnchor: [0, -10],
+      html: '<div class="mk-alert">' + ring + '<div class="core" style="background:' + c + '"></div></div>' });
+  }
+  function citizenIcon(a) {
+    return L.divIcon({ className: "", iconSize: null, iconAnchor: [-14, 30],
+      html: '<div class="mk-label">👤 ' + esc(a.reporter_name || "Citoyen") + "</div>" });
+  }
+  function agentIcon(ag) {
+    var st = AVAIL[ag.availability] || AVAIL.offline;
+    var stale = (ageMin(ag.last_seen) || 0) > 10 ? " stale" : "";
+    return L.divIcon({ className: "", iconSize: null, iconAnchor: [14, 13], popupAnchor: [0, -12],
+      html: '<div class="mk-label mk-agent' + stale + '" style="border-color:' + st[1] + '">' +
+            '<span class="av" style="background:' + st[1] + '">' + esc(initials(ag.name)) + "</span>👮 " +
+            esc(ag.name) + "</div>" });
+  }
+
+  function agentOf(a) {
+    var id = a.assigned_agent && a.assigned_agent.id;
+    return id != null ? agents[id] : null;
+  }
+  function nearestFree(a) {
+    var best = null;
+    Object.keys(agents).forEach(function (k) {
+      var ag = agents[k], p = agentPos(ag);
+      if (!p || ag.availability !== "available") return;
+      var d = dist(p, [a.lat, a.lng]);
+      if (!best || d < best.d) best = { ag: ag, d: d };
+    });
+    return best;
+  }
+
+  function alertFiche(a) {
+    var st = STATUS[a.status] || [String(a.status || "—").toUpperCase(), "#64748b"];
+    var sp = streetParts(a.street);
+    var ag = agentOf(a), r = routes[a.id], near = a.status === "active" ? nearestFree(a) : null;
+    var rows = [
+      ["Type", esc(TYPE_NAMES[a.type] || a.type || "—") + " · " + (URG_LABEL[a.urgency] || "")],
+      ["Citoyen", esc(a.reporter_name || "Anonyme")],
+      ["Téléphone", esc(a.reporter_phone || "Non communiqué")],
+      ["Commune", esc(a.commune || "—")], [sp[0], esc(sp[1] || "—")],
+      ["Quartier", esc(a.neighborhood || "—")], ["Ville", esc(a.city || "—")],
+      ["GPS", gps(a.lat, a.lng)], ["Précision", esc(precision(a))], ["Heure", esc(a.time || "—")],
+      ["Statut", '<span style="color:' + st[1] + '">' + st[0] + "</span>"]];
+    if (a.assigned_agent) rows.push(["Agent", esc(a.assigned_agent.name) +
+      (r ? " · " + km(r.distance_m) + " · " + mins(r.duration_s) : "")]);
+    else if (near) rows.push(["Plus proche", esc(near.ag.name) + " · " + km(near.d) + " (vol d'oiseau)"]);
+    var html = '<div class="fiche"><h3>' + (a.status === "active" ? "🔴 " : "🟠 ") +
+      esc((TYPE_NAMES[a.type] || a.type || "").toUpperCase()) + (a.reference ? " #" + esc(a.reference) : "") +
+      "</h3><table>";
+    rows.forEach(function (r, i) {
+      html += "<tr" + (r[0] === "GPS" ? ' class="sep"' : "") + "><td>" + esc(r[0]) + " :</td><td>" + r[1] + "</td></tr>";
+    });
+    return html + '</table><div class="acts"><a class="btn primary" href="#" data-cmd="alert/' + a.id +
+      '">Ouvrir la fiche</a>' + (a.status === "active" && near ?
+      '<a class="btn" href="#" data-cmd="assign/' + a.id + "/" + near.ag.id + '">Affecter ' + esc(near.ag.name) + "</a>" : "") +
+      "</div></div>";
+  }
+  function agentFiche(ag) {
+    var st = AVAIL[ag.availability] || AVAIL.offline;
+    var a = ag.current_alert_id != null ? alerts[ag.current_alert_id] : null;
+    var r = a ? routes[a.id] : null, age = ageMin(ag.last_seen);
+    var html = '<div class="fiche"><h3>👮 ' + esc(ag.name) + "</h3><table>" +
+      '<tr><td>Statut :</td><td><span style="color:' + st[1] + '">' + st[0] + "</span></td></tr>" +
+      "<tr><td>Téléphone :</td><td>" + esc(ag.phone || "—") + "</td></tr>" +
+      "<tr><td>GPS :</td><td>" + gps(ag.lat, ag.lng) + "</td></tr>" +
+      "<tr><td>Position :</td><td>" + (age == null ? "—" : age < 1 ? "à l'instant" : "il y a " + age + " min") + "</td></tr>";
+    if (a) html += '<tr class="sep"><td>Intervention :</td><td>' +
+      esc(TYPE_NAMES[a.type] || a.type) + (a.reference ? " #" + esc(a.reference) : "") + "</td></tr>" +
+      "<tr><td>Lieu :</td><td>" + esc(placeLine(a)) + "</td></tr>" +
+      (r ? "<tr><td>Trajet :</td><td>" + km(r.distance_m) + " · " + mins(r.duration_s) +
+           (r.source === "direct" ? " (estimé)" : "") + "</td></tr>" : "");
+    return html + "</table></div>";
+  }
+
+  // Met à jour (sans recréer) un marqueur : les fiches ouvertes restent ouvertes.
+  function upsert(store, id, latlng, icon, layer, popup) {
+    var m = store[id];
+    if (!m) {
+      m = L.marker(latlng, { icon: icon, riseOnHover: true }).addTo(layer);
+      if (popup) m.bindPopup(popup, { maxWidth: 320 });
+      store[id] = m;
+    } else {
+      m.setLatLng(latlng);
+      m.setIcon(icon);
+      if (popup) { m.setPopupContent(popup); }
     }
+    return m;
+  }
+  function prune(store, keep, layer) {
+    Object.keys(store).forEach(function (k) {
+      if (!keep[k]) { layer.removeLayer(store[k]); delete store[k]; }
+    });
+  }
 
-    // Bascule le fond vers le proxy de tuiles du serveur SafeCity (appelé par le
-    // poste opérateur une fois l'URL du serveur connue). base = ex.
-    // "https://safecity-lubumbashi.com".
-    window.setTileServer = function (base) {
-      if (!base) return;
-      base = String(base).replace(/\/+$/, "");
-      buildTiles(base + "/tiles/{z}/{x}/{y}.png");
-    };
+  function render() {
+    var keepA = {}, keepG = {};
+    Object.keys(alerts).forEach(function (k) {
+      var a = alerts[k];
+      if (a.status === "cloturee") return;
+      keepA[k] = true;
+      var ll = [a.lat, a.lng];
+      var m = upsert(mAlert, k, ll, alertIcon(a), L_ALERTS, alertFiche(a));
+      m.options.zIndexOffset = a.status === "active" ? 1000 : 500;
+      upsert(mCitizen, k, ll, citizenIcon(a), L_CITIZENS, alertFiche(a));
+      var acc = a.position_approx ? 800 : a.gps_accuracy_m;
+      if (acc) {
+        if (!mAcc[k]) mAcc[k] = L.circle(ll, { radius: acc, color: URGENCY[a.urgency] || "#ef4444",
+                                                 weight: 1, fillOpacity: 0.08, dashArray: a.position_approx ? "6,6" : null }).addTo(L_ACC);
+        else { mAcc[k].setLatLng(ll); mAcc[k].setRadius(acc); }
+      } else if (mAcc[k]) { L_ACC.removeLayer(mAcc[k]); delete mAcc[k]; }
+    });
+    prune(mAlert, keepA, L_ALERTS); prune(mCitizen, keepA, L_CITIZENS);
+    Object.keys(mAcc).forEach(function (k) { if (!keepA[k]) { L_ACC.removeLayer(mAcc[k]); delete mAcc[k]; } });
 
-    // Fond par défaut (avant que le poste opérateur ne fournisse l'URL du
-    // serveur) : proxy relatif, utile quand la page est servie par le backend.
-    buildTiles("/tiles/{z}/{x}/{y}.png");
+    Object.keys(agents).forEach(function (k) {
+      var ag = agents[k], p = agentPos(ag);
+      if (!p || ag.availability === "offline" || (ag.role && ag.role !== "agent")) return;
+      keepG[k] = true;
+      var layer = ag.availability === "busy" ? L_BUSY : L_FREE;
+      var m = mAgent[k];
+      if (m && !layer.hasLayer(m)) { (layer === L_BUSY ? L_FREE : L_BUSY).removeLayer(m); layer.addLayer(m); }
+      upsert(mAgent, k, p, agentIcon(ag), layer, agentFiche(ag));
+    });
+    Object.keys(mAgent).forEach(function (k) {
+      if (!keepG[k]) { L_FREE.removeLayer(mAgent[k]); L_BUSY.removeLayer(mAgent[k]); delete mAgent[k]; }
+    });
 
-    var URGENCY = { faible: "#22c55e", moyenne: "#eab308", haute: "#f97316", critique: "#ef4444" };
-    var markers = {};     // id -> marker
-    var patrolLayer = L.layerGroup().addTo(map);
+    drawRoutes();
+    drawNearest();
+    renderPanel();
+  }
 
-    function alertIcon(urgency) {
-      var c = URGENCY[urgency] || "#ef4444";
-      return L.divIcon({
-        className: "",
-        html: '<div style="width:16px;height:16px;border-radius:50%;background:' + c +
-              ';border:3px solid #0b1220;box-shadow:0 0 0 2px ' + c + ',0 0 12px ' + c + '"></div>',
-        iconSize: [16, 16], iconAnchor: [8, 8],
-      });
+  // Trajets agent -> alerte (géométrie calculée par le serveur SafeCity).
+  function drawRoutes() {
+    Object.keys(lRoute).forEach(function (k) { L_ROUTES.removeLayer(lRoute[k]); });
+    lRoute = {};
+    Object.keys(routes).forEach(function (id) {
+      var a = alerts[id], r = routes[id];
+      if (!a || a.status !== "assignee" || !r || !r.coordinates || r.coordinates.length < 2) return;
+      var direct = r.source === "direct";
+      var g = L.layerGroup();
+      L.polyline(r.coordinates, { color: "#fff", weight: 8, opacity: 0.9 }).addTo(g);
+      var line = L.polyline(r.coordinates, { color: "#f97316", weight: 5, opacity: 0.95,
+                                             dashArray: direct ? "8,8" : null }).addTo(g);
+      line.bindTooltip("🚓 " + esc(a.assigned_agent ? a.assigned_agent.name : "Agent") + " → " +
+        esc(TYPE_NAMES[a.type] || a.type) + " · " + km(r.distance_m) + " · " + mins(r.duration_s) +
+        (direct ? " (estimé)" : ""), { permanent: true, direction: "center", className: "route-label" });
+      g.addTo(L_ROUTES);
+      lRoute[id] = g;
+    });
+  }
+  // Alerte en attente : agent disponible le plus proche (ligne pointillée).
+  function drawNearest() {
+    L_NEAREST.clearLayers();
+    Object.keys(alerts).forEach(function (k) {
+      var a = alerts[k];
+      if (a.status !== "active") return;
+      var n = nearestFree(a);
+      if (!n) return;
+      L.polyline([agentPos(n.ag), [a.lat, a.lng]], { color: "#16a34a", weight: 2.5, dashArray: "4,7", opacity: .9 })
+        .bindTooltip("Plus proche : " + esc(n.ag.name) + " · " + km(n.d), { sticky: true })
+        .addTo(L_NEAREST);
+    });
+  }
+
+  // ---------------------------------------------------------------------- //
+  // Panneau latéral
+  // ---------------------------------------------------------------------- //
+  function renderPanel() {
+    var list = Object.keys(alerts).map(function (k) { return alerts[k]; })
+      .filter(function (a) { return a.status !== "cloturee"; });
+    var waiting = list.filter(function (a) { return a.status === "active"; })
+      .sort(function (x, y) { return rank(URG_RANK, x.urgency) - rank(URG_RANK, y.urgency)
+                                       || String(y.created_at).localeCompare(String(x.created_at)); });
+    var prog = list.filter(function (a) { return a.status === "assignee"; });
+    var ags = Object.keys(agents).map(function (k) { return agents[k]; })
+      .filter(function (g) { return !g.role || g.role === "agent"; });
+    document.getElementById("c-wait").textContent = waiting.length;
+    document.getElementById("c-prog").textContent = prog.length;
+    document.getElementById("c-free").textContent = ags.filter(function (g) { return g.availability === "available"; }).length;
+    document.getElementById("c-busy").textContent = ags.filter(function (g) { return g.availability === "busy"; }).length;
+
+    var host = document.getElementById("list"), scroll = host.scrollTop, html = "";
+    function item(a) {
+      var st = STATUS[a.status] || ["—", "#64748b"], c = URGENCY[a.urgency] || "#ef4444";
+      var r = routes[a.id], near = a.status === "active" ? nearestFree(a) : null;
+      var agentLine = a.assigned_agent
+        ? "🚓 " + esc(a.assigned_agent.name) + (r ? " · " + km(r.distance_m) + " · " + mins(r.duration_s) : "")
+        : near ? "📏 Plus proche : " + esc(near.ag.name) + " · " + km(near.d) : "⚠️ Aucun agent disponible localisé";
+      return '<div class="item' + (String(selected) === String(a.id) ? " sel" : "") + '" data-id="' + a.id +
+        '" style="border-left-color:' + c + '">' +
+        '<div class="it-top"><span class="it-type">' + esc(TYPE_NAMES[a.type] || a.type) +
+        (a.reference ? ' <span style="color:var(--muted);font-weight:600">#' + esc(a.reference) + "</span>" : "") +
+        '</span><span class="pill" style="background:' + st[1] + '22;color:' + st[1] + '">' + st[0] + "</span></div>" +
+        '<div class="it-line">📍 ' + esc(placeLine(a)) + "</div>" +
+        '<div class="it-line m">👤 ' + esc(a.reporter_name || "Anonyme") + (a.reporter_phone ? " · 📞 " + esc(a.reporter_phone) : "") +
+        " · 🕒 " + esc(a.time || "—") + "</div>" +
+        '<div class="it-line">' + agentLine + "</div>" +
+        '<div class="it-actions"><a class="btn" href="#" data-focus="' + a.id + '">🎯 Voir</a>' +
+        '<a class="btn primary" href="#" data-cmd="alert/' + a.id + '">Ouvrir la fiche</a></div></div>';
     }
-
-    window.addAlert = function (a) {
-      if (markers[a.id]) { map.removeLayer(markers[a.id]); delete markers[a.id]; }
-      if (a.status === "cloturee") { return; }
-      var m = L.marker([a.lat, a.lng], { icon: alertIcon(a.urgency) }).addTo(map);
-      m.bindPopup(
-        '<div class="alert-popup"><b>' + (a.type || "").toUpperCase() + "</b><br/>" +
-        "Citoyen : " + (a.reporter_name || "Anonyme") + "<br/>" +
-        "Quartier : " + (a.neighborhood || "—") + "<br/>" +
-        "Heure : " + (a.time || "—") + "<br/>" +
-        "Distance : " + (a.distance_m != null ? Math.round(a.distance_m) + " m" : "—") + "</div>"
-      );
-      markers[a.id] = m;
-    };
-
-    window.setAlerts = function (list) {
-      Object.keys(markers).forEach(function (k) { map.removeLayer(markers[k]); });
-      markers = {};
-      (list || []).forEach(window.addAlert);
-    };
-
-    window.setPatrols = function (teams) {
-      patrolLayer.clearLayers();
-      (teams || []).forEach(function (t) {
-        if (t.patrol_lat == null || t.patrol_lng == null) return;
-        var icon = L.divIcon({
-          className: "",
-          html: '<div style="font-size:18px;filter:drop-shadow(0 0 3px #000)">🚓</div>',
-          iconSize: [20, 20], iconAnchor: [10, 10],
-        });
-        L.marker([t.patrol_lat, t.patrol_lng], { icon: icon })
-          .bindPopup("<b>" + t.name + "</b><br/>Statut : " + t.status)
-          .addTo(patrolLayer);
-      });
-    };
-
-    window.focusAlert = function (id) {
-      var m = markers[id];
+    html += '<div class="p-section">🔴 EN ATTENTE (' + waiting.length + ")</div>";
+    html += waiting.length ? waiting.map(item).join("") : '<div class="empty">Aucune alerte en attente.</div>';
+    html += '<div class="p-section">🟠 EN INTERVENTION (' + prog.length + ")</div>";
+    html += prog.length ? prog.map(item).join("") : '<div class="empty">Aucune intervention en cours.</div>';
+    html += '<div class="p-section">👮 AGENTS (' + ags.length + ")</div>";
+    html += ags.length ? ags.sort(function (x, y) {
+        var o = { available: 0, busy: 1, offline: 2 };
+        return rank(o, x.availability) - rank(o, y.availability); }).map(function (g) {
+      var st = AVAIL[g.availability] || AVAIL.offline, a = g.current_alert_id != null ? alerts[g.current_alert_id] : null;
+      return '<div class="item" data-agent="' + g.id + '" style="border-left-color:' + st[1] + '">' +
+        '<div class="it-top"><span class="it-type">👮 ' + esc(g.name) + '</span><span class="pill" style="background:' +
+        st[1] + '22;color:' + st[1] + '">' + st[0] + "</span></div>" +
+        (a ? '<div class="it-line">🚨 ' + esc(TYPE_NAMES[a.type] || a.type) + " · " + esc(placeLine(a)) + "</div>" : "") +
+        (agentPos(g) ? "" : '<div class="it-line m">Position inconnue (portail non connecté)</div>') + "</div>";
+    }).join("") : '<div class="empty">Aucun agent.</div>';
+    host.innerHTML = html;
+    host.scrollTop = scroll;
+  }
+  document.getElementById("list").addEventListener("click", function (e) {
+    if (e.target.closest("[data-cmd]")) return;                    // géré par Qt
+    var f = e.target.closest("[data-focus]"), it = e.target.closest(".item");
+    if (f) e.preventDefault();
+    if (it && it.dataset.id) window.focusAlert(+it.dataset.id);
+    else if (it && it.dataset.agent) {
+      var m = mAgent[it.dataset.agent];
       if (m) { map.setView(m.getLatLng(), 16); m.openPopup(); }
-    };
-
-    // Centre la carte sur une position d'agent.
-    window.focusAgentAt = function (lat, lng) {
-      map.setView([lat, lng], 17);
-    };
-
-    // Itinéraire le plus rapide entre un agent (a) et une alerte (b).
-    // Utilise OSRM (routage réel) avec repli sur une ligne droite si indisponible.
-    var routeLine = null;
-    function drawStraight(a, b, note) {
-      routeLine = L.polyline([a, b], { color: "#3d8bff", weight: 4, dashArray: "8,8", opacity: 0.9 }).addTo(map);
-      routeLine.bindPopup(note || "Trajet direct").openPopup();
-      map.fitBounds(routeLine.getBounds(), { padding: [50, 50] });
     }
-    window.showRoute = function (a, b) {
-      window.clearRoute();
-      var url = "https://router.project-osrm.org/route/v1/driving/" +
-                a[1] + "," + a[0] + ";" + b[1] + "," + b[0] + "?overview=full&geometries=geojson";
-      fetch(url).then(function (r) { return r.json(); }).then(function (d) {
-        if (d.routes && d.routes.length) {
-          var coords = d.routes[0].geometry.coordinates.map(function (c) { return [c[1], c[0]]; });
-          routeLine = L.polyline(coords, { color: "#3d8bff", weight: 6, opacity: 0.85 }).addTo(map);
-          var km = (d.routes[0].distance / 1000).toFixed(2);
-          var min = Math.round(d.routes[0].duration / 60);
-          routeLine.bindPopup("🧭 Itinéraire le plus rapide<br>" + km + " km · ~" + min + " min").openPopup();
-          map.fitBounds(routeLine.getBounds(), { padding: [50, 50] });
-        } else { drawStraight(a, b); }
-      }).catch(function () { drawStraight(a, b, "Trajet direct (routage indisponible)"); });
-    };
-    window.clearRoute = function () {
-      if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
-    };
+  });
 
-    // Agents suivis en temps réel.
-    var agentLayer = L.layerGroup().addTo(map);
-    var AVAIL = { available: "#22c55e", busy: "#f97316", offline: "#6b7280" };
-    window.setAgents = function (agents) {
-      agentLayer.clearLayers();
-      (agents || []).forEach(function (a) {
-        if (a.lat == null || a.lng == null) return;
-        var c = AVAIL[a.availability] || "#6b7280";
-        var icon = L.divIcon({ className: "",
-          html: '<div style="position:relative;font-size:18px;filter:drop-shadow(0 0 3px #000)">👮' +
-                '<span style="position:absolute;right:-2px;bottom:-2px;width:9px;height:9px;border-radius:50%;background:' +
-                c + ';border:2px solid #0b1220"></span></div>',
-          iconSize: [22, 22], iconAnchor: [11, 11] });
-        L.marker([a.lat, a.lng], { icon: icon })
-          .bindPopup("<b>" + a.name + "</b><br/>Disponibilité : " + a.availability +
-                     (a.current_alert_id ? "<br/>Intervention #" + a.current_alert_id : ""))
-          .addTo(agentLayer);
-      });
-    };
+  // ---------------------------------------------------------------------- //
+  // API appelée par le poste opérateur (compatibilité conservée)
+  // ---------------------------------------------------------------------- //
+  var renderTimer = null;
+  function scheduleRender() { clearTimeout(renderTimer); renderTimer = setTimeout(render, 60); }
 
-    // Légende de gravité
-    var legend = L.control({ position: "bottomright" });
-    legend.onAdd = function () {
-      var div = L.DomUtil.create("div", "legend");
-      div.innerHTML =
-        '<i style="background:#22c55e"></i>Faible<br/>' +
-        '<i style="background:#eab308"></i>Moyen<br/>' +
-        '<i style="background:#f97316"></i>Élevé<br/>' +
-        '<i style="background:#ef4444"></i>Critique';
-      return div;
-    };
-    legend.addTo(map);
+  window.setAlerts = function (list) {
+    alerts = {};
+    (list || []).forEach(function (a) { alerts[a.id] = a; });
+    scheduleRender();
+  };
+  window.addAlert = function (a) { alerts[a.id] = a; scheduleRender(); };
+  window.setAgents = function (list) {
+    agents = {};
+    (list || []).forEach(function (g) { agents[g.id] = g; });
+    scheduleRender();
+  };
+  // routes : { alertId: {coordinates, distance_m, duration_s, source} }
+  window.setRoutes = function (obj) { routes = obj || {}; scheduleRender(); };
+  window.setPatrols = function (teams) {
+    L_PATROLS.clearLayers();
+    (teams || []).forEach(function (t) {
+      if (t.patrol_lat == null || t.patrol_lng == null) return;
+      L.marker([t.patrol_lat, t.patrol_lng], { icon: L.divIcon({ className: "", iconSize: null, iconAnchor: [12, 12],
+        html: '<div class="mk-label">🚓 ' + esc(t.name) + "</div>" }) })
+        .bindPopup("<b>" + esc(t.name) + "</b><br/>Statut : " + esc(t.status)).addTo(L_PATROLS);
+    });
+  };
+  window.focusAlert = function (id) {
+    selected = id;
+    var m = mAlert[id], a = alerts[id];
+    if (!m && a) { render(); m = mAlert[id]; }
+    if (m) {
+      var r = routes[id];
+      if (r && r.coordinates && r.coordinates.length > 1) map.fitBounds(L.latLngBounds(r.coordinates), { padding: [60, 60], maxZoom: 17 });
+      else map.setView(m.getLatLng(), 16);
+      m.openPopup();
+    }
+    renderPanel();
+  };
+  window.focusAgentAt = function (lat, lng) { map.setView([lat, lng], 17); };
 
-    document.title = "SafeCity map ready";
-  </script>
+  // Itinéraire ponctuel (bouton « Itinéraire » d'un agent) : géométrie fournie
+  // par le poste opérateur (calculée par le serveur).
+  var manual = null;
+  window.showRouteGeometry = function (r, label) {
+    window.clearRoute();
+    if (!r || !r.coordinates || r.coordinates.length < 2) return;
+    manual = L.polyline(r.coordinates, { color: "#2563eb", weight: 6, opacity: .9,
+                                         dashArray: r.source === "direct" ? "8,8" : null }).addTo(map);
+    manual.bindPopup("🧭 " + esc(label || "Itinéraire") + "<br>" + km(r.distance_m) + " · ~" + mins(r.duration_s) +
+                     (r.source === "direct" ? " (estimé, routage indisponible)" : "")).openPopup();
+    map.fitBounds(manual.getBounds(), { padding: [60, 60] });
+  };
+  // Compatibilité : ancien appel (a, b) → ligne directe en attendant la géométrie.
+  window.showRoute = function (a, b) {
+    var d = dist(a, b) * 1.3;
+    window.showRouteGeometry({ source: "direct", coordinates: [a, b], distance_m: d, duration_s: d / 1000 / 25 * 3600 });
+  };
+  window.clearRoute = function () { if (manual) { map.removeLayer(manual); manual = null; } };
+  window.togglePanel = function () {
+    document.getElementById("panel").classList.toggle("collapsed");
+    setTimeout(function () { map.invalidateSize(); }, 50);
+  };
+  window.fitAll = function () {
+    var pts = [];
+    Object.keys(mAlert).forEach(function (k) { pts.push(mAlert[k].getLatLng()); });
+    Object.keys(mAgent).forEach(function (k) { pts.push(mAgent[k].getLatLng()); });
+    if (pts.length) map.fitBounds(L.latLngBounds(pts), { padding: [60, 60], maxZoom: 16 });
+  };
+
+  // Commandes de carte : panneau + « tout afficher ».
+  var ctl = L.control({ position: "topleft" });
+  ctl.onAdd = function () {
+    var d = L.DomUtil.create("div", "leaflet-bar");
+    d.style.background = "#fff";
+    d.innerHTML = '<a href="#" title="Afficher / masquer la liste" id="b-panel" style="font-size:15px">☰</a>' +
+                  '<a href="#" title="Tout afficher" id="b-fit" style="font-size:15px">⤢</a>';
+    L.DomEvent.disableClickPropagation(d);
+    d.querySelector("#b-panel").onclick = function (e) { e.preventDefault(); window.togglePanel(); };
+    d.querySelector("#b-fit").onclick = function (e) { e.preventDefault(); window.fitAll(); };
+    return d;
+  };
+  ctl.addTo(map);
+
+  var legend = L.control({ position: "bottomright" });
+  legend.onAdd = function () {
+    var div = L.DomUtil.create("div", "legend");
+    div.innerHTML = '<b>Urgence</b><br/><i style="background:#ef4444"></i>Critique ' +
+      '<i style="background:#f97316"></i>Élevé<br/><i style="background:#eab308"></i>Moyen ' +
+      '<i style="background:#22c55e"></i>Faible<br/><b>Agents</b><br/>' +
+      '<i style="background:#16a34a"></i>Disponible <i style="background:#f97316"></i>En intervention<br/>' +
+      '<span style="color:#f97316;font-weight:800">━━</span> Trajet · <span style="color:#16a34a;font-weight:800">┅┅</span> Plus proche';
+    return div;
+  };
+  legend.addTo(map);
+
+  renderPanel();
+  document.title = "SafeCity map ready";
+</script>
 </body>
 </html>

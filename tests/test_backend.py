@@ -239,6 +239,18 @@ def test_geo_reverse_endpoint():
                  "commune": "Kenya", "city": "Lubumbashi"}
 
 
+def test_geo_route_endpoint():
+    """Itinéraire agent -> alerte calculé par le serveur (repli ligne droite)."""
+    _, client = make_client()
+    q = "/api/geo/route?from=-11.6647,27.4794&to=-11.6876,27.5026"
+    assert client.get(q).status_code == 401            # personnel uniquement
+    h = _login(client)
+    d = client.get(q, headers=h).get_json()
+    assert d["source"] == "direct" and len(d["coordinates"]) == 2
+    assert 3000 < d["distance_m"] < 6000 and d["duration_s"] > 0
+    assert client.get("/api/geo/route?from=abc&to=1,2", headers=h).status_code == 400
+
+
 def test_citizen_track_alert_by_reference():
     _, client = make_client()
     r = client.post("/api/alerts", json={
