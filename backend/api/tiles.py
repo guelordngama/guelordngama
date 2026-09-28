@@ -2,16 +2,22 @@
 
 Permet aux clients (poste opérateur, portail, site citoyen) d'afficher la carte
 même lorsque le réseau local bloque les CDN de tuiles externes : c'est le
-serveur SafeCity qui récupère les tuiles (fond CARTO « Voyager », style
-OpenStreetMap coloré) et les met en cache sur disque, puis les sert depuis son
+serveur SafeCity qui récupère les tuiles (fond OpenStreetMap, avec un
+fournisseur de secours) et les met en cache sur disque, puis les sert depuis son
 propre domaine — déjà autorisé par le pare-feu.
+
+Historique : CARTO exige désormais une clé API et renvoie des tuiles barrées
+« API KEY REQUIRED » ; il n'est plus utilisé. La route versionnée
+/tiles/v2/… garantit qu'aucune ancienne tuile (cache navigateur) ne réapparaît.
 
 IMPORTANT : ce proxy ne fonctionne que si LE SERVEUR qui exécute le backend a un
 accès Internet vers le CDN. Si le CDN est injoignable (réseau filtré), le proxy
 échoue vite et sert un fond neutre 200 (au lieu de 502) afin que la carte reste
 lisible (marqueurs/itinéraires) sans casser ni saturer le journal.
 
-Route : GET /tiles/<z>/<x>/<y>.png
+Routes : GET /tiles/v2/<z>/<x>/<y>.png (et l'ancienne /tiles/<z>/<x>/<y>.png)
+Fournisseurs configurables : SAFECITY_TILE_URLS (liste séparée par des virgules,
+gabarits {z}/{x}/{y}), essayés dans l'ordre.
 """
 import logging
 import os
@@ -27,10 +33,15 @@ log = logging.getLogger("safecity")
 
 bp = Blueprint("tiles", __name__)
 
-# Fond CARTO Voyager (coloré, style OSM). Un seul hôte : le cache disque évite
-# de solliciter le CDN à chaque requête.
-_UPSTREAM = "https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png"
-_UA = "SafeCity/1.0 (municipal safety platform)"
+# Fournisseurs sans clé, essayés dans l'ordre : OpenStreetMap (fond standard),
+# puis Esri World Street Map en secours. Le cache disque évite de solliciter
+# les serveurs à chaque requête (politique d'usage OSM).
+DEFAULT_UPSTREAMS = (
+    "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+    "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
+)
+_UA = "SafeCity-Lubumbashi/1.23 (+https://safecity-lubumbashi.com; plateforme municipale)"
+_CACHE_VERSION = "v2"     # nouveau fond : ignore les tuiles CARTO « API KEY REQUIRED »
 _TIMEOUT = 6  # s — échoue vite si le CDN est injoignable (au lieu de bloquer)
 
 # --- Repli quand le CDN est injoignable ---------------------------------- #
@@ -96,16 +107,55 @@ def _note_success():
             _cooldown_until = 0.0
 
 
+_purged = False
+
+
 def _cache_dir():
-    d = current_app.config.get("TILECACHE_DIR")
-    if not d:
-        d = os.path.join(current_app.config["UPLOAD_DIR"], "..", "tilecache")
-    d = os.path.abspath(d)
+    global _purged
+    root = current_app.config.get("TILECACHE_DIR")
+    if not root:
+        root = os.path.join(current_app.config["UPLOAD_DIR"], "..", "tilecache")
+    root = os.path.abspath(root)
+    d = os.path.join(root, _CACHE_VERSION)
     os.makedirs(d, exist_ok=True)
+    if not _purged:
+        # Supprime une fois les anciennes tuiles CARTO (barrées « API KEY REQUIRED »).
+        _purged = True
+        try:
+            for name in os.listdir(root):
+                if name.endswith(".png"):
+                    os.remove(os.path.join(root, name))
+        except OSError:
+            pass
     return d
 
 
+def _upstreams():
+    raw = current_app.config.get("TILE_URLS") or ""
+    urls = [u.strip() for u in raw.split(",") if u.strip()]
+    return urls or list(DEFAULT_UPSTREAMS)
+
+
+def _fetch(z, x, y):
+    """Récupère la tuile chez le premier fournisseur qui répond (image valide)."""
+    last = None
+    for tpl in _upstreams():
+        try:
+            req = urllib.request.Request(tpl.format(z=z, x=x, y=y), headers={
+                "User-Agent": _UA, "Referer": "https://safecity-lubumbashi.com/"})
+            with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
+                ctype = resp.headers.get("Content-Type", "")
+                data = resp.read()
+            if not ctype.startswith("image/") or len(data) < 100:
+                raise ValueError(f"réponse non image ({ctype}, {len(data)} o)")
+            return data
+        except Exception as e:  # on essaie le fournisseur suivant
+            last = e
+    raise last or RuntimeError("aucun fournisseur de tuiles")
+
+
 @bp.get("/tiles/<int:z>/<int:x>/<int:y>.png")
+@bp.get("/tiles/v2/<int:z>/<int:x>/<int:y>.png")
 def tile(z, x, y):
     # Bornes de sécurité (évite les requêtes absurdes).
     if not (0 <= z <= 20) or not (0 <= x < (1 << z)) or not (0 <= y < (1 << z)):
@@ -114,7 +164,7 @@ def tile(z, x, y):
     path = os.path.join(_cache_dir(), f"{z}_{x}_{y}.png")
     if os.path.exists(path) and os.path.getsize(path) > 0:
         resp = send_file(path, mimetype="image/png", conditional=True)
-        resp.headers["Cache-Control"] = "public, max-age=2592000"  # 30 jours
+        resp.headers["Cache-Control"] = "public, max-age=604800"  # 7 jours
         return resp
 
     # Pas en cache : si le CDN vient d'échouer, on sert le fond neutre sans même
@@ -122,11 +172,8 @@ def tile(z, x, y):
     if _upstream_in_cooldown():
         return _fallback_response()
 
-    url = _UPSTREAM.format(z=z, x=x, y=y)
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": _UA})
-        with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
-            data = resp.read()
+        data = _fetch(z, x, y)
         tmp = path + ".tmp"
         with open(tmp, "wb") as fh:
             fh.write(data)
@@ -137,5 +184,5 @@ def tile(z, x, y):
         return _fallback_response()
 
     resp = send_file(path, mimetype="image/png", conditional=True)
-    resp.headers["Cache-Control"] = "public, max-age=2592000"  # 30 jours
+    resp.headers["Cache-Control"] = "public, max-age=604800"  # 7 jours
     return resp

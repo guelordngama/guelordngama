@@ -113,7 +113,7 @@
     if (tiles) { map.removeLayer(tiles); tiles = null; }
     tileErrors = 0;
     if (offlineBadge) { map.removeControl(offlineBadge); offlineBadge = null; }
-    tiles = L.tileLayer(url, { attribution: "© OpenStreetMap © CARTO", maxZoom: 20 }).addTo(map);
+    tiles = L.tileLayer(url, { attribution: "© OpenStreetMap", maxZoom: 20, maxNativeZoom: 19 }).addTo(map);
     tiles.on("tileerror", function () {
       if (++tileErrors === 4 && !offlineBadge) {
         offlineBadge = L.control({ position: "topright" });
@@ -128,9 +128,9 @@
   }
   window.setTileServer = function (base) {
     if (!base) return;
-    buildTiles(String(base).replace(/\/+$/, "") + "/tiles/{z}/{x}/{y}.png");
+    buildTiles(String(base).replace(/\/+$/, "") + "/tiles/v2/{z}/{x}/{y}.png");
   };
-  buildTiles("/tiles/{z}/{x}/{y}.png");
+  buildTiles("/tiles/v2/{z}/{x}/{y}.png");
 
   // ---------------------------------------------------------------------- //
   // Données et utilitaires

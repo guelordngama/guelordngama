@@ -740,8 +740,8 @@
       ? [state.lat, state.lng] : [LBB_LAT, LBB_LNG];
     if (!pickMap) {
       pickMap = L.map("pick-map").setView(center, 15);
-      L.tileLayer(API + "/tiles/{z}/{x}/{y}.png",
-        { attribution: "© OpenStreetMap © CARTO", maxZoom: 20 }).addTo(pickMap);
+      L.tileLayer(API + "/tiles/v2/{z}/{x}/{y}.png",
+        { attribution: "© OpenStreetMap", maxZoom: 20, maxNativeZoom: 19 }).addTo(pickMap);
       pickMarker = L.marker(center, { draggable: true }).addTo(pickMap);
       pickMap.on("click", (e) => setPickedPosition(e.latlng));
       pickMarker.on("dragend", () => setPickedPosition(pickMarker.getLatLng()));
@@ -1170,9 +1170,10 @@
         miniMap = L.map("mini-map").setView([alert.lat, alert.lng], 15);
         // Tuiles servies par le proxy du serveur SafeCity (/tiles/…) : contourne
         // le blocage des CDN externes par le pare-feu.
-        L.tileLayer(API + "/tiles/{z}/{x}/{y}.png", {
-          attribution: "© OpenStreetMap © CARTO",
+        L.tileLayer(API + "/tiles/v2/{z}/{x}/{y}.png", {
+          attribution: "© OpenStreetMap",
           maxZoom: 20,
+          maxNativeZoom: 19,
         }).addTo(miniMap);
       } else {
         miniMap.setView([alert.lat, alert.lng], 15);

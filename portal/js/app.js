@@ -471,8 +471,8 @@
     state.map = L.map("map").setView([-11.6647, 27.4794], 13);
     // Tuiles servies par le proxy du serveur SafeCity (/tiles/…) : contourne le
     // blocage des CDN externes par le pare-feu.
-    L.tileLayer(API + "/tiles/{z}/{x}/{y}.png",
-      { attribution: "© OpenStreetMap © CARTO", maxZoom: 20 }).addTo(state.map);
+    L.tileLayer(API + "/tiles/v2/{z}/{x}/{y}.png",
+      { attribution: "© OpenStreetMap", maxZoom: 20, maxNativeZoom: 19 }).addTo(state.map);
     // Carte en temps réel (alertes, citoyens, agents, trajets, rue/quartier).
     if (window.LiveMap) {
       state.live = window.LiveMap(state.map, {

@@ -124,6 +124,61 @@ def test_tile_proxy_rejects_out_of_bounds():
     assert client.get("/tiles/1/9/0.png").status_code == 400   # x hors plage
 
 
+def test_tile_proxy_uses_osm_then_backup_provider():
+    """Fond OpenStreetMap (CARTO exige une clé : « API KEY REQUIRED ») ; si OSM
+    échoue, le fournisseur de secours est utilisé. Route versionnée /tiles/v2/."""
+    import tempfile
+    import backend.api.tiles as tiles
+
+    tiles._fail_count = 0
+    tiles._cooldown_until = 0.0
+    original = tiles.urllib.request.urlopen
+    asked = []
+
+    class _Resp:
+        headers = {"Content-Type": "image/png"}
+
+        def __init__(self, data):
+            self._d = data
+
+        def read(self):
+            return self._d
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    def _fake(req, timeout=None):
+        asked.append(req.full_url)
+        assert "SafeCity" in req.get_header("User-agent")
+        if "openstreetmap" in req.full_url:
+            raise TimeoutError("osm down")
+        return _Resp(b"\x89PNG\r\n\x1a\n" + b"E" * 200)
+
+    tiles.urllib.request.urlopen = _fake
+    try:
+        app, client = make_client()
+        root = tempfile.mkdtemp()
+        app.config["TILECACHE_DIR"] = root
+        open(os.path.join(root, "5_1_1.png"), "wb").write(b"ancienne tuile CARTO")
+        tiles._purged = False
+        r = client.get("/tiles/v2/12/2361/2208.png")
+        assert r.status_code == 200 and r.data.endswith(b"E" * 50)
+        assert "tile.openstreetmap.org/12/2361/2208.png" in asked[0]
+        assert "arcgisonline" in asked[1] and asked[1].endswith("/12/2208/2361")
+        assert not any("carto" in u for u in asked)
+        assert not os.path.exists(os.path.join(root, "5_1_1.png"))   # ancien cache purgé
+        n = len(asked)
+        assert client.get("/tiles/12/2361/2208.png").status_code == 200  # ancienne route
+        assert len(asked) == n                                             # servi du cache
+    finally:
+        tiles.urllib.request.urlopen = original
+        tiles._fail_count = 0
+        tiles._cooldown_until = 0.0
+
+
 def test_tile_proxy_serves_neutral_fallback_when_cdn_down():
     # Quand le serveur ne peut pas joindre le CDN de tuiles, le proxy renvoie un
     # fond neutre PNG (200) au lieu d'une erreur 502, sans bloquer.

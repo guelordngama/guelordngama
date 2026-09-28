@@ -2,6 +2,20 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.23.1] — 2026-09-28 — Cartes : fin du filigrane « API KEY REQUIRED »
+
+### Corrigé
+- **Toutes les cartes affichaient « API KEY REQUIRED »** (site citoyen, portail
+  agents, poste opérateur) : le fond CARTO exige désormais une clé API. Le proxy
+  de tuiles du serveur utilise maintenant **OpenStreetMap**, avec **Esri World
+  Street Map** en secours automatique (tous deux sans clé), identifié par un
+  User-Agent conforme à la politique d'usage OSM.
+- Nouvelle adresse versionnée **`/tiles/v2/…`** : les tuiles barrées gardées en
+  cache par les navigateurs et le poste opérateur ne réapparaissent plus ; le
+  cache disque du serveur est purgé automatiquement des anciennes tuiles.
+- Fournisseurs configurables : `SAFECITY_TILE_URLS` (gabarits `{z}/{x}/{y}`
+  séparés par des virgules).
+
 ## [1.23.0] — 2026-09-28 — Sécurité et traçabilité
 
 ### Ajouté

@@ -81,6 +81,9 @@ class Config:
 
     # --- Géocodage inverse (quartier/adresse réels via OpenStreetMap) ---
     # Nécessite un accès Internet côté serveur. Désactivable par env.
+    # Fonds de carte (proxy /tiles/) : gabarits {z}/{x}/{y} séparés par des
+    # virgules, essayés dans l'ordre. Vide = OpenStreetMap puis Esri (sans clé).
+    TILE_URLS = os.environ.get("SAFECITY_TILE_URLS", "")
     GEOCODING_ENABLED = os.environ.get("SAFECITY_GEOCODING", "1") not in ("0", "false", "False")
 
     # --- Création de comptes personnels (console bureau) ---
