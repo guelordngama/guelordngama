@@ -2249,7 +2249,7 @@ class SecurityPage(QWidget):
 class AboutPage(QWidget):
     """Onglet « À propos » : présentation de la plateforme et du créateur."""
 
-    APP_VERSION = "1.0.0"
+    from safecity_version import __version__ as APP_VERSION  # noqa: N815 — version réelle du poste
     APP_YEAR = "2026"
 
     def __init__(self):

@@ -63,13 +63,29 @@ python -m desktop.main
 ```
 
 ### Exécutable Windows (PyInstaller)
-```bash
-pip install pyinstaller PySide6
-pyinstaller --noconfirm --windowed --name SafeCityOperateur ^
-  --add-data "desktop/map.html;desktop" ^
-  desktop/main.py
+Double-cliquer `desktop\windows\construire_exe.bat` (sur un poste Windows avec
+Python 3.10+). Commande équivalente :
+```bat
+py -3 -m PyInstaller --noconfirm --clean --windowed --name SafeCityOperateur ^
+  --paths desktop ^
+  --add-data "desktop\map.html;." ^
+  --add-data "desktop\vendor;vendor" ^
+  desktop\main.py
 ```
-L'exécutable se trouve dans `dist/SafeCityOperateur/`.
+L'exécutable se trouve dans `dist/SafeCityOperateur/` et le script produit
+`SafeCityOperateur-<version>.zip` à distribuer. `--paths desktop` est
+indispensable (sinon `pages`/`widgets` manquent) ; `map.html` et `vendor/` vont
+à la racine du paquet (là où la carte les cherche).
+
+### Mettre à jour les postes
+- **Installation par le code** : double-cliquer `desktop\windows\mettre_a_jour.bat`
+  (récupère la dernière version, met à jour les composants, relance le poste).
+- **Exécutable** : fermer SafeCity, remplacer le dossier `SafeCityOperateur` par
+  celui du nouveau ZIP, relancer `SafeCityOperateur.exe`.
+
+Les réglages du poste (serveur, thème, son, notifications) sont conservés : ils
+sont stockés dans Windows, pas dans le dossier de l'application. Vérifier la
+version dans **À propos**. Mettre à jour le serveur **avant** les postes.
 
 ## Migrations de base de données
 
