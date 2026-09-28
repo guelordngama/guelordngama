@@ -32,7 +32,7 @@
   (function initTheme() {
     const THEME_KEY = "safecity_theme";
     const root = document.documentElement;
-    const saved = localStorage.getItem(THEME_KEY) || "dark";
+    const saved = localStorage.getItem(THEME_KEY) || "light";
     applyTheme(saved);
     function applyTheme(mode) {
       root.setAttribute("data-theme", mode);
