@@ -11,9 +11,9 @@ log = logging.getLogger("safecity")
 _DEMO_STAFF = [
     ("Administrateur Central", "admin@safecity.local", "admin", None, None, "offline"),
     ("Superviseur Nord", "superviseur@safecity.local", "supervisor", None, None, "offline"),
-    ("Agent Kalala", "agent1@safecity.local", "agent", -4.3210, 15.3120, "available"),
-    ("Agent Mbayo", "agent2@safecity.local", "agent", -4.3320, 15.3280, "available"),
-    ("Agent Tshibanda", "agent3@safecity.local", "agent", -4.3080, 15.3050, "available"),
+    ("Agent Kalala", "agent1@safecity.local", "agent", -11.6600, 27.4790, "available"),
+    ("Agent Mbayo", "agent2@safecity.local", "agent", -11.6525, 27.5000, "available"),
+    ("Agent Tshibanda", "agent3@safecity.local", "agent", -11.6865, 27.4570, "available"),
 ]
 
 

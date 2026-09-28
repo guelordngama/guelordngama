@@ -441,6 +441,8 @@ class LiveAlertsPage(QWidget):
     request_close = Signal(int)
     request_focus = Signal(int)
     open_incident = Signal(int)
+    request_false_alarm = Signal(int)
+    request_journal = Signal(int)
     search = Signal(dict)
     reset_search = Signal()
 
@@ -479,7 +481,13 @@ class LiveAlertsPage(QWidget):
         b_agent.setObjectName("warn")
         b_close = QPushButton("✅ Clôturer")
         b_close.setObjectName("success")
-        for b in (b_view, b_map, b_assign, b_agent, b_close):
+        b_false = QPushButton("🚫 Fausse alerte")
+        b_false.setObjectName("ghost")
+        b_false.setToolTip("Classer en fausse alerte (motif obligatoire, action tracée)")
+        b_journal = QPushButton("📜 Journal")
+        b_journal.setObjectName("ghost")
+        b_journal.setToolTip("Journal de l'intervention : qui a fait quoi, et quand")
+        for b in (b_view, b_map, b_assign, b_agent, b_close, b_false, b_journal):
             actions.addWidget(b)
         actions.addStretch()
         root.addLayout(actions)
@@ -489,6 +497,8 @@ class LiveAlertsPage(QWidget):
         b_assign.clicked.connect(lambda: self._emit(self.request_assign))
         b_agent.clicked.connect(lambda: self._emit(self.request_assign_agent))
         b_close.clicked.connect(lambda: self._emit(self.request_close))
+        b_false.clicked.connect(lambda: self._emit(self.request_false_alarm))
+        b_journal.clicked.connect(lambda: self._emit(self.request_journal))
 
     def set_alerts(self, alerts, searching=False):
         _fill_alert_table(self.table, alerts, unread_ids=self._unread, cols=self._cols)
@@ -951,6 +961,7 @@ class HistoryPage(QWidget):
     export_xlsx = Signal()
     request_load = Signal(dict)     # filtres -> MainWindow interroge le serveur
     open_incident = Signal(int)
+    open_journal = Signal(int)
 
     PAGE_SIZE = 50
     COLS = ["ref", "type", "place", "datetime", "status", "agent", "urgency"]
@@ -991,8 +1002,9 @@ class HistoryPage(QWidget):
         self.c_wait = StatCard("🔴", "En attente", "#ef4444", filled=True)
         self.c_prog = StatCard("🚔", "En cours", "#f97316", filled=True)
         self.c_done = StatCard("✅", "Traités", "#16a34a", filled=True)
+        self.c_false = StatCard("🚫", "Fausses alertes", "#64748b", filled=True)
         for c, st in ((self.c_total, ""), (self.c_wait, "active"), (self.c_prog, "assignee"),
-                      (self.c_done, "cloturee")):
+                      (self.c_done, "cloturee"), (self.c_false, "false_alarm")):
             c.setMinimumHeight(92)
             c.set_clickable(True)
             c.clicked.connect(lambda s=st: self._pick_status(s))
@@ -1009,7 +1021,8 @@ class HistoryPage(QWidget):
         self.period.setCurrentIndex(2)
         self.status = QComboBox()
         for label, key in (("Tous les statuts", ""), ("En attente", "active"),
-                           ("En cours", "assignee"), ("Traité", "cloturee")):
+                           ("En cours", "assignee"), ("Traité", "cloturee"),
+                           ("Fausses alertes", "false_alarm")):
             self.status.addItem(label, key)
         self.q = QLineEdit()
         self.q.setPlaceholderText("🔎 N° (SC-2026-0048), quartier, rue, commune, citoyen, téléphone…")
@@ -1039,6 +1052,11 @@ class HistoryPage(QWidget):
         self.b_next.clicked.connect(lambda: self._go(self._page + 1))
         pg.addWidget(self.page_label)
         pg.addStretch()
+        b_journal = QPushButton("📜 Journal de l'intervention")
+        b_journal.setObjectName("ghost")
+        b_journal.setToolTip("Chronologie tracée de l'incident sélectionné")
+        b_journal.clicked.connect(self._on_journal)
+        pg.addWidget(b_journal)
         pg.addWidget(self.b_prev)
         pg.addWidget(self.b_next)
         root.addLayout(pg)
@@ -1049,7 +1067,9 @@ class HistoryPage(QWidget):
 
         d = {"page": page or self._page, "page_size": self.PAGE_SIZE}
         st = self.status.currentData() if status is None else status
-        if st:
+        if st == "false_alarm":
+            d["false_alarm"] = "1"
+        elif st:
             d["status"] = st
         if self.q.text().strip():
             d["q"] = self.q.text().strip()
@@ -1093,6 +1113,7 @@ class HistoryPage(QWidget):
             self.c_wait.set_value(counts.get("active", 0))
             self.c_prog.set_value(counts.get("assignee", 0))
             self.c_done.set_value(counts.get("cloturee", 0))
+            self.c_false.set_value(counts.get("false_alarm", 0))
         self.sub.setText(f"{self.period.currentText()} — double-cliquez pour ouvrir la fiche d'un incident.")
 
     def set_error(self, message):
@@ -1107,6 +1128,12 @@ class HistoryPage(QWidget):
         it = self.table.item(row, 0)
         if it:
             self.open_incident.emit(int(it.data(Qt.UserRole)))
+
+    def _on_journal(self):
+        row = self.table.currentRow()
+        it = self.table.item(row, 0) if row >= 0 else None
+        if it:
+            self.open_journal.emit(int(it.data(Qt.UserRole)))
 
 
 class ChatPage(QWidget):
@@ -1909,6 +1936,264 @@ class SettingsPage(QWidget):
         self._pw_msg("Échec : " + message, err=True)
 
 
+AUDIT_ACTION_LABELS = {
+    "login": "Connexion",
+    "login_failed": "Échec de connexion",
+    "login_denied_inactive": "Connexion refusée (compte désactivé)",
+    "password_changed": "Mot de passe modifié",
+    "password_reset_requested": "Réinitialisation demandée",
+    "password_reset_sms_requested": "Code SMS demandé",
+    "password_reset_sms_done": "Mot de passe réinitialisé (SMS)",
+    "citizen_registered": "Inscription citoyen",
+    "phone_verified": "Téléphone vérifié",
+    "staff_created": "Compte personnel créé",
+    "account_deleted": "Compte supprimé",
+    "agent_created": "Agent créé",
+    "agent_deleted": "Agent supprimé",
+    "alert_created": "Alerte reçue",
+    "alert_grouped": "Signalement regroupé",
+    "team_assigned": "Patrouille envoyée",
+    "agent_assigned": "Agent affecté",
+    "intervention_accepted": "Intervention acceptée",
+    "intervention_completed": "Intervention terminée",
+    "alert_closed": "Incident clôturé",
+    "false_alarm_marked": "Fausse alerte signalée",
+    "false_alarm_cancelled": "Fausse alerte annulée",
+    "data_exported": "Export de données",
+    "report_generated": "Rapport PDF généré",
+}
+AUDIT_ACTION_COLORS = {
+    "login_failed": "#ef4444", "login_denied_inactive": "#ef4444",
+    "false_alarm_marked": "#64748b", "false_alarm_cancelled": "#f97316",
+    "account_deleted": "#ef4444", "agent_deleted": "#ef4444",
+    "alert_created": "#dc2626", "agent_assigned": "#f97316",
+    "alert_closed": "#16a34a", "intervention_completed": "#16a34a",
+}
+ROLE_NAMES = {"citizen": "Citoyen", "agent": "Agent", "operator": "Opérateur",
+              "supervisor": "Superviseur", "admin": "Administrateur"}
+
+
+class SecurityPage(QWidget):
+    """🔐 Sécurité & traçabilité : ce qui protège le système et qui a fait quoi.
+
+    Destinée à la présentation officielle comme au contrôle quotidien :
+    authentification, rôles et responsabilités, protection des données, fausses
+    alertes, résilience, et historique des actions (journal d'audit — réservé au
+    superviseur / administrateur : séparation des tâches).
+    """
+
+    request_load = Signal()
+    request_audit = Signal(str)
+
+    def __init__(self, role="operator"):
+        super().__init__()
+        from PySide6.QtWidgets import QLineEdit
+
+        self.role = role
+        scroll = QScrollArea(self)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.NoFrame)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.addWidget(scroll)
+        content = QWidget()
+        content.setStyleSheet("background: transparent;")
+        scroll.setStyleSheet("background: transparent;")
+        scroll.setWidget(content)
+        root = QVBoxLayout(content)
+        root.setContentsMargins(24, 20, 24, 24)
+        root.setSpacing(14)
+
+        top = QHBoxLayout()
+        col = QVBoxLayout()
+        col.setSpacing(2)
+        title = QLabel("🔐 Sécurité & traçabilité")
+        title.setObjectName("pageTitle")
+        self.sub = QLabel("Authentification, rôles, protection des données et journal des actions.")
+        self.sub.setObjectName("muted")
+        col.addWidget(title)
+        col.addWidget(self.sub)
+        top.addLayout(col)
+        top.addStretch()
+        b_ref = QPushButton("🔄 Actualiser")
+        b_ref.setObjectName("ghost")
+        b_ref.clicked.connect(self.reload)
+        top.addWidget(b_ref)
+        root.addLayout(top)
+
+        cards = QHBoxLayout()
+        cards.setSpacing(14)
+        self.c_logins = StatCard("🔑", "Connexions (24 h)", "#1b3a6b", filled=True)
+        self.c_failed = StatCard("⛔", "Échecs de connexion (24 h)", "#ef4444", filled=True)
+        self.c_audit = StatCard("📜", "Actions tracées (24 h)", "#0f766e", filled=True)
+        self.c_false = StatCard("🚫", "Fausses alertes (30 j)", "#64748b", filled=True)
+        for c in (self.c_logins, self.c_failed, self.c_audit, self.c_false):
+            c.setMinimumHeight(92)
+            cards.addWidget(c)
+        root.addLayout(cards)
+
+        grid = QGridLayout()
+        grid.setSpacing(14)
+        self.auth_card, self.auth_lbl = self._text_card("🔑 Authentification")
+        self.data_card, self.data_lbl = self._text_card("🛡️ Protection des données")
+        self.res_card, self.res_lbl = self._text_card("🧯 Résilience et continuité")
+        self.false_card, self.false_lbl = self._text_card("🚫 Fausses alertes")
+        grid.addWidget(self.auth_card, 0, 0)
+        grid.addWidget(self.data_card, 0, 1)
+        grid.addWidget(self.false_card, 1, 0)
+        grid.addWidget(self.res_card, 1, 1)
+        grid.setColumnStretch(0, 1)
+        grid.setColumnStretch(1, 1)
+        root.addLayout(grid)
+
+        roles = Card("👥 Rôles, droits et responsabilités (gouvernance)")
+        self.roles_table = _table(["Rôle", "Comptes actifs", "Droits", "Responsabilités"])
+        self.roles_table.setWordWrap(True)
+        hdr = self.roles_table.horizontalHeader()
+        hdr.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        hdr.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        self.roles_table.setMinimumHeight(260)
+        roles.add(self.roles_table)
+        root.addWidget(roles)
+
+        audit = Card("📜 Historique des actions (journal d'audit)")
+        bar = QHBoxLayout()
+        self.audit_q = QLineEdit()
+        self.audit_q.setPlaceholderText("🔎 Utilisateur, action, n° d'incident (SC-2026-0048)…")
+        self.audit_q.returnPressed.connect(self._search_audit)
+        b_go = QPushButton("Rechercher")
+        b_go.clicked.connect(self._search_audit)
+        bar.addWidget(self.audit_q, 1)
+        bar.addWidget(b_go)
+        self.audit_bar = QWidget()
+        self.audit_bar.setLayout(bar)
+        audit.add(self.audit_bar)
+        self.audit_table = _table(["Date / heure", "Utilisateur", "Rôle", "Action", "Détail", "IP"])
+        ah = self.audit_table.horizontalHeader()
+        for i in (0, 1, 2, 3, 5):
+            ah.setSectionResizeMode(i, QHeaderView.ResizeToContents)
+        self.audit_table.setMinimumHeight(320)
+        audit.add(self.audit_table)
+        self.audit_locked = QLabel(
+            "🔒  Le journal d'audit complet est réservé au superviseur et à l'administrateur "
+            "(séparation des tâches : l'opérateur ne contrôle pas ses propres actions).\n"
+            "Le journal de chaque intervention reste consultable depuis sa fiche (📜 Journal).")
+        self.audit_locked.setWordWrap(True)
+        self.audit_locked.setStyleSheet(
+            f"background: {theme.tint('#64748b', 0.12)}; border-radius: 10px; padding: 12px;"
+            " font-weight: 600;")
+        audit.add(self.audit_locked)
+        self.audit_info = QLabel("")
+        self.audit_info.setObjectName("muted")
+        audit.add(self.audit_info)
+        root.addWidget(audit)
+        self._apply_role()
+
+    @staticmethod
+    def _text_card(title):
+        card = Card(title)
+        lbl = QLabel("Chargement…")
+        lbl.setWordWrap(True)
+        lbl.setTextFormat(Qt.RichText)
+        lbl.setStyleSheet("font-size: 13px;")
+        card.add(lbl)
+        card.v.addStretch()
+        return card, lbl
+
+    def _apply_role(self):
+        allowed = self.role in ("supervisor", "admin")
+        self.audit_bar.setVisible(allowed)
+        self.audit_table.setVisible(allowed)
+        self.audit_locked.setVisible(not allowed)
+
+    def can_read_audit(self):
+        return self.role in ("supervisor", "admin")
+
+    def reload(self):
+        self.request_load.emit()
+        if self.can_read_audit():
+            self._search_audit()
+
+    def _search_audit(self):
+        self.request_audit.emit(self.audit_q.text().strip())
+
+    @staticmethod
+    def _bullets(items):
+        return "".join(f"<p style='margin:0 0 6px 0'>✔ {t}</p>" for t in items if t)
+
+    def set_overview(self, d):
+        a = d.get("authentication", {})
+        self.auth_lbl.setText(self._bullets([
+            "Connexion personnelle obligatoire (e-mail + mot de passe) — aucun compte partagé",
+            f"Mots de passe protégés : <b>{a.get('password_hashing', '—')}</b>",
+            f"Session : <b>{a.get('token', 'JWT')}</b>, expire après <b>{a.get('token_hours', '—')} h</b>",
+            f"Anti-force brute : <b>{a.get('login_rate', '—')}</b> par adresse",
+            f"Citoyens : {a.get('otp', 'vérification du téléphone par SMS')}",
+            "Compte désactivé = accès immédiatement refusé",
+        ]))
+        p = d.get("data_protection", {})
+        self.data_lbl.setText(self._bullets([
+            p.get("staff_only_data"), p.get("public_tracking"), p.get("media"),
+            p.get("realtime"), p.get("transport"), p.get("consent"),
+            f"Conservation limitée : <b>{p.get('retention_days', '—')} jours</b>, puis purge",
+        ]))
+        r = d.get("resilience", {})
+        self.res_lbl.setText(self._bullets([
+            r.get("backups"), r.get("restore"), r.get("offline_citizen"),
+            r.get("operator_fallback"), r.get("health"),
+        ]))
+        act = d.get("activity", {})
+        repeat = d.get("repeat_false_reporters") or []
+        rep_html = ("<br>".join(f"• {x['name']} ({x['phone']}) — <b>{x['count']}</b> fausses alertes"
+                                for x in repeat) or "Aucun citoyen récidiviste.")
+        self.false_lbl.setText(self._bullets([
+            "Tout opérateur peut classer une alerte en <b>fausse alerte</b> — <b>motif obligatoire</b>",
+            "Auteur, heure et motif inscrits au journal de l'intervention",
+            "Annulation réservée au superviseur / administrateur (contrôle croisé)",
+            "Le citoyen n'est jamais bloqué automatiquement : ses alertes suivantes "
+            "sont signalées à l'opérateur, qui reste décideur",
+            f"Taux sur 30 jours : <b>{act.get('false_alarm_rate_30d', 0)} %</b> "
+            f"({act.get('false_alarms_30d', 0)} / {act.get('alerts_30d', 0)} alertes)",
+        ]) + f"<p style='margin:8px 0 0 0'><b>Citoyens à surveiller :</b><br>{rep_html}</p>")
+        self.c_logins.set_value(act.get("logins_24h", 0))
+        self.c_failed.set_value(act.get("failed_logins_24h", 0))
+        self.c_audit.set_value(act.get("audit_entries_24h", 0))
+        self.c_false.set_value(act.get("false_alarms_30d", 0))
+        self.c_false.set_subtitle(f"{act.get('false_alarm_rate_30d', 0)} % des alertes")
+
+        rows = d.get("roles", [])
+        self.roles_table.setRowCount(len(rows))
+        for i, r in enumerate(rows):
+            self.roles_table.setItem(i, 0, _item(r.get("label"), bold=True))
+            self.roles_table.setItem(i, 1, _item(r.get("users", 0)))
+            self.roles_table.setItem(i, 2, _item(", ".join(r.get("permissions") or [])
+                                                 or "Signaler une alerte, suivre son dossier"))
+            self.roles_table.setItem(i, 3, _item(r.get("duties", "")))
+        self.roles_table.resizeRowsToContents()
+        self.sub.setText("Authentification, rôles, protection des données et journal des actions "
+                         "— état en direct du serveur.")
+
+    def set_error(self, message):
+        self.sub.setText(f"⚠️ Informations de sécurité indisponibles : {message}")
+
+    def set_audit(self, rows):
+        rows = rows or []
+        self.audit_table.setRowCount(len(rows))
+        for i, e in enumerate(rows):
+            action = e.get("action")
+            vals = [e.get("time") or e.get("created_at") or "—", e.get("user_name") or "—",
+                    ROLE_NAMES.get(e.get("role"), e.get("role") or "—"),
+                    AUDIT_ACTION_LABELS.get(action, action), e.get("detail") or "—",
+                    e.get("ip") or "—"]
+            for c, v in enumerate(vals):
+                self.audit_table.setItem(i, c, _item(
+                    v, AUDIT_ACTION_COLORS.get(action) if c == 3 else None, bold=(c == 3)))
+        self.audit_info.setText(f"{len(rows)} action(s) affichée(s) — les plus récentes en premier.")
+
+    def set_audit_error(self, message):
+        self.audit_info.setText(f"⚠️ Journal indisponible : {message}")
+
+
 class AboutPage(QWidget):
     """Onglet « À propos » : présentation de la plateforme et du créateur."""
 
@@ -2323,8 +2608,11 @@ def _fill_alert_table(table, alerts, with_citizen=False, hide_distance=False, un
             elif key == "urgency":
                 text, color = theme.urgency_label(a.get("urgency")), theme.urgency_color(a.get("urgency"))
             elif key == "status":
-                text = theme.STATUS_LABELS.get(a.get("status"), a.get("status") or "—")
-                color = theme.STATUS_COLORS.get(a.get("status"))
+                if a.get("false_alarm"):
+                    text, color = "Fausse alerte", "#64748b"
+                else:
+                    text = theme.STATUS_LABELS.get(a.get("status"), a.get("status") or "—")
+                    color = theme.STATUS_COLORS.get(a.get("status"))
             elif key == "agent":
                 text = (a.get("assigned_agent") or {}).get("name") or "—"
             else:

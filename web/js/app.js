@@ -1065,9 +1065,11 @@
   }
 
   // Construit/rafraîchit une chronologie (élément <ol>) à partir des étapes.
-  function renderTimeline(ol, steps) {
+  function renderTimeline(ol, steps, falseAlarm) {
     ol.innerHTML = "";
     (steps || []).forEach((s) => {
+      // Dossier classé « fausse alerte » : la dernière étape l'indique clairement.
+      if (falseAlarm && s.key === "resolved") s = Object.assign({}, s, { key: "falseAlarm" });
       const li = document.createElement("li");
       li.className = "tl-step" + (s.done ? " done" : "");
       const icon = document.createElement("span");
@@ -1115,10 +1117,12 @@
     const update = async () => {
       try {
         const st = await fetchTrack(ref);
-        renderTimeline(ol, st.steps);
+        renderTimeline(ol, st.steps, st.false_alarm);
         const sub = document.querySelector("#screen-confirm .confirm-sub");
         if (sub) {
-          if (st.status === "cloturee") {
+          if (st.false_alarm) {
+            sub.textContent = tr("confirm.falseAlarm", "ℹ️ Ce signalement a été classé sans suite (fausse alerte) après vérification.");
+          } else if (st.status === "cloturee") {
             sub.textContent = tr("confirm.resolved", "✅ Votre alerte a été traitée et clôturée. Merci.");
           } else if (st.status === "assignee") {
             sub.textContent = st.agent_first_name
@@ -1210,7 +1214,7 @@
       $("tk-type").textContent = st.type ? typeLabel(st.type) : "—";
       $("tk-neighborhood").textContent = st.neighborhood || "—";
       $("tk-agent").textContent = st.agent_first_name || "—";
-      renderTimeline($("tk-timeline"), st.steps);
+      renderTimeline($("tk-timeline"), st.steps, st.false_alarm);
       $("track-result").hidden = false;
     } catch (e) {
       $("track-result").hidden = true;

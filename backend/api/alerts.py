@@ -16,11 +16,18 @@ def create():
     data = validate_alert_payload(request.get_json(silent=True))
     payload = alerts_service.create_alert(data)
     stats_service.invalidate_cache()
+    grouped = bool(payload.get("duplicate_of"))
+    audit.record("alert_grouped" if grouped else "alert_created",
+                 detail=f"{payload.get('type')} · réf. {payload.get('reference')}",
+                 user_id=payload.get("reporter_id"),
+                 user_name=payload.get("reporter_name") or "Citoyen",
+                 role="citizen",
+                 alert_id=payload.get("duplicate_of") if grouped else payload.get("id"))
     return jsonify(payload), 201
 
 
 FILTER_KEYS = ("status", "type", "urgency", "neighborhood", "agent_id", "q",
-               "date_from", "date_to")
+               "date_from", "date_to", "false_alarm")
 
 
 # Consultation réservée au personnel : ces données contiennent le nom, le
@@ -43,7 +50,7 @@ def list_():
     result = alerts_service.list_alerts(filters=filters, page=page, page_size=page_size)
     # Compatibilité : liste simple si ni pagination ni filtre de recherche.
     search_keys = {"page", "page_size", "q", "type", "urgency", "neighborhood",
-                   "agent_id", "date_from", "date_to"}
+                   "agent_id", "date_from", "date_to", "false_alarm"}
     if not (search_keys & set(request.args.keys())):
         return jsonify(result["items"])
     return jsonify(result)
@@ -62,7 +69,8 @@ def track(ref):
 @bp.get("/<int:alert_id>")
 @require_auth(roles=["agent", "operator", "supervisor", "admin"])
 def detail(alert_id):
-    return jsonify(alerts_service.get_alert(alert_id).to_dict())
+    item = alerts_service.get_alert(alert_id).to_dict()
+    return jsonify(alerts_service.attach_reporter_flags([item])[0])
 
 
 @bp.post("/<int:alert_id>/assign")
@@ -71,6 +79,9 @@ def assign(alert_id):
     team_id = validate_team_id(request.get_json(silent=True))
     payload = alerts_service.assign_team(alert_id, team_id)
     stats_service.invalidate_cache()
+    audit.record("team_assigned", detail=(payload.get("assigned_team") or {}).get("name")
+                 if isinstance(payload.get("assigned_team"), dict) else f"équipe #{team_id}",
+                 alert_id=alert_id)
     return jsonify(payload)
 
 
@@ -79,7 +90,7 @@ def assign(alert_id):
 def close(alert_id):
     payload = alerts_service.close_alert(alert_id)
     stats_service.invalidate_cache()
-    audit.record("alert_closed", detail=f"alerte #{alert_id}")
+    audit.record("alert_closed", detail=_ref(payload), alert_id=alert_id)
     return jsonify(payload)
 
 
@@ -94,6 +105,9 @@ def assign_agent(alert_id):
         raise ValidationError("Le champ 'agent_id' (entier) est requis.")
     payload = alerts_service.assign_agent(alert_id, agent_id)
     stats_service.invalidate_cache()
+    agent = payload.get("assigned_agent") or {}
+    audit.record("agent_assigned", detail=f"{agent.get('name') or 'agent #%s' % agent_id} → {_ref(payload)}",
+                 alert_id=alert_id)
     return jsonify(payload)
 
 
@@ -103,6 +117,7 @@ def accept(alert_id):
     """Prise en charge d'une intervention par l'agent connecté."""
     payload = alerts_service.accept_intervention(alert_id, g.user)
     stats_service.invalidate_cache()
+    audit.record("intervention_accepted", detail=_ref(payload), alert_id=alert_id)
     return jsonify(payload)
 
 
@@ -112,4 +127,47 @@ def complete(alert_id):
     """L'agent termine (clôture) sa propre intervention."""
     payload = alerts_service.complete_intervention(alert_id, g.user)
     stats_service.invalidate_cache()
+    audit.record("intervention_completed", detail=_ref(payload), alert_id=alert_id)
     return jsonify(payload)
+
+
+# --------------------------------------------------------------------------- #
+# Fausses alertes : qualification tracée (motif obligatoire). Un opérateur peut
+# classer ; seul un superviseur / administrateur peut annuler (contrôle croisé).
+# --------------------------------------------------------------------------- #
+@bp.post("/<int:alert_id>/false-alarm")
+@require_auth(roles=["operator", "supervisor", "admin"])
+def mark_false_alarm(alert_id):
+    data = request.get_json(silent=True) or {}
+    reason = str(data.get("reason") or "").strip()
+    payload = alerts_service.mark_false_alarm(alert_id, reason, g.user.get("name"))
+    stats_service.invalidate_cache()
+    audit.record("false_alarm_marked", detail=f"{_ref(payload)} · motif : {reason}",
+                 alert_id=alert_id)
+    return jsonify(payload)
+
+
+@bp.delete("/<int:alert_id>/false-alarm")
+@require_auth(roles=["supervisor", "admin"])
+def cancel_false_alarm(alert_id):
+    data = request.get_json(silent=True) or {}
+    reason = str(data.get("reason") or "").strip()
+    if len(reason) < 3:
+        from ..errors import ValidationError
+        raise ValidationError("Indiquez la raison de l'annulation.")
+    payload = alerts_service.cancel_false_alarm(alert_id)
+    stats_service.invalidate_cache()
+    audit.record("false_alarm_cancelled", detail=f"{_ref(payload)} · raison : {reason}",
+                 alert_id=alert_id)
+    return jsonify(payload)
+
+
+@bp.get("/<int:alert_id>/journal")
+@require_auth(roles=["agent", "operator", "supervisor", "admin"])
+def journal(alert_id):
+    """Journal de l'intervention : chaque action, son auteur, son rôle, l'heure."""
+    return jsonify(alerts_service.alert_journal(alert_id))
+
+
+def _ref(payload):
+    return payload.get("incident_number") or f"alerte #{payload.get('id')}"

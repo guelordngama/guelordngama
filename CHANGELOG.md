@@ -2,6 +2,37 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.23.0] — 2026-09-28 — Sécurité et traçabilité
+
+### Ajouté
+- **Poste opérateur → 🔐 Sécurité & traçabilité** : authentification, rôles,
+  droits et responsabilités (gouvernance), protection des données, fausses
+  alertes, résilience — état en direct du serveur — et indicateurs (connexions
+  et échecs 24 h, actions tracées 24 h, fausses alertes 30 j).
+- **Historique des actions** (journal d'audit) consultable et filtrable par le
+  superviseur / administrateur ; verrouillé pour l'opérateur (séparation des
+  tâches). Le journal enregistre désormais le **rôle** et l'**incident**
+  concerné.
+- **Journal de l'intervention** (📜) : chronologie horodatée de chaque incident
+  (alerte reçue, patrouille / agent affecté, acceptée, terminée, clôturée,
+  fausse alerte) avec auteur, rôle et IP — depuis la fiche, les alertes en
+  direct et l'historique ; copiable.
+- **Fausses alertes** : motif obligatoire, clôture et libération des
+  ressources, annulation réservée au superviseur / administrateur, avertissement
+  « ce citoyen a déjà N fausses alertes » (jamais de blocage automatique), filtre
+  et compteur dans l'historique, suivi citoyen « Classée sans suite ».
+- Traçabilité des exports CSV / Excel et des rapports PDF.
+- API : `POST|DELETE /api/alerts/<id>/false-alarm`, `GET /api/alerts/<id>/journal`,
+  `GET /api/security/overview`, filtres `alert_id` et `q` sur `/api/audit`.
+- Document de présentation : `docs/SECURITE_TRACABILITE.md`.
+
+### Changé
+- Agents de démonstration positionnés à Lubumbashi.
+
+### Migration
+- `a4d8c2e6f0b1` : colonnes fausse alerte sur `alerts`, `role` et `alert_id`
+  sur `audit_logs` (appliquée automatiquement au démarrage du conteneur).
+
 ## [1.22.0] — 2026-09-28 — Gestion des incidents : n° d'intervention, affectation, historique
 
 ### Ajouté

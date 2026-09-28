@@ -3,6 +3,7 @@ from flask import Blueprint, Response, request
 
 from ..errors import ApiError
 from ..security import require_auth
+from ..services import audit
 from ..services import export as export_service
 
 bp = Blueprint("export", __name__, url_prefix="/api/export")
@@ -25,6 +26,7 @@ def _filters():
 @require_auth(roles=["operator", "supervisor", "admin"])
 def export_csv():
     data = export_service.to_csv(_filters())
+    audit.record("data_exported", detail=f"CSV · filtres {_filters() or 'aucun'}")
     return Response(data, mimetype="text/csv",
                     headers={"Content-Disposition": 'attachment; filename="safecity_alertes.csv"'})
 
@@ -36,6 +38,7 @@ def export_xlsx():
         raise ApiError("Export Excel indisponible : installez openpyxl.",
                        status_code=501, code="xlsx_unavailable")
     data = export_service.to_xlsx(_filters())
+    audit.record("data_exported", detail=f"Excel · filtres {_filters() or 'aucun'}")
     return Response(
         data,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

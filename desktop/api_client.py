@@ -7,6 +7,7 @@ transformés en signaux Qt côté interface.
 import json
 import threading
 import urllib.error
+import urllib.parse
 import urllib.request
 
 try:
@@ -236,6 +237,31 @@ class ApiClient:
     def assign_agent(self, alert_id, agent_id):
         return self._request("POST", f"/api/alerts/{alert_id}/assign-agent",
                             {"agent_id": agent_id}, auth=True)
+
+    # ------------------------------------------------------------------ #
+    # Sécurité & traçabilité
+    # ------------------------------------------------------------------ #
+    def mark_false_alarm(self, alert_id, reason):
+        return self._request("POST", f"/api/alerts/{alert_id}/false-alarm",
+                             {"reason": reason}, auth=True)
+
+    def cancel_false_alarm(self, alert_id, reason):
+        return self._request("DELETE", f"/api/alerts/{alert_id}/false-alarm",
+                             {"reason": reason}, auth=True)
+
+    def get_journal(self, alert_id):
+        return self._request("GET", f"/api/alerts/{alert_id}/journal", auth=True)
+
+    def get_security_overview(self):
+        return self._request("GET", "/api/security/overview", auth=True)
+
+    def get_audit(self, limit=200, q="", action=""):
+        params = {"limit": limit}
+        if q:
+            params["q"] = q
+        if action:
+            params["action"] = action
+        return self._request("GET", "/api/audit?" + urllib.parse.urlencode(params), auth=True)
 
     # ------------------------------------------------------------------ #
     # Temps réel

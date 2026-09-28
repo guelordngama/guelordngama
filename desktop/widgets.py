@@ -39,6 +39,17 @@ TYPE_NAMES = {"vol": "Vol", "braquage": "Braquage", "incendie": "Incendie",
 STATUS_FICHE = {"active": ("EN ATTENTE", "#ef4444"),
                 "assignee": ("EN COURS", "#f97316"),
                 "cloturee": ("TRAITÉ", "#16a34a")}
+FALSE_ALARM_FICHE = ("FAUSSE ALERTE", "#64748b")
+
+
+def fiche_status(alert):
+    """(libellé, couleur) du statut affiché dans la fiche."""
+    if alert.get("false_alarm"):
+        return FALSE_ALARM_FICHE
+    return STATUS_FICHE.get(alert.get("status"),
+                            ((alert.get("status") or "—").upper(), theme.TEXT))
+
+
 AGENT_STATUS = {"available": "Disponible", "busy": "En intervention", "offline": "Hors service"}
 
 
@@ -138,7 +149,7 @@ def alert_fiche(alert):
     pending = _geocoding_pending(alert)
     unknown = "Recherche en cours…" if pending else "—"
     street_label, street_value = street_parts(alert.get("street"))
-    status, _c = STATUS_FICHE.get(alert.get("status"), ((alert.get("status") or "—").upper(), ""))
+    status, _c = fiche_status(alert)
     return [
         ("type", "Type", TYPE_NAMES.get(alert.get("type"), (alert.get("type") or "—").capitalize())),
         ("citizen", "Citoyen", alert.get("reporter_name") or "Citoyen anonyme"),
@@ -336,6 +347,8 @@ class IncidentPopup(QDialog):
     assign_agent = Signal(dict)
     open_on_map = Signal(dict)
     close_incident = Signal(dict)
+    false_alarm = Signal(dict)
+    show_journal = Signal(dict)
 
     def __init__(self, alert, parent=None, api_base=""):
         super().__init__(parent)
@@ -411,6 +424,23 @@ class IncidentPopup(QDialog):
                 f"background: {theme.tint(theme.ACCENT, 0.14)}; color: {theme.ACCENT}; "
                 f"font-weight: 800; padding: 8px; font-size: 13px;")
             root.addWidget(banner)
+
+        # Traçabilité : fausse alerte déjà qualifiée / citoyen déjà signalé.
+        self.false_banner = QLabel("")
+        self.false_banner.setAlignment(Qt.AlignCenter)
+        self.false_banner.setWordWrap(True)
+        self.false_banner.setStyleSheet(
+            f"background: {theme.tint('#64748b', 0.16)}; color: #475569; font-weight: 800; "
+            "padding: 8px; font-size: 13px;")
+        root.addWidget(self.false_banner)
+        self.reporter_banner = QLabel("")
+        self.reporter_banner.setAlignment(Qt.AlignCenter)
+        self.reporter_banner.setWordWrap(True)
+        self.reporter_banner.setStyleSheet(
+            f"background: {theme.tint('#f59e0b', 0.16)}; color: #b45309; font-weight: 700; "
+            "padding: 8px; font-size: 12px;")
+        root.addWidget(self.reporter_banner)
+        self._refresh_trace_banners(alert)
 
         body = QVBoxLayout()
         body.setContentsMargins(20, 16, 20, 20)
@@ -531,11 +561,20 @@ class IncidentPopup(QDialog):
         b_map.setObjectName("ghost")
         b_close = QPushButton("🏁 Clôturer l'incident")
         b_close.setObjectName("danger")
+        self.btn_false = QPushButton("🚫 Fausse alerte")
+        self.btn_false.setObjectName("ghost")
+        self.btn_false.setToolTip("Classer en fausse alerte (motif obligatoire, action tracée)")
+        b_journal = QPushButton("📜 Journal de l'intervention")
+        b_journal.setObjectName("ghost")
+        b_journal.setToolTip("Qui a fait quoi, et quand, sur cet incident")
         actions.addWidget(b_patrol, 0, 0)
         actions.addWidget(b_agent, 0, 1)
         actions.addWidget(b_call, 1, 0)
         actions.addWidget(b_map, 1, 1)
-        actions.addWidget(b_close, 2, 0, 1, 2)
+        actions.addWidget(self.btn_false, 2, 0)
+        actions.addWidget(b_journal, 2, 1)
+        actions.addWidget(b_close, 3, 0, 1, 2)
+        self.btn_false.setEnabled(not alert.get("false_alarm"))
         body.addLayout(actions)
         root.addLayout(body)
 
@@ -545,6 +584,22 @@ class IncidentPopup(QDialog):
         b_call.clicked.connect(self._call)
         b_map.clicked.connect(lambda: (self.open_on_map.emit(self.alert), self.accept()))
         b_close.clicked.connect(lambda: (self.close_incident.emit(self.alert), self.accept()))
+        self.btn_false.clicked.connect(lambda: self.false_alarm.emit(self.alert))
+        b_journal.clicked.connect(lambda: self.show_journal.emit(self.alert))
+
+    def _refresh_trace_banners(self, alert):
+        if alert.get("false_alarm"):
+            self.false_banner.setText(
+                f"🚫  Classée FAUSSE ALERTE par {alert.get('false_alarm_by') or '—'} — "
+                f"motif : {alert.get('false_alarm_reason') or '—'}")
+        self.false_banner.setVisible(bool(alert.get("false_alarm")))
+        n = alert.get("reporter_false_alarms") or 0
+        if n and not alert.get("false_alarm"):
+            self.reporter_banner.setText(
+                f"⚠️  Ce citoyen a déjà {n} "
+                + ("fausses alertes enregistrées" if n > 1 else "fausse alerte enregistrée")
+                + ". Vérifiez — mais traitez l'alerte : une vraie urgence reste possible.")
+        self.reporter_banner.setVisible(bool(n) and not alert.get("false_alarm"))
 
     def _tick_elapsed(self):
         from datetime import datetime
@@ -617,13 +672,15 @@ class IncidentPopup(QDialog):
     # ---- Fiche : style et mise à jour en direct ----
     @staticmethod
     def _title_text(alert):
+        if alert.get("false_alarm"):
+            return "⚪  FAUSSE ALERTE"
         return {"active": "🔴  NOUVELLE ALERTE", "assignee": "🟠  INTERVENTION EN COURS",
                 "cloturee": "🟢  INTERVENTION TRAITÉE"}.get(alert.get("status"), "🔴  ALERTE")
 
     @staticmethod
     def _value_style(key, alert):
         if key == "status":
-            color = STATUS_FICHE.get(alert.get("status"), ("", theme.TEXT))[1] or theme.TEXT
+            color = fiche_status(alert)[1] or theme.TEXT
             return (f"font-weight: 800; color: {color}; background: {theme.tint(color, 0.12)};"
                     " border-radius: 8px; padding: 2px 8px;")
         if key in ("commune", "street", "quartier") and _geocoding_pending(alert):
@@ -635,7 +692,8 @@ class IncidentPopup(QDialog):
         if key == "agent" and alert.get("assigned_agent"):
             return f"font-weight: 800; color: {theme.ACCENT};"
         if key == "agent_status" and alert.get("assigned_agent"):
-            return "font-weight: 800; color: #f97316;"
+            avail = (alert.get("assigned_agent") or {}).get("availability")
+            return f"font-weight: 800; color: {'#16a34a' if avail == 'available' else '#f97316'};"
         return "font-weight: 700;"
 
     def update_alert(self, alert):
@@ -643,6 +701,8 @@ class IncidentPopup(QDialog):
         la fiche sans refermer la fenêtre."""
         self.alert = alert
         self.title_label.setText(self._title_text(alert))
+        self._refresh_trace_banners(alert)
+        self.btn_false.setEnabled(not alert.get("false_alarm"))
         for key, label, value in alert_fiche(alert):
             vl = self._fiche_values.get(key)
             if vl is None:
@@ -852,3 +912,196 @@ class AgentDialog(QDialog):
         if self.password.text():
             data["password"] = self.password.text()
         return data
+
+
+class FalseAlarmDialog(QDialog):
+    """Qualification d'une alerte en « fausse alerte » : motif obligatoire.
+
+    L'action est tracée (auteur, rôle, heure, motif) et seul un superviseur ou
+    un administrateur peut l'annuler.
+    """
+
+    REASONS = [
+        "Canular / appel malveillant",
+        "Erreur de manipulation du citoyen",
+        "Aucun incident constaté sur place",
+        "Doublon d'un incident déjà traité",
+        "Test de l'application",
+        "Autre (préciser)",
+    ]
+
+    def __init__(self, alert, parent=None, cancel_mode=False):
+        super().__init__(parent)
+        self.cancel_mode = cancel_mode
+        self.setStyleSheet(theme.QSS + f"QDialog {{ background: {theme.BG}; }}")
+        self.setMinimumWidth(460)
+        ref = incident_ref(alert)
+        self.setWindowTitle("Annuler la fausse alerte" if cancel_mode else "Signaler une fausse alerte")
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(22, 20, 22, 20)
+        root.setSpacing(10)
+        title = QLabel(("↩️  Annuler la qualification — " if cancel_mode
+                        else "🚫  Fausse alerte — ") + f"#{ref}")
+        title.setObjectName("pageTitle")
+        root.addWidget(title)
+        info = QLabel(
+            "Réservé au superviseur / administrateur. L'alerte redevient un incident "
+            "normal ; la raison est inscrite au journal." if cancel_mode else
+            "L'alerte sera clôturée et les ressources libérées. Le motif, votre nom et "
+            "l'heure sont inscrits au journal. Le citoyen n'est PAS bloqué : ses "
+            "prochaines alertes seront simplement signalées à l'opérateur.")
+        info.setWordWrap(True)
+        info.setObjectName("muted")
+        root.addWidget(info)
+
+        form = QFormLayout()
+        form.setSpacing(10)
+        self.reason = QComboBox()
+        if not cancel_mode:
+            self.reason.addItems(self.REASONS)
+            form.addRow("Motif", self.reason)
+        self.comment = QLineEdit()
+        self.comment.setPlaceholderText(
+            "Raison de l'annulation (obligatoire)" if cancel_mode
+            else "Précision (obligatoire si « Autre »)")
+        form.addRow("Raison" if cancel_mode else "Précision", self.comment)
+        root.addLayout(form)
+
+        self.error = QLabel("")
+        self.error.setStyleSheet("color: #ef4444; font-weight: 600;")
+        root.addWidget(self.error)
+
+        btns = QHBoxLayout()
+        cancel = QPushButton("Annuler")
+        cancel.setObjectName("ghost")
+        cancel.clicked.connect(self.reject)
+        ok = QPushButton("Confirmer" if cancel_mode else "🚫  Classer en fausse alerte")
+        ok.setObjectName("warn" if cancel_mode else "danger")
+        ok.clicked.connect(self._validate)
+        btns.addStretch()
+        btns.addWidget(cancel)
+        btns.addWidget(ok)
+        root.addLayout(btns)
+
+    def reason_text(self):
+        comment = self.comment.text().strip()
+        if self.cancel_mode:
+            return comment
+        base = self.reason.currentText()
+        if base.startswith("Autre"):
+            return comment
+        return f"{base} — {comment}" if comment else base
+
+    def _validate(self):
+        if len(self.reason_text()) < 3:
+            self.error.setText("Le motif est obligatoire.")
+            return
+        self.accept()
+
+
+class JournalDialog(QDialog):
+    """Journal d'une intervention : chronologie horodatée des actions."""
+
+    ICONS = {
+        "alert_created": "🚨", "alert_grouped": "🔁", "team_assigned": "🚔",
+        "agent_assigned": "👮", "intervention_accepted": "✅",
+        "intervention_completed": "🏁", "alert_closed": "🏁",
+        "false_alarm_marked": "🚫", "false_alarm_cancelled": "↩️",
+    }
+
+    def __init__(self, alert, events, parent=None):
+        super().__init__(parent)
+        self.alert = alert
+        self.events = events or []
+        self.setStyleSheet(theme.QSS + f"QDialog {{ background: {theme.BG}; }}")
+        self.setMinimumSize(620, 460)
+        ref = incident_ref(alert)
+        self.setWindowTitle(f"Journal de l'intervention #{ref}")
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(22, 20, 22, 20)
+        root.setSpacing(10)
+        title = QLabel(f"📜  Journal de l'intervention #{ref}")
+        title.setObjectName("pageTitle")
+        root.addWidget(title)
+        sub = QLabel(f"{TYPE_NAMES.get(alert.get('type'), (alert.get('type') or '').capitalize())}"
+                     f"  ·  {alert.get('neighborhood') or '—'}  ·  "
+                     f"{len(self.events)} action{'s' if len(self.events) > 1 else ''} tracée"
+                     f"{'s' if len(self.events) > 1 else ''}")
+        sub.setObjectName("muted")
+        root.addWidget(sub)
+
+        from PySide6.QtWidgets import QScrollArea
+
+        area = QScrollArea()
+        area.setWidgetResizable(True)
+        area.setFrameShape(QFrame.NoFrame)
+        holder = QWidget()
+        lay = QVBoxLayout(holder)
+        lay.setSpacing(8)
+        lay.setContentsMargins(0, 0, 6, 0)
+        for ev in self.events:
+            lay.addWidget(self._row(ev))
+        if not self.events:
+            empty = QLabel("Aucune action enregistrée.")
+            empty.setObjectName("muted")
+            lay.addWidget(empty)
+        lay.addStretch()
+        area.setWidget(holder)
+        root.addWidget(area, 1)
+
+        btns = QHBoxLayout()
+        copy = QPushButton("📋  Copier le journal")
+        copy.setObjectName("ghost")
+        copy.clicked.connect(self._copy)
+        self.btn_copy = copy
+        close = QPushButton("Fermer")
+        close.clicked.connect(self.accept)
+        btns.addWidget(copy)
+        btns.addStretch()
+        btns.addWidget(close)
+        root.addLayout(btns)
+
+    def _row(self, ev):
+        card = QFrame()
+        card.setStyleSheet(f"QFrame {{ background: {theme.PANEL}; border: 1px solid {theme.BORDER};"
+                           " border-radius: 10px; }} QLabel { border: none; background: transparent; }")
+        h = QHBoxLayout(card)
+        h.setContentsMargins(12, 8, 12, 8)
+        h.setSpacing(12)
+        icon = QLabel(self.ICONS.get(ev.get("action"), "•"))
+        icon.setStyleSheet("font-size: 20px;")
+        h.addWidget(icon, 0, Qt.AlignTop)
+        col = QVBoxLayout()
+        col.setSpacing(2)
+        head = QLabel(f"<b>{ev.get('label') or ev.get('action')}</b>")
+        col.addWidget(head)
+        who = QLabel(f"{ev.get('actor') or '—'}  ·  {ev.get('role') or '—'}"
+                     + (f"  ·  IP {ev['ip']}" if ev.get("ip") else ""))
+        who.setStyleSheet(f"color: {theme.MUTED};")
+        col.addWidget(who)
+        if ev.get("detail"):
+            det = QLabel(str(ev["detail"]))
+            det.setWordWrap(True)
+            col.addWidget(det)
+        h.addLayout(col, 1)
+        when = QLabel(ev.get("time") or "—")
+        when.setStyleSheet("font-weight: 700; font-family: Consolas, 'DejaVu Sans Mono', monospace;")
+        h.addWidget(when, 0, Qt.AlignTop)
+        return card
+
+    def text(self):
+        lines = [f"Journal de l'intervention #{incident_ref(self.alert)}"]
+        for ev in self.events:
+            line = f"{ev.get('time')}  {ev.get('label')}  —  {ev.get('actor')} ({ev.get('role')})"
+            if ev.get("detail"):
+                line += f"  ·  {ev['detail']}"
+            lines.append(line)
+        return "\n".join(lines)
+
+    def _copy(self):
+        from PySide6.QtWidgets import QApplication
+
+        QApplication.clipboard().setText(self.text())
+        self.btn_copy.setText("✓  Journal copié")

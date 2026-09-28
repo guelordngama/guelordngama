@@ -3,6 +3,7 @@ from flask import Blueprint, Response, request
 
 from ..errors import ApiError
 from ..security import require_auth
+from ..services import audit
 from ..services import reports as reports_service
 
 bp = Blueprint("reports", __name__, url_prefix="/api/reports")
@@ -22,6 +23,7 @@ def report_pdf():
             status_code=501, code="pdf_unavailable",
         )
     pdf = reports_service.generate_pdf(period)
+    audit.record("report_generated", detail=f"Rapport PDF · période {period}")
     filename = f"safecity_rapport_{period}.pdf"
     return Response(
         pdf,

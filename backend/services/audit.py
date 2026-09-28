@@ -13,7 +13,7 @@ from ..models import AuditLog
 log = logging.getLogger("safecity")
 
 
-def record(action, detail=None, user_id=None, user_name=None):
+def record(action, detail=None, user_id=None, user_name=None, alert_id=None, role=None):
     """Enregistre une entrée d'audit.
 
     L'utilisateur et l'IP sont déduits du contexte de requête si disponibles ;
@@ -29,12 +29,16 @@ def record(action, detail=None, user_id=None, user_name=None):
             if claims and user_id is None:
                 user_id = claims.get("uid")
                 user_name = user_name or claims.get("name")
+            if claims and role is None:
+                role = claims.get("role")
         entry = AuditLog(
             action=action,
             detail=(str(detail)[:255] if detail else None),
             user_id=user_id,
             user_name=user_name,
             ip=ip,
+            role=role,
+            alert_id=alert_id,
         )
         db.session.add(entry)
         db.session.commit()

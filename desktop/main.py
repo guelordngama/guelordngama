@@ -52,11 +52,13 @@ from pages import (
     NotificationsPage,
     PeoplePage,
     ReportsPage,
+    SecurityPage,
     SettingsPage,
     StatisticsPage,
 )
 from sound import AlarmPlayer
-from widgets import AgentDialog, IncidentPopup, Toast, assignment_parts, incident_ref
+from widgets import (AgentDialog, FalseAlarmDialog, IncidentPopup, JournalDialog, Toast,
+                     assignment_parts, incident_ref)
 
 # Serveur par défaut : la production de la mairie de Lubumbashi.
 # Priorité effective (résolue dans main()) : variable SAFECITY_API >
@@ -538,6 +540,7 @@ class Sidebar(QFrame):
         ("📄", "Rapports"),
         ("💬", "Messagerie"),
         ("🔔", "Notifications"),
+        ("🔐", "Sécurité & traçabilité"),
         ("⚙️", "Paramètres"),
         ("ℹ️", "À propos"),
     ]
@@ -578,7 +581,7 @@ class Sidebar(QFrame):
         self._base_text = {}     # idx -> texte de base du bouton
         self._unread = {}        # idx -> compteur non lus
         for i, (icon, label) in enumerate(self.ITEMS):
-            base = f"  {icon}   {label}"
+            base = f"  {icon}   {label}".replace("&", "&&")   # « & » littéral (pas de raccourci Qt)
             self._base_text[i] = base
             self._unread[i] = 0
             b = QPushButton(base)
@@ -644,6 +647,7 @@ class MainWindow(QWidget):
     IDX_AGENTS = 3
     IDX_CHAT = 9
     IDX_NOTIF = 10
+    IDX_SECURITY = 11
     NOTIF_MAX = 200          # notifications conservées (les plus récentes)
 
     def __init__(self, api, operator):
@@ -787,13 +791,14 @@ class MainWindow(QWidget):
         self.page_reports = ReportsPage()
         self.page_chat = ChatPage(self.operator, API_BASE)
         self.page_notifications = NotificationsPage()
+        self.page_security = SecurityPage(self.operator.get("role", "operator"))
         self.page_settings = SettingsPage(API_BASE, self.operator)
         self.page_about = AboutPage()
         for p in (
             self.page_dashboard, self.page_live, self.page_map, self.page_agents,
             self.page_citizens, self.page_history, self.page_stats, self.page_analytics,
             self.page_reports, self.page_chat, self.page_notifications,
-            self.page_settings, self.page_about,
+            self.page_security, self.page_settings, self.page_about,
         ):
             self.stack.addWidget(p)
         right.addWidget(self.stack, 1)
@@ -828,6 +833,8 @@ class MainWindow(QWidget):
         self.page_live.request_assign.connect(self._assign)
         self.page_live.request_assign_agent.connect(self._assign_agent_to_alert)
         self.page_live.request_close.connect(self._close)
+        self.page_live.request_false_alarm.connect(self._mark_false_alarm)
+        self.page_live.request_journal.connect(self._show_journal)
         self.page_live.request_focus.connect(self._focus_on_map)
         self.page_live.open_incident.connect(self._open_incident_by_id)
         self.page_live.search.connect(self._search_alerts)
@@ -859,6 +866,9 @@ class MainWindow(QWidget):
         self.page_settings.server_changed.connect(self._save_server_url)
         self.page_history.request_load.connect(self._load_history)
         self.page_history.open_incident.connect(self._open_incident_any)
+        self.page_history.open_journal.connect(self._show_journal)
+        self.page_security.request_load.connect(self._load_security)
+        self.page_security.request_audit.connect(self._load_audit)
         self._history_timer = QTimer(self)
         self._history_timer.setSingleShot(True)
         self._history_timer.timeout.connect(lambda: self.page_history.reload())
@@ -987,6 +997,8 @@ class MainWindow(QWidget):
             self._notifs_mark_read(lambda n: n.get("kind") == "message")
         elif idx == self.IDX_NOTIF:
             self.page_notifications.set_notifications(self._notifs)
+        elif idx == self.IDX_SECURITY:
+            self.page_security.reload()
         # Les alertes gardent leur marquage par élément (effacé à l'ouverture de
         # chaque incident) ; les autres sections n'ont pas de badge.
 
@@ -1608,6 +1620,8 @@ class MainWindow(QWidget):
         popup.assign_agent.connect(lambda a: self._assign_agent_to_alert(a["id"]))
         popup.open_on_map.connect(lambda a: (self._navigate(2), self._focus_on_map(a["id"])))
         popup.close_incident.connect(lambda a: self._close(a["id"]))
+        popup.false_alarm.connect(lambda a: self._mark_false_alarm(a["id"]))
+        popup.show_journal.connect(lambda a: self._show_journal(a["id"]))
         popup.finished.connect(lambda _=0, aid=alert["id"]: self._open_popups.pop(aid, None))
         self._open_popups[alert["id"]] = popup
         popup.show()
@@ -1619,10 +1633,12 @@ class MainWindow(QWidget):
         try:
             result = self.api.get_alerts(filters=filters)
             counts = {}
-            for st in ("", "active", "assignee", "cloturee"):
-                f = {k: v for k, v in filters.items() if k != "status"}
+            for st in ("", "active", "assignee", "cloturee", "false_alarm"):
+                f = {k: v for k, v in filters.items() if k not in ("status", "false_alarm")}
                 f.update(page=1, page_size=1)
-                if st:
+                if st == "false_alarm":
+                    f["false_alarm"] = "1"
+                elif st:
                     f["status"] = st
                 r = self.api.get_alerts(filters=f)
                 counts[st or "all"] = r.get("total", 0) if isinstance(r, dict) else len(r)
@@ -1746,6 +1762,65 @@ class MainWindow(QWidget):
             Toast(self, "Incident clôturé ✅", "#22c55e").show_for(2500)
         except Exception as e:
             QMessageBox.warning(self, "Erreur", str(e))
+
+    # ---- Sécurité & traçabilité ----
+    def _alert_for(self, alert_id):
+        a = self.alerts.get(alert_id)
+        if a is None:
+            a = self.api.get_alert(alert_id)
+            self.alerts[alert_id] = a
+        return a
+
+    def _mark_false_alarm(self, alert_id):
+        """Classe une alerte en fausse alerte (motif obligatoire, tracé) ; si elle
+        l'est déjà, un superviseur / administrateur peut annuler."""
+        try:
+            alert = self._alert_for(alert_id)
+        except Exception as e:
+            QMessageBox.warning(self, "Fausse alerte", str(e))
+            return
+        cancel = bool(alert.get("false_alarm"))
+        if cancel and self.operator.get("role") not in ("supervisor", "admin"):
+            QMessageBox.information(
+                self, "Fausse alerte",
+                f"Déjà classée fausse alerte par {alert.get('false_alarm_by') or '—'}.\n"
+                "Seul un superviseur ou un administrateur peut annuler cette qualification.")
+            return
+        dlg = FalseAlarmDialog(alert, self, cancel_mode=cancel)
+        if dlg.exec() != QDialog.Accepted:
+            return
+        try:
+            if cancel:
+                updated = self.api.cancel_false_alarm(alert_id, dlg.reason_text())
+            else:
+                updated = self.api.mark_false_alarm(alert_id, dlg.reason_text())
+            self._on_alert_updated(updated)
+            self._load_agents()
+            Toast(self, "↩️ Qualification annulée" if cancel else "🚫 Classée fausse alerte (tracé)",
+                  "#64748b").show_for(2500)
+        except Exception as e:
+            QMessageBox.warning(self, "Fausse alerte", _api_error_message(e))
+
+    def _load_security(self):
+        try:
+            self.page_security.set_overview(self.api.get_security_overview())
+        except Exception as e:
+            self.page_security.set_error(_api_error_message(e))
+
+    def _load_audit(self, q=""):
+        try:
+            self.page_security.set_audit(self.api.get_audit(limit=300, q=q))
+        except Exception as e:
+            self.page_security.set_audit_error(_api_error_message(e))
+
+    def _show_journal(self, alert_id):
+        try:
+            alert = self._alert_for(alert_id)
+            events = self.api.get_journal(alert_id)
+        except Exception as e:
+            QMessageBox.warning(self, "Journal", _api_error_message(e))
+            return
+        JournalDialog(alert, events, self).exec()
 
     def _generate_report(self, period):
         from PySide6.QtGui import QDesktopServices

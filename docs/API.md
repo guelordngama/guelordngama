@@ -70,6 +70,30 @@ Affecte une équipe et recalcule la distance depuis sa position.
 ### `POST /api/alerts/<id>/close` 🔒
 Clôture l'alerte et libère l'équipe — déclenche `alert_updated`.
 
+### `POST /api/alerts/<id>/false-alarm` 🔒 (opérateur, superviseur, admin)
+Classe l'alerte en **fausse alerte** et la clôture (agent/patrouille libérés).
+**Corps :** `{ "reason": "Canular / appel malveillant — …" }` — motif **obligatoire**
+(400 sinon). Inscrit au journal (`false_alarm_marked`). Le citoyen n'est jamais
+bloqué : ses alertes suivantes portent `reporter_false_alarms` (avertissement).
+Filtre : `GET /api/alerts?false_alarm=1`.
+
+### `DELETE /api/alerts/<id>/false-alarm` 🔒 (superviseur, admin)
+Annule la qualification. **Corps :** `{ "reason": "…" }` (obligatoire).
+
+### `GET /api/alerts/<id>/journal` 🔒 (personnel)
+Journal de l'intervention, chronologique :
+`[{ "time", "action", "label", "actor", "role", "detail", "ip" }]`
+(alerte reçue, patrouille / agent affecté, acceptée, terminée, clôturée,
+fausse alerte…).
+
+### `GET /api/security/overview` 🔒 (opérateur, superviseur, admin)
+Mécanismes en place (authentification, rôles et responsabilités, protection des
+données, résilience) et indicateurs : connexions / échecs 24 h, actions tracées
+24 h, fausses alertes 30 j, citoyens récidivistes (téléphone masqué).
+
+### `GET /api/audit?limit=&action=&alert_id=&q=` 🔒 (superviseur, admin)
+Journal d'audit complet (qui, rôle, action, détail, IP, heure).
+
 ---
 
 ### `GET /api/teams`

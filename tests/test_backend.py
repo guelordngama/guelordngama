@@ -1123,6 +1123,109 @@ def test_voice_message_mp4_accepted_as_m4a():
     assert r.get_json()["voice_url"].split("?")[0].endswith(".m4a")
 
 
+def _tok(client, email):
+    t = client.post("/api/auth/login", json={"email": email, "password": "safecity123"})
+    return {"Authorization": "Bearer " + t.get_json()["token"]}
+
+
+def test_false_alarm_flow_and_journal():
+    """Fausse alerte : motif obligatoire, clôture, avertissement au prochain
+    signalement du même citoyen, annulation réservée au superviseur, et journal
+    complet de l'intervention (qui / rôle / quand)."""
+    _, client = make_client()
+    ho = _tok(client, "operateur@safecity.local")
+    a = client.post("/api/alerts", json={"type": "braquage", "lat": -11.66, "lng": 27.48,
+                                         "reporter_name": "Jean", "reporter_phone": "+243810000001"}
+                    ).get_json()
+    aid = a["id"]
+    agent = client.get("/api/agents?role=agent", headers=ho).get_json()[0]
+    client.post(f"/api/alerts/{aid}/assign-agent", json={"agent_id": agent["id"]}, headers=ho)
+
+    # Motif obligatoire ; anonyme / agent refusés.
+    assert client.post(f"/api/alerts/{aid}/false-alarm", json={}, headers=ho).status_code == 400
+    assert client.post(f"/api/alerts/{aid}/false-alarm", json={"reason": "canular"}).status_code == 401
+    ha = _tok(client, "agent1@safecity.local")
+    assert client.post(f"/api/alerts/{aid}/false-alarm", json={"reason": "canular"},
+                       headers=ha).status_code == 403
+    r = client.post(f"/api/alerts/{aid}/false-alarm", json={"reason": "Canular téléphonique"},
+                    headers=ho)
+    assert r.status_code == 200, r.get_json()
+    d = r.get_json()
+    assert d["false_alarm"] and d["status"] == "cloturee"
+    assert d["false_alarm_reason"] == "Canular téléphonique" and d["false_alarm_by"]
+    # L'agent est libéré.
+    ag = [x for x in client.get("/api/agents?role=agent", headers=ho).get_json()
+          if x["id"] == agent["id"]][0]
+    assert ag["availability"] == "available"
+
+    # Filtre « fausses alertes » et suivi citoyen (sans motif interne).
+    lst = client.get("/api/alerts?false_alarm=1", headers=ho).get_json()
+    assert lst["total"] == 1 and lst["items"][0]["id"] == aid
+    tr = client.get(f"/api/alerts/track/{a['reference']}").get_json()
+    assert tr["false_alarm"] is True and "false_alarm_reason" not in tr
+
+    # Nouveau signalement du même numéro : avertissement (jamais de blocage).
+    b = client.post("/api/alerts", json={"type": "incendie", "lat": -11.60, "lng": 27.40,
+                                         "reporter_phone": "+243810000001"})
+    assert b.status_code == 201
+    det = client.get(f"/api/alerts/{b.get_json()['id']}", headers=ho).get_json()
+    assert det["reporter_false_alarms"] == 1
+
+    # Annulation : opérateur refusé, superviseur avec raison obligatoire.
+    assert client.delete(f"/api/alerts/{aid}/false-alarm", json={"reason": "erreur"},
+                         headers=ho).status_code == 403
+    hs = _tok(client, "superviseur@safecity.local")
+    assert client.delete(f"/api/alerts/{aid}/false-alarm", json={},
+                         headers=hs).status_code == 400
+    c = client.delete(f"/api/alerts/{aid}/false-alarm", json={"reason": "Vérifié sur place"},
+                      headers=hs)
+    assert c.status_code == 200 and c.get_json()["false_alarm"] is False
+
+    # Journal de l'intervention : chronologique, avec auteur et rôle.
+    j = client.get(f"/api/alerts/{aid}/journal", headers=ho)
+    assert j.status_code == 200
+    actions = [e["action"] for e in j.get_json()]
+    assert actions[:2] == ["alert_created", "agent_assigned"]
+    assert "false_alarm_marked" in actions and actions[-1] == "false_alarm_cancelled"
+    roles = {e["action"]: e["role"] for e in j.get_json()}
+    assert roles["alert_created"] == "Citoyen" and roles["agent_assigned"] == "Opérateur"
+    assert roles["false_alarm_cancelled"] == "Superviseur"
+    assert client.get(f"/api/alerts/{aid}/journal").status_code == 401
+
+    # Audit global filtrable par incident (superviseur).
+    au = client.get(f"/api/audit?alert_id={aid}", headers=hs).get_json()
+    assert au and all(e["alert_id"] == aid for e in au)
+
+
+def test_intervention_actions_are_journaled():
+    _, client = make_client()
+    client.post("/api/alerts", json={"type": "accident", "lat": -11.66, "lng": 27.48})
+    ha = _tok(client, "agent1@safecity.local")
+    assert client.post("/api/alerts/1/accept", headers=ha).status_code == 200
+    assert client.post("/api/alerts/1/complete", headers=ha).status_code == 200
+    j = client.get("/api/alerts/1/journal", headers=ha).get_json()
+    actions = [e["action"] for e in j]
+    assert actions == ["alert_created", "intervention_accepted", "intervention_completed"]
+    assert j[1]["role"] == "Agent" and j[1]["actor"]
+
+
+def test_security_overview_permissions():
+    _, client = make_client()
+    client.post("/api/auth/login", json={"email": "x@x.com", "password": "faux"})
+    assert client.get("/api/security/overview").status_code == 401
+    assert client.get("/api/security/overview",
+                      headers=_tok(client, "agent1@safecity.local")).status_code == 403
+    r = client.get("/api/security/overview", headers=_tok(client, "operateur@safecity.local"))
+    assert r.status_code == 200
+    d = r.get_json()
+    roles = {x["role"]: x for x in d["roles"]}
+    assert set(roles) >= {"citizen", "agent", "operator", "supervisor", "admin"}
+    assert roles["operator"]["users"] >= 1 and roles["citizen"]["permissions"] == []
+    assert d["activity"]["failed_logins_24h"] >= 1 and d["activity"]["logins_24h"] >= 1
+    assert "bcrypt" in d["authentication"]["password_hashing"]
+    assert d["data_protection"]["retention_days"]
+
+
 # --------------------------------------------------------------------------- #
 # Exécution directe (sans pytest)
 # --------------------------------------------------------------------------- #

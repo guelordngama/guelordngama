@@ -177,6 +177,13 @@ class Alert(TimestampMixin, db.Model):
     reporter_id = db.Column(db.Integer, db.ForeignKey("users.id"))
     closed_at = db.Column(db.DateTime)
 
+    # Fausse alerte : qualifiée par un opérateur, MOTIF OBLIGATOIRE (traçabilité),
+    # annulable uniquement par un superviseur / administrateur.
+    false_alarm = db.Column(db.Boolean, default=False, nullable=False, index=True)
+    false_alarm_reason = db.Column(db.String(255))
+    false_alarm_by = db.Column(db.String(120))
+    false_alarm_at = db.Column(db.DateTime)
+
     # Regroupement de doublons : si renseigné, cette alerte est un signalement
     # supplémentaire du même incident que l'alerte « principale » pointée ici.
     duplicate_of_id = db.Column(db.Integer, db.ForeignKey("alerts.id"), index=True)
@@ -225,6 +232,9 @@ class Alert(TimestampMixin, db.Model):
             "closed_at": resolved_at,
             "agent_first_name": agent_first,
             "eta_moto_min": self.eta_moto_min,
+            # Fausse alerte : le citoyen voit que le dossier est classé sans suite
+            # (sans le motif interne ni le nom de l'opérateur).
+            "false_alarm": bool(self.false_alarm),
             "steps": steps,
         }
 
@@ -245,6 +255,11 @@ class Alert(TimestampMixin, db.Model):
             "gps_accuracy_m": (round(self.gps_accuracy_m) if self.gps_accuracy_m is not None
                                else None),
             "position_manual": bool(self.position_manual),
+            "false_alarm": bool(self.false_alarm),
+            "false_alarm_reason": self.false_alarm_reason,
+            "false_alarm_by": self.false_alarm_by,
+            "false_alarm_at": _iso(self.false_alarm_at),
+            "reporter_id": self.reporter_id,
             "reporter_name": self.reporter_name or "Citoyen anonyme",
             "reporter_phone": self.reporter_phone,
             "position_approx": bool(self.position_approx),
@@ -327,12 +342,16 @@ class AuditLog(TimestampMixin, db.Model):
     action = db.Column(db.String(60), nullable=False, index=True)
     detail = db.Column(db.String(255))
     ip = db.Column(db.String(60))
+    role = db.Column(db.String(20))                 # rôle au moment de l'action
+    alert_id = db.Column(db.Integer, index=True)    # incident concerné (journal)
 
     def to_dict(self):
         return {
             "id": self.id,
             "user_id": self.user_id,
             "user_name": self.user_name or "—",
+            "role": self.role,
+            "alert_id": self.alert_id,
             "action": self.action,
             "detail": self.detail,
             "ip": self.ip,

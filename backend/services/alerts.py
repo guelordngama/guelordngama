@@ -235,7 +235,7 @@ def create_alert(data):
         return alert.to_dict()
 
     log.info("Nouvelle alerte #%s type=%s urgence=%s", alert.id, alert.type, alert.urgency)
-    payload = alert.to_dict()
+    payload = attach_reporter_flags([alert.to_dict()])[0]
     _emit("new_alert", payload)
 
     # Géocodage inverse (quartier/adresse réels) en arrière-plan : n'ajoute AUCUNE
@@ -279,6 +279,8 @@ def list_alerts(filters=None, page=1, page_size=50):
 
     if f.get("status"):
         query = query.filter(Alert.status == f["status"])
+    if str(f.get("false_alarm", "")).lower() in ("1", "true", "oui"):
+        query = query.filter(Alert.false_alarm.is_(True))
     if f.get("type"):
         query = query.filter(Alert.type == f["type"])
     if f.get("urgency"):
@@ -312,7 +314,7 @@ def list_alerts(filters=None, page=1, page_size=50):
     query = query.order_by(Alert.created_at.desc())
     pagination = query.paginate(page=page, per_page=page_size, error_out=False)
     return {
-        "items": [a.to_dict() for a in pagination.items],
+        "items": attach_reporter_flags([a.to_dict() for a in pagination.items]),
         "page": pagination.page,
         "page_size": page_size,
         "total": pagination.total,
@@ -429,3 +431,125 @@ def accept_intervention(alert_id, agent):
     payload = alert.to_dict()
     _emit("alert_updated", payload)
     return payload
+
+
+
+# --------------------------------------------------------------------------- #
+# Fausses alertes (qualification tracée, jamais de blocage automatique)
+# --------------------------------------------------------------------------- #
+def _free_resources(alert):
+    if alert.assigned_team:
+        alert.assigned_team.status = "available"
+    if alert.assigned_agent and alert.assigned_agent.current_alert_id == alert.id:
+        alert.assigned_agent.availability = "available"
+        alert.assigned_agent.current_alert_id = None
+
+
+def mark_false_alarm(alert_id, reason, by_name):
+    """Classe une alerte en fausse alerte (motif obligatoire) et la clôture."""
+    from ..errors import ValidationError
+
+    reason = (reason or "").strip()
+    if len(reason) < 3:
+        raise ValidationError("Le motif de la fausse alerte est obligatoire.")
+    alert = get_alert(alert_id)
+    alert.false_alarm = True
+    alert.false_alarm_reason = reason[:255]
+    alert.false_alarm_by = (by_name or "—")[:120]
+    alert.false_alarm_at = datetime.utcnow()
+    if alert.status != "cloturee":
+        alert.status = "cloturee"
+        alert.closed_at = datetime.utcnow()
+    _free_resources(alert)
+    db.session.commit()
+    log.info("Alerte #%s classée fausse alerte : %s", alert.id, reason)
+    payload = attach_reporter_flags([alert.to_dict()])[0]
+    _emit("alert_updated", payload)
+    return payload
+
+
+def cancel_false_alarm(alert_id):
+    """Annule une qualification « fausse alerte » (superviseur / admin)."""
+    alert = get_alert(alert_id)
+    alert.false_alarm = False
+    alert.false_alarm_reason = alert.false_alarm_by = None
+    alert.false_alarm_at = None
+    db.session.commit()
+    payload = attach_reporter_flags([alert.to_dict()])[0]
+    _emit("alert_updated", payload)
+    return payload
+
+
+def attach_reporter_flags(items):
+    """Ajoute « reporter_false_alarms » (fausses alertes déjà attribuées au même
+    citoyen, par compte ou par téléphone) : un avertissement pour l'opérateur,
+    JAMAIS un motif pour ignorer une alerte."""
+    from sqlalchemy import func
+
+    ids = {d.get("reporter_id") for d in items if d.get("reporter_id")}
+    phones = {d.get("reporter_phone") for d in items if d.get("reporter_phone")}
+    by_id, by_phone = {}, {}
+    if ids:
+        by_id = dict(db.session.query(Alert.reporter_id, func.count(Alert.id))
+                     .filter(Alert.false_alarm.is_(True), Alert.reporter_id.in_(ids))
+                     .group_by(Alert.reporter_id).all())
+    if phones:
+        by_phone = dict(db.session.query(Alert.reporter_phone, func.count(Alert.id))
+                        .filter(Alert.false_alarm.is_(True), Alert.reporter_phone.in_(phones))
+                        .group_by(Alert.reporter_phone).all())
+    for d in items:
+        d["reporter_false_alarms"] = max(by_id.get(d.get("reporter_id"), 0),
+                                         by_phone.get(d.get("reporter_phone"), 0))
+    return items
+
+
+# --------------------------------------------------------------------------- #
+# Journal d'une intervention (qui a fait quoi, quand)
+# --------------------------------------------------------------------------- #
+JOURNAL_LABELS = {
+    "alert_created": "Alerte reçue",
+    "alert_grouped": "Signalement regroupé (doublon)",
+    "team_assigned": "Patrouille envoyée",
+    "agent_assigned": "Agent affecté",
+    "intervention_accepted": "Intervention acceptée par l'agent",
+    "intervention_completed": "Intervention terminée par l'agent",
+    "alert_closed": "Incident clôturé",
+    "false_alarm_marked": "Classée « fausse alerte »",
+    "false_alarm_cancelled": "Qualification « fausse alerte » annulée",
+    "alert_viewed": "Fiche consultée",
+}
+ROLE_LABELS = {"citizen": "Citoyen", "agent": "Agent", "operator": "Opérateur",
+               "supervisor": "Superviseur", "admin": "Administrateur", "system": "Système"}
+
+
+def alert_journal(alert_id):
+    from ..models import AuditLog, local_str
+
+    alert = get_alert(alert_id)
+    rows = (AuditLog.query.filter_by(alert_id=alert.id)
+            .order_by(AuditLog.created_at.asc(), AuditLog.id.asc()).all())
+    events = [{"at": r.created_at, "action": r.action, "actor": r.user_name or "—",
+               "role": r.role, "detail": r.detail, "ip": r.ip} for r in rows]
+    have = {e["action"] for e in events}
+    # Incidents antérieurs au journal détaillé : on reconstitue l'essentiel.
+    if "alert_created" not in have:
+        events.append({"at": alert.created_at, "action": "alert_created",
+                       "actor": alert.reporter_name or "Citoyen", "role": "citizen",
+                       "detail": None, "ip": None})
+    if alert.accepted_at and not have & {"agent_assigned", "intervention_accepted", "team_assigned"}:
+        events.append({"at": alert.accepted_at, "action": "agent_assigned",
+                       "actor": "—", "role": None,
+                       "detail": alert.assigned_agent.name if alert.assigned_agent else None, "ip": None})
+    if alert.closed_at and not have & {"alert_closed", "intervention_completed", "false_alarm_marked"}:
+        events.append({"at": alert.closed_at, "action": "alert_closed", "actor": "—",
+                       "role": None, "detail": None, "ip": None})
+    events.sort(key=lambda e: e["at"] or datetime.min)
+    return [{
+        "time": local_str(e["at"], "%d/%m/%Y %H:%M:%S"),
+        "action": e["action"],
+        "label": JOURNAL_LABELS.get(e["action"], e["action"]),
+        "actor": e["actor"],
+        "role": ROLE_LABELS.get(e["role"], e["role"] or "—"),
+        "detail": e["detail"],
+        "ip": e["ip"],
+    } for e in events]

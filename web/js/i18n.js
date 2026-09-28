@@ -160,6 +160,8 @@
       "step.received": "Alerte reçue",
       "step.assigned": "Prise en charge",
       "step.resolved": "Résolue",
+      "step.falseAlarm": "Classée sans suite (fausse alerte)",
+      "confirm.falseAlarm": "ℹ️ Ce signalement a été classé sans suite (fausse alerte) après vérification.",
 
       "typename.vol": "Vol",
       "typename.braquage": "Braquage",
@@ -324,6 +326,8 @@
       "step.received": "Tahadhari imepokewa",
       "step.assigned": "Imeshughulikiwa",
       "step.resolved": "Imemalizika",
+      "step.falseAlarm": "Imefungwa bila hatua (tahadhari ya uongo)",
+      "confirm.falseAlarm": "ℹ️ Taarifa hii imefungwa bila hatua (tahadhari ya uongo) baada ya uchunguzi.",
 
       "typename.vol": "Wizi",
       "typename.braquage": "Unyang'anyi",
