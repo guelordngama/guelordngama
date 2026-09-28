@@ -254,3 +254,15 @@ input:focus, select:focus { outline: none; border-color: var(--blue); box-shadow
   .mobile-nav .side-link .ic { width: 22px; height: 22px; }
   .mobile-nav .side-link.active { background: transparent; color: var(--blue); box-shadow: none; }
 }
+
+/* ---- Fiche d'alerte (format du centre) ---- */
+.fiche { display: grid; grid-template-columns: auto 1fr; column-gap: 12px; row-gap: 3px;
+  background: var(--sunken); border: 1px solid var(--line); border-radius: 10px;
+  padding: 10px 12px; margin: 4px 0 8px; line-height: 1.45; }
+.fiche-row { display: contents; }
+.fiche-row > span { color: var(--muted); font-weight: 600; font-size: 12.5px; white-space: nowrap; }
+.fiche-row > span::after { content: " :"; }
+.fiche-row > b { font-weight: 700; font-size: 13px; overflow-wrap: anywhere; }
+.fiche-row a { color: var(--blue); text-decoration: none; }
+.fiche-sep { grid-column: 1 / -1; height: 1px; background: var(--line); margin: 5px 0; }
+.fiche-status { font-weight: 800; letter-spacing: .02em; }

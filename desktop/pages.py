@@ -85,12 +85,19 @@ def _msg_day(created_at):
         return None
     from datetime import datetime
 
+    from datetime import timezone
+
     txt = str(created_at).replace("Z", "").split(".")[0]
     for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M", "%Y-%m-%d"):
         try:
-            return datetime.strptime(txt, fmt).date()
+            dt = datetime.strptime(txt, fmt)
         except ValueError:
             continue
+        if fmt == "%Y-%m-%d":
+            return dt.date()
+        # Stocké en UTC → jour LOCAL (sinon les messages de 22 h–minuit
+        # tomberaient sous la mauvaise date).
+        return dt.replace(tzinfo=timezone.utc).astimezone().date()
     return None
 
 

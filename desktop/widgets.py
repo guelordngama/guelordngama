@@ -30,6 +30,96 @@ def _fmt_coords(lat, lng):
     return f"{abs(lat):.5f}°{ns}, {abs(lng):.5f}°{ew}"
 
 
+# --------------------------------------------------------------------------- #
+# Fiche d'alerte (format demandé par le centre)
+# --------------------------------------------------------------------------- #
+TYPE_NAMES = {"vol": "Vol", "braquage": "Braquage", "incendie": "Incendie",
+              "accident": "Accident", "violence": "Violence", "agression": "Agression",
+              "autre": "Autre"}
+STATUS_FICHE = {"active": ("EN ATTENTE", "#ef4444"),
+                "assignee": ("PRISE EN CHARGE", "#f97316"),
+                "cloturee": ("CLÔTURÉE", "#16a34a")}
+_STREET_KINDS = ((("avenue ", "av. ", "av "), "Avenue"), (("rue ",), "Rue"),
+                 (("boulevard ", "bd "), "Boulevard"), (("route ",), "Route"),
+                 (("chaussée ", "chaussee "), "Chaussée"), (("place ",), "Place"))
+
+
+def gps_signed(lat, lng):
+    """GPS au format décimal signé « -11.664700, 27.479400 » (Google Maps, radio)."""
+    if lat is None or lng is None:
+        return "—"
+    return f"{lat:.6f}, {lng:.6f}"
+
+
+def street_parts(street):
+    """« Avenue Kasai » -> ("Avenue", "Kasai") ; « Rue Mitwaba » -> ("Rue", "Mitwaba")."""
+    s = (street or "").strip()
+    low = s.lower()
+    for prefixes, label in _STREET_KINDS:
+        for p in prefixes:
+            if low.startswith(p):
+                return label, s[len(p):].strip() or s
+    return "Avenue / Rue", s
+
+
+def _geocoding_pending(alert, window_s=45):
+    """Adresse encore en recherche (géocodage en arrière-plan juste après l'envoi)."""
+    if alert.get("position_approx") or alert.get("street") or alert.get("commune") \
+            or alert.get("neighborhood"):
+        return False
+    from datetime import datetime
+
+    try:
+        created = datetime.fromisoformat((alert.get("created_at") or "").replace("Z", ""))
+    except ValueError:
+        return False
+    return (datetime.utcnow() - created).total_seconds() < window_s
+
+
+def precision_text(alert):
+    if alert.get("position_approx"):
+        return "⚠️ Position approximative (GPS non obtenu)"
+    if alert.get("position_manual"):
+        return "Position placée à la main sur la carte"
+    acc = alert.get("gps_accuracy_m")
+    return f"{round(acc)} m" if acc is not None else "Non communiquée"
+
+
+def alert_fiche(alert):
+    """Lignes de la fiche : liste de (clé, libellé, valeur)."""
+    pending = _geocoding_pending(alert)
+    unknown = "Recherche en cours…" if pending else "—"
+    street_label, street_value = street_parts(alert.get("street"))
+    status, _c = STATUS_FICHE.get(alert.get("status"), ((alert.get("status") or "—").upper(), ""))
+    return [
+        ("type", "Type", TYPE_NAMES.get(alert.get("type"), (alert.get("type") or "—").capitalize())),
+        ("citizen", "Citoyen", alert.get("reporter_name") or "Citoyen anonyme"),
+        ("phone", "Téléphone", alert.get("reporter_phone") or "Non communiqué"),
+        ("commune", "Commune", alert.get("commune") or unknown),
+        ("street", street_label, street_value or unknown),
+        ("quartier", "Quartier", alert.get("neighborhood") or unknown),
+        ("city", "Ville", alert.get("city") or "—"),
+        ("gps", "GPS", gps_signed(alert.get("lat"), alert.get("lng"))),
+        ("precision", "Précision", precision_text(alert)),
+        ("time", "Heure", alert.get("time") or "—"),
+        ("status", "Statut", status),
+    ]
+
+
+def alert_fiche_text(alert):
+    """Fiche texte à copier-coller (WhatsApp, SMS, radio)."""
+    head = {"active": "🔴 NOUVELLE ALERTE", "assignee": "🟠 ALERTE PRISE EN CHARGE",
+            "cloturee": "🟢 ALERTE CLÔTURÉE"}.get(alert.get("status"), "🔴 ALERTE")
+    lines = [head + (f"  #{alert['reference']}" if alert.get("reference") else ""), ""]
+    for key, label, value in alert_fiche(alert):
+        if key == "gps":
+            lines.append("")
+        lines.append(f"{label} : {value}")
+    if alert.get("lat") is not None:
+        lines.append(f"Carte : https://www.google.com/maps?q={alert['lat']:.6f},{alert['lng']:.6f}")
+    return "\n".join(lines)
+
+
 def _shadow(widget, blur=22, alpha=None):
     """Ombre douce sous les cartes (plus légère en thème clair)."""
     if alpha is None:
@@ -218,11 +308,13 @@ class IncidentPopup(QDialog):
         hl.setContentsMargins(20, 16, 20, 16)
         htext = QVBoxLayout()
         htext.setSpacing(2)
-        title = QLabel(f"🚨  {(alert.get('type') or '').upper()}")
-        title.setStyleSheet("color: white; font-size: 22px; font-weight: 800;")
+        self.title_label = QLabel(self._title_text(alert))
+        self.title_label.setStyleSheet("color: white; font-size: 22px; font-weight: 800;")
+        title = self.title_label
         ref = alert.get("reference")
         sub = QLabel((f"#{ref}  ·  " if ref else "")
-                     + f"Niveau d'urgence : {theme.urgency_label(alert.get('urgency'))}")
+                     + f"{TYPE_NAMES.get(alert.get('type'), (alert.get('type') or '').capitalize())}"
+                     + f"  ·  Urgence : {theme.urgency_label(alert.get('urgency'))}")
         sub.setStyleSheet("color: rgba(255,255,255,0.92); font-weight: 600;")
         htext.addWidget(title)
         htext.addWidget(sub)
@@ -254,7 +346,7 @@ class IncidentPopup(QDialog):
             warn.setAlignment(Qt.AlignCenter)
             warn.setWordWrap(True)
             warn.setStyleSheet(
-                "background: #f59e0b22; color: #f59e0b; font-weight: 800; "
+                f"background: {theme.tint('#f59e0b', 0.16)}; color: #b45309; font-weight: 800; "
                 "padding: 8px; font-size: 13px;")
             root.addWidget(warn)
 
@@ -282,23 +374,25 @@ class IncidentPopup(QDialog):
         info = QGridLayout()
         info.setVerticalSpacing(8)
         info.setHorizontalSpacing(14)
-        self._coords_text = _fmt_coords(alert.get("lat"), alert.get("lng"))
-        rows = [
-            ("👤 Citoyen", alert.get("reporter_name") or "Citoyen anonyme"),
-            ("📞 Téléphone", alert.get("reporter_phone") or "Non communiqué"),
-            ("🕒 Heure", alert.get("time") or "—"),
-            ("📍 Quartier", alert.get("neighborhood") or "—"),
-            ("🌐 Position exacte", self._coords_text),
-            ("📏 Distance équipe", f"{round(alert['distance_m'])} m" if alert.get("distance_m") is not None else "—"),
-        ]
-        for i, (k, v) in enumerate(rows):
-            kl = QLabel(k)
+        self._coords_text = gps_signed(alert.get("lat"), alert.get("lng"))
+        # Fiche d'alerte, dans l'ordre demandé par le centre (mise à jour en
+        # direct quand l'adresse arrive du géocodage).
+        self._fiche_keys = {}
+        self._fiche_values = {}
+        rows = alert_fiche(alert) + [
+            ("distance", "Distance équipe",
+             f"{round(alert['distance_m'])} m" if alert.get("distance_m") is not None else "—")]
+        for i, (key, label, value) in enumerate(rows):
+            kl = QLabel(label + " :")
             kl.setStyleSheet(f"color: {theme.MUTED}; font-weight: 600;")
-            vl = QLabel(str(v))
+            vl = QLabel(str(value))
             vl.setWordWrap(True)
-            vl.setStyleSheet("font-weight: 700;")
+            vl.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            vl.setStyleSheet(self._value_style(key, alert))
             info.addWidget(kl, i, 0, Qt.AlignTop)
-            info.addWidget(vl, i, 1)
+            info.addWidget(vl, i, 1, Qt.AlignLeft if key == "status" else Qt.Alignment())
+            self._fiche_keys[key] = kl
+            self._fiche_values[key] = vl
         content.addLayout(info, 1)
 
         self._photo_pixmap = None
@@ -327,12 +421,22 @@ class IncidentPopup(QDialog):
             body.addWidget(desc)
 
         # Copier la position GPS exacte (pour la transmettre à une patrouille).
+        copy_row = QHBoxLayout()
+        copy_row.setSpacing(8)
+        self.btn_copy_fiche = QPushButton("📋  Copier la fiche")
+        self.btn_copy_fiche.setObjectName("ghost")
+        self.btn_copy_fiche.setCursor(Qt.PointingHandCursor)
+        self.btn_copy_fiche.setToolTip("Copie toute la fiche (à coller dans WhatsApp, SMS…)")
+        self.btn_copy_fiche.clicked.connect(self._copy_fiche)
+        copy_row.addWidget(self.btn_copy_fiche)
         if self._coords_text != "—":
-            self.btn_copy_gps = QPushButton(f"📋  Copier la position GPS  ({self._coords_text})")
+            self.btn_copy_gps = QPushButton("📍  Copier le GPS")
             self.btn_copy_gps.setObjectName("ghost")
             self.btn_copy_gps.setCursor(Qt.PointingHandCursor)
+            self.btn_copy_gps.setToolTip(self._coords_text)
             self.btn_copy_gps.clicked.connect(self._copy_coords)
-            body.addWidget(self.btn_copy_gps)
+            copy_row.addWidget(self.btn_copy_gps)
+        body.addLayout(copy_row)
 
         # Message vocal joint par le citoyen : lecteur intégré (en urgence,
         # l'opérateur doit pouvoir l'écouter tout de suite).
@@ -451,9 +555,50 @@ class IncidentPopup(QDialog):
         from PySide6.QtWidgets import QApplication
 
         QApplication.clipboard().setText(self._coords_text)
-        self.btn_copy_gps.setText(f"✓  Position copiée  ({self._coords_text})")
-        QTimer.singleShot(1800, lambda: self.btn_copy_gps.setText(
-            f"📋  Copier la position GPS  ({self._coords_text})"))
+        self.btn_copy_gps.setText("✓  GPS copié")
+        QTimer.singleShot(1800, lambda: self.btn_copy_gps.setText("📍  Copier le GPS"))
+
+    def _copy_fiche(self):
+        """Copie la fiche complète de l'alerte (texte prêt à partager)."""
+        from PySide6.QtWidgets import QApplication
+
+        QApplication.clipboard().setText(alert_fiche_text(self.alert))
+        self.btn_copy_fiche.setText("✓  Fiche copiée")
+        QTimer.singleShot(1800, lambda: self.btn_copy_fiche.setText("📋  Copier la fiche"))
+
+    # ---- Fiche : style et mise à jour en direct ----
+    @staticmethod
+    def _title_text(alert):
+        return {"active": "🔴  NOUVELLE ALERTE", "assignee": "🟠  ALERTE PRISE EN CHARGE",
+                "cloturee": "🟢  ALERTE CLÔTURÉE"}.get(alert.get("status"), "🔴  ALERTE")
+
+    @staticmethod
+    def _value_style(key, alert):
+        if key == "status":
+            color = STATUS_FICHE.get(alert.get("status"), ("", theme.TEXT))[1] or theme.TEXT
+            return (f"font-weight: 800; color: {color}; background: {theme.tint(color, 0.12)};"
+                    " border-radius: 8px; padding: 2px 8px;")
+        if key in ("commune", "street", "quartier") and _geocoding_pending(alert):
+            return f"font-weight: 600; color: {theme.MUTED}; font-style: italic;"
+        if key == "precision" and (alert.get("position_approx")):
+            return "font-weight: 800; color: #b45309;"
+        if key == "gps":
+            return "font-weight: 800; font-family: Consolas, 'DejaVu Sans Mono', monospace;"
+        return "font-weight: 700;"
+
+    def update_alert(self, alert):
+        """L'alerte a changé (adresse géocodée, prise en charge…) : on rafraîchit
+        la fiche sans refermer la fenêtre."""
+        self.alert = alert
+        self.title_label.setText(self._title_text(alert))
+        for key, label, value in alert_fiche(alert):
+            vl = self._fiche_values.get(key)
+            if vl is None:
+                continue
+            vl.setText(str(value))
+            vl.setStyleSheet(self._value_style(key, alert))
+            if key == "street":
+                self._fiche_keys[key].setText(label + " :")
 
     def _open_full_photo(self):
         """Affiche la photo du citoyen en grand dans une fenêtre."""

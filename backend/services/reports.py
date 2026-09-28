@@ -9,7 +9,7 @@ from datetime import datetime
 from sqlalchemy import func
 
 from ..extensions import db
-from ..models import DANGER_TYPES, Alert
+from ..models import DANGER_TYPES, Alert, local_str
 from . import stats as stats_service
 
 try:
@@ -126,7 +126,7 @@ def generate_pdf(period="all"):
     data = [header]
     for a in period_alerts[:60]:
         data.append([
-            a.created_at.strftime("%d/%m %H:%M") if a.created_at else "—",
+            local_str(a.created_at, "%d/%m %H:%M") or "—",
             a.type.capitalize(),
             a.neighborhood or "—",
             URGENCY_LABELS.get(a.urgency, a.urgency or "—"),

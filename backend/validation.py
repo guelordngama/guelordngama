@@ -67,8 +67,21 @@ def validate_alert_payload(data):
         "audio": data.get("audio"),
         "video": data.get("video"),
         "position_approx": bool(data.get("position_approx")),
+        "position_manual": bool(data.get("position_manual")),
+        "accuracy": _clean_accuracy(data.get("accuracy")),
         "reporter_id": data.get("reporter_id"),
     }
+
+
+def _clean_accuracy(value):
+    """Précision GPS en mètres (0 < x ≤ 100 km), sinon None."""
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return None
+    if v != v or v <= 0 or v > 100000:   # NaN, négatif, absurde
+        return None
+    return round(v, 1)
 
 
 def normalize_phone(value):

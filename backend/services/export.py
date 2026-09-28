@@ -28,7 +28,7 @@ def _rows(filters):
     for a in result["items"]:
         yield {
             "id": a["id"],
-            "time_full": (a.get("created_at") or "").replace("T", " ")[:19],
+            "time_full": a.get("created_local") or (a.get("created_at") or "").replace("T", " ")[:19],
             "type": a.get("type"),
             "urgency": a.get("urgency"),
             "status": a.get("status"),

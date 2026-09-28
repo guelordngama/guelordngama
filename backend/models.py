@@ -8,7 +8,8 @@ Entités :
 Des index sont posés sur les colonnes les plus filtrées (statut, date, type)
 pour garder de bonnes performances quand le volume d'alertes grandit.
 """
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
+import os
 
 from .extensions import db
 
@@ -132,7 +133,14 @@ class Alert(TimestampMixin, db.Model):
     lat = db.Column(db.Float, nullable=False)
     lng = db.Column(db.Float, nullable=False)
     address = db.Column(db.String(255))
-    neighborhood = db.Column(db.String(120), index=True)  # quartier / commune
+    neighborhood = db.Column(db.String(120), index=True)  # quartier
+    street = db.Column(db.String(160))     # avenue / rue (géocodage)
+    commune = db.Column(db.String(120), index=True)
+    city = db.Column(db.String(120))
+    # Précision GPS annoncée par le téléphone (mètres) ; None si inconnue.
+    gps_accuracy_m = db.Column(db.Float)
+    # Position placée à la main sur la carte par le citoyen (pas de GPS).
+    position_manual = db.Column(db.Boolean, default=False, nullable=False)
 
     # Informations sur le citoyen déclarant (optionnelles)
     reporter_name = db.Column(db.String(120))
@@ -225,6 +233,12 @@ class Alert(TimestampMixin, db.Model):
             "lng": self.lng,
             "address": self.address,
             "neighborhood": self.neighborhood,
+            "street": self.street,
+            "commune": self.commune,
+            "city": self.city,
+            "gps_accuracy_m": (round(self.gps_accuracy_m) if self.gps_accuracy_m is not None
+                               else None),
+            "position_manual": bool(self.position_manual),
             "reporter_name": self.reporter_name or "Citoyen anonyme",
             "reporter_phone": self.reporter_phone,
             "position_approx": bool(self.position_approx),
@@ -246,7 +260,9 @@ class Alert(TimestampMixin, db.Model):
             "created_at": _iso(self.created_at),
             "accepted_at": _iso(self.accepted_at),
             "closed_at": _iso(self.closed_at),
-            "time": self.created_at.strftime("%Hh%M") if self.created_at else None,
+            # Heure LOCALE (Lubumbashi) : created_at est stocké en UTC.
+            "time": local_str(self.created_at, "%H:%M"),
+            "created_local": local_str(self.created_at, "%Y-%m-%d %H:%M"),
             # Regroupement de doublons : nombre de signalements liés (0 si aucun)
             # et référence à l'incident principal si cette alerte est un doublon.
             "duplicate_of": self.duplicate_of_id,
@@ -283,7 +299,7 @@ class Message(TimestampMixin, db.Model):
             "voice_duration": self.voice_duration,
             "video_url": f"/uploads/{self.video_path}" if self.video_path else None,
             "created_at": _iso(self.created_at),
-            "time": self.created_at.strftime("%H:%M") if self.created_at else None,
+            "time": local_str(self.created_at, "%H:%M"),
         }
 
 
@@ -309,8 +325,35 @@ class AuditLog(TimestampMixin, db.Model):
             "detail": self.detail,
             "ip": self.ip,
             "created_at": _iso(self.created_at),
-            "time": self.created_at.strftime("%Y-%m-%d %H:%M:%S") if self.created_at else None,
+            "time": local_str(self.created_at, "%Y-%m-%d %H:%M:%S"),
         }
+
+
+def _local_tz():
+    """Fuseau de la ville (Lubumbashi = UTC+2, pas d'heure d'été).
+
+    Configurable via SAFECITY_TIMEZONE ; repli sur UTC+2 si la base de fuseaux
+    n'est pas installée sur le serveur (images Docker « slim »)."""
+    try:
+        from zoneinfo import ZoneInfo
+        return ZoneInfo(os.environ.get("SAFECITY_TIMEZONE", "Africa/Lubumbashi"))
+    except Exception:
+        return timezone(timedelta(hours=2), "CAT")
+
+
+LOCAL_TZ = _local_tz()
+
+
+def to_local(dt):
+    """Datetime UTC naïf (stockage) -> heure locale de la ville."""
+    if dt is None:
+        return None
+    return dt.replace(tzinfo=timezone.utc).astimezone(LOCAL_TZ)
+
+
+def local_str(dt, fmt):
+    loc = to_local(dt)
+    return loc.strftime(fmt) if loc else None
 
 
 def _iso(dt):

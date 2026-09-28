@@ -525,6 +525,7 @@
         if (state.manual) return;
         state.lat = pos.coords.latitude;
         state.lng = pos.coords.longitude;
+        state.accuracy = pos.coords.accuracy;   // précision en mètres
         if (box) { box.classList.remove("gps-error"); box.classList.add("gps-ok"); }
         $("gps-text").innerHTML =
           "✅ Position obtenue : <b>" + state.lat.toFixed(5) + ", " + state.lng.toFixed(5) +
@@ -577,6 +578,7 @@
     state.lat = latlng.lat;
     state.lng = latlng.lng;
     state.manual = true;      // choix volontaire → position considérée fiable
+    state.accuracy = null;    // pas de précision GPS pour un point placé à la main
     state.neighborhood = null; state.address = null;
     if (pickMarker) pickMarker.setLatLng(latlng);
     const box = $("gps-box");
@@ -757,6 +759,9 @@
       lat: lat,
       lng: lng,
       position_approx: !hasGPS,
+      // Précision GPS (m) et mode de localisation, pour la fiche de l'opérateur.
+      accuracy: hasGPS && !state.manual ? state.accuracy : null,
+      position_manual: hasGPS && !!state.manual,
       photo: state.photo,
       audio: state.audio,
       video: state.video,
@@ -884,7 +889,8 @@
 
   function fmtTime(iso) {
     if (!iso) return "";
-    const d = new Date(iso);
+    // Le serveur stocke en UTC sans suffixe de fuseau : on l'indique au navigateur.
+    const d = new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(iso) ? iso : iso + "Z");
     if (isNaN(d)) return "";
     return d.toLocaleString("fr-FR", {
       day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",

@@ -351,7 +351,8 @@
   function msgDay(m) {
     const raw = m.created_at || "";
     if (!raw) return null;
-    const d = new Date(raw);
+    // Horodatage serveur en UTC sans suffixe : on le précise pour le navigateur.
+    const d = new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(raw) ? raw : raw + "Z");
     if (isNaN(d.getTime())) return null;
     return new Date(d.getFullYear(), d.getMonth(), d.getDate());
   }
@@ -574,6 +575,34 @@
     }[c]));
   }
 
+  // ---- Fiche d'alerte (format du centre) ----
+  const TYPE_NAMES = { vol: "Vol", braquage: "Braquage", incendie: "Incendie", accident: "Accident",
+    violence: "Violence", agression: "Agression", autre: "Autre" };
+  const STATUS_FICHE = { active: ["EN ATTENTE", "#ef4444"], assignee: ["PRISE EN CHARGE", "#f97316"],
+    cloturee: ["CLÔTURÉE", "#16a34a"] };
+  // « Avenue Kasai » -> ["Avenue", "Kasai"] ; inconnu -> ["Avenue / Rue", …]
+  function streetParts(street) {
+    const s = (street || "").trim(), low = s.toLowerCase();
+    const kinds = [[["avenue ", "av. ", "av "], "Avenue"], [["rue "], "Rue"],
+      [["boulevard ", "bd "], "Boulevard"], [["route "], "Route"], [["chaussée "], "Chaussée"]];
+    for (const [prefixes, label] of kinds) {
+      for (const p of prefixes) if (low.startsWith(p)) return [label, s.slice(p.length).trim() || s];
+    }
+    return ["Avenue / Rue", s];
+  }
+  function gpsSigned(lat, lng) {
+    if (lat == null || lng == null) return "—";
+    return Number(lat).toFixed(6) + ", " + Number(lng).toFixed(6);
+  }
+  function precisionText(a) {
+    if (a.position_approx) return "⚠️ Approximative (GPS non obtenu)";
+    if (a.position_manual) return "Placée à la main sur la carte";
+    return a.gps_accuracy_m != null ? Math.round(a.gps_accuracy_m) + " m" : "Non communiquée";
+  }
+  function ficheRow(label, value) {
+    return '<div class="fiche-row"><span>' + escapeHtml(label) + '</span><b>' + value + "</b></div>";
+  }
+
   // Coordonnées GPS lisibles : « 11.66470°S, 27.47940°E ».
   function fmtCoords(lat, lng) {
     if (lat == null || lng == null) return "—";
@@ -638,19 +667,35 @@
         ? '<span class="alert-approx">⚠️ Position approximative (GPS non obtenu) — '
           + 'rappeler le citoyen</span><br>'
         : "";
+      const [stLabel, stValue] = streetParts(a.street);
+      const st = STATUS_FICHE[a.status] || [(a.status || "—").toUpperCase(), "#64748b"];
+      node.querySelector(".alert-type").textContent =
+        (TYPE_NAMES[a.type] || (a.type || "").toUpperCase()).toUpperCase() +
+        (a.reference ? "  #" + a.reference : "") + (dup > 0 ? "  🔁" + (dup + 1) : "");
       node.querySelector(".alert-meta").innerHTML =
         dupLine + approxLine +
-        "👤 " + (a.reporter_name || "Anonyme") + " · 📞 " + (a.reporter_phone || "—") + "<br>" +
-        "📍 " + (a.neighborhood || "—") + " · 🕒 " + (a.time || "—") + "<br>" +
-        descLine +
-        '🌐 <span class="alert-coords" title="Cliquer pour copier la position">'
-          + fmtCoords(a.lat, a.lng) + "</span>"
-        + (a.distance_m != null ? " · 📏 " + Math.round(a.distance_m) + " m" : "");
+        '<div class="fiche">' +
+        ficheRow("Type", escapeHtml(TYPE_NAMES[a.type] || a.type || "—")) +
+        ficheRow("Citoyen", escapeHtml(a.reporter_name || "Anonyme") +
+          (a.reporter_phone ? ' · <a href="tel:' + escapeHtml(a.reporter_phone) + '">📞 ' +
+            escapeHtml(a.reporter_phone) + "</a>" : "")) +
+        ficheRow("Commune", escapeHtml(a.commune || "—")) +
+        ficheRow(stLabel, escapeHtml(stValue || "—")) +
+        ficheRow("Quartier", escapeHtml(a.neighborhood || "—")) +
+        ficheRow("Ville", escapeHtml(a.city || "—")) +
+        '<div class="fiche-sep"></div>' +
+        ficheRow("GPS", '<span class="alert-coords" title="Cliquer pour copier la position">' +
+          gpsSigned(a.lat, a.lng) + "</span>") +
+        ficheRow("Précision", escapeHtml(precisionText(a))) +
+        ficheRow("Heure", escapeHtml(a.time || "—") +
+          (a.distance_m != null ? " · 📏 " + Math.round(a.distance_m) + " m" : "")) +
+        ficheRow("Statut", '<span class="fiche-status" style="color:' + st[1] + "\">" + st[0] + "</span>") +
+        "</div>" + descLine;
       // Position GPS exacte cliquable → copie (pour la transmettre par radio/tel).
       const coordsEl = node.querySelector(".alert-coords");
       if (coordsEl) {
         coordsEl.addEventListener("click", () => {
-          const v = fmtCoords(a.lat, a.lng);
+          const v = gpsSigned(a.lat, a.lng);
           const ok = () => { const o = coordsEl.textContent; coordsEl.textContent = "✓ copié"; setTimeout(() => { coordsEl.textContent = o; }, 1400); };
           if (navigator.clipboard) navigator.clipboard.writeText(v).then(ok, ok); else ok();
         });
@@ -820,7 +865,7 @@
         const div = document.createElement("div");
         div.className = "history-item";
         div.style.borderLeftColor = color;
-        const date = (a.created_at || "").replace("T", " ").slice(0, 16);
+        const date = a.created_local || (a.created_at || "").replace("T", " ").slice(0, 16);
         div.innerHTML =
           "<b>" + (a.type || "").toUpperCase() + "</b> " +
           '<span style="color:' + color + '">' + (URG_LABEL[a.urgency] || "") + "</span><br>" +

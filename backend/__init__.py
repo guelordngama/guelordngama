@@ -8,7 +8,7 @@ Usage :
 from .config import get_config
 from .extensions import cors, db, migrate, socketio
 
-__version__ = "1.17.0"
+__version__ = "1.18.0"
 __all__ = ["create_app", "socketio", "db", "__version__"]
 
 
@@ -63,6 +63,9 @@ def create_app(config=None):
         # En développement/test, create_all() garde un démarrage immédiat.
         if config.ENV != "production":
             db.create_all()
+            # create_all() ne modifie pas une table existante : on ajoute les
+            # colonnes récentes à une base locale plus ancienne (dev seulement).
+            _add_missing_columns(log)
         try:
             seed_defaults(config)
             get_classifier()  # entraîne le classifieur une fois au démarrage
@@ -74,6 +77,36 @@ def create_app(config=None):
                 "Détail : %s", e)
 
     return app
+
+
+def _add_missing_columns(log):
+    """Développement : ajoute aux tables existantes les colonnes du modèle qui
+    leur manquent (ex. base SQLite locale créée avant une mise à jour).
+    En production, le schéma est géré par les migrations (flask db upgrade)."""
+    import sqlalchemy as sa
+
+    engine = db.engine
+    insp = sa.inspect(engine)
+    for table in db.metadata.sorted_tables:
+        if not insp.has_table(table.name):
+            continue
+        existing = {c["name"] for c in insp.get_columns(table.name)}
+        for col in table.columns:
+            if col.name in existing:
+                continue
+            ddl = f'ALTER TABLE "{table.name}" ADD COLUMN "{col.name}" ' \
+                  f"{col.type.compile(dialect=engine.dialect)}"
+            if not col.nullable:
+                if isinstance(col.type, sa.Boolean):
+                    ddl += " NOT NULL DEFAULT " + ("0" if engine.dialect.name == "sqlite"
+                                                   else "false")
+                else:
+                    log.warning("Colonne %s.%s non ajoutée (NOT NULL sans défaut) : "
+                                "appliquez les migrations.", table.name, col.name)
+                    continue
+            with engine.begin() as conn:
+                conn.execute(sa.text(ddl))
+            log.info("Base locale mise à jour : colonne %s.%s ajoutée.", table.name, col.name)
 
 
 def _register_security_headers(app):

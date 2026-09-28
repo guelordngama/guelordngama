@@ -12,8 +12,8 @@ from flask import current_app
 from ..ai.classifier import get_classifier
 from ..errors import NotFoundError
 from ..extensions import db, socketio
-from ..geo import (compute_intervention, coords_label, haversine_m,
-                   reverse_geocode)
+from ..geo import (compute_intervention, coords_label, default_city, haversine_m,
+                   reverse_geocode_details)
 from ..models import Alert, Team
 from ..security import save_data_url
 
@@ -106,14 +106,17 @@ def _enrich_location(app, alert_id, lat, lng):
     """Complète le quartier/adresse réels (géocodage) après coup, sans ralentir
     la création de l'alerte, puis notifie le centre (alert_updated)."""
     with app.app_context():
-        neigh, address = reverse_geocode(lat, lng)
+        details = reverse_geocode_details(lat, lng)
         alert = db.session.get(Alert, alert_id)
-        if not alert:
+        if not alert or not details:
             return
         changed = False
-        if neigh and not alert.neighborhood:
-            alert.neighborhood = neigh
-            changed = True
+        for field in ("neighborhood", "street", "commune", "city"):
+            value = details.get(field)
+            if value and value != getattr(alert, field):
+                setattr(alert, field, value)
+                changed = True
+        address = details.get("address")
         if address and address != alert.address:
             alert.address = address
             changed = True
@@ -168,6 +171,12 @@ def create_alert(data):
         eta_moto_min=eta_moto,
         eta_walk_min=eta_walk,
         position_approx=position_approx,
+        position_manual=bool(data.get("position_manual")) and not position_approx,
+        # Précision GPS : seulement pour une vraie position GPS.
+        gps_accuracy_m=(data.get("accuracy")
+                        if not position_approx and not data.get("position_manual") else None),
+        # Ville connue immédiatement (agglomération de Lubumbashi), avant géocodage.
+        city=None if position_approx else default_city(lat, lng),
         reporter_id=data.get("reporter_id"),
         duplicate_of_id=primary.id if primary else None,
     )

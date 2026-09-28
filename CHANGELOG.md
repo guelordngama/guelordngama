@@ -2,6 +2,37 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.18.0] — 2026-09-28 — Fiche d'alerte détaillée (commune, avenue, précision GPS)
+
+### Ajouté
+- **Fiche d'alerte au format du centre** dans le pop-up d'incident du poste
+  opérateur et sur les cartes de mission du portail agents :
+  `🔴 NOUVELLE ALERTE` — Type, Citoyen, Téléphone, Commune, Avenue / Rue,
+  Quartier, Ville, GPS (`-11.xxxxxx, 27.xxxxxx`), Précision, Heure,
+  Statut (`EN ATTENTE` / `PRISE EN CHARGE` / `CLÔTURÉE`).
+- Le libellé s'adapte à la voie : « Avenue », « Rue », « Boulevard », « Route »…
+- Bouton **« 📋 Copier la fiche »** (texte prêt à coller dans WhatsApp / SMS,
+  avec un lien Google Maps) et « 📍 Copier le GPS ».
+- La fiche **se complète en direct** : l'adresse est recherchée en arrière-plan
+  (« Recherche en cours… ») puis s'affiche sans refermer la fenêtre ; le statut
+  suit la prise en charge.
+- Serveur : nouvelles colonnes `street`, `commune`, `city`, `gps_accuracy_m`,
+  `position_manual` (migration `e9b2d4f6a8c1`) ; géocodage OpenStreetMap au
+  niveau de la rue, avec reconnaissance des 7 communes de Lubumbashi.
+- Site citoyen : envoie la **précision GPS** du téléphone et indique si la
+  position a été **placée à la main** (précision alors « placée à la main »).
+- Portail : téléphone du citoyen cliquable (appel direct).
+
+### Corrigé
+- **Heures décalées de 2 h** : les heures affichées (alertes, messages,
+  historique des interventions, export CSV/Excel, rapport PDF) étaient en UTC.
+  Elles sont désormais en **heure de Lubumbashi** (UTC+2, réglable via
+  `SAFECITY_TIMEZONE`). Les applications web lisent aussi correctement les
+  horodatages du serveur.
+- Statut d'une nouvelle alerte affiché « En attente » (et non « En cours »).
+- Développement : une base SQLite locale plus ancienne reçoit automatiquement
+  les nouvelles colonnes au démarrage (la production utilise les migrations).
+
 ## [1.17.0] — 2026-09-28 — Poste opérateur : centre de notifications
 
 ### Ajouté

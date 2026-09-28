@@ -168,6 +168,52 @@ def test_create_and_list_alert():
     assert isinstance(alerts, list) and len(alerts) == 1
 
 
+def test_alert_location_details_and_accuracy():
+    """Fiche d'alerte détaillée : ville, précision GPS, placement manuel,
+    et analyse des champs OpenStreetMap (commune / quartier / avenue)."""
+    from backend.geo import parse_osm_address
+    _, client = make_client()
+    # Vraie position GPS à Lubumbashi, précision annoncée par le téléphone.
+    a = client.post("/api/alerts", json={
+        "type": "braquage", "description": "braquage", "lat": -11.6876,
+        "lng": 27.5026, "accuracy": 8.4}).get_json()
+    assert a["gps_accuracy_m"] == 8
+    assert a["city"] == "Lubumbashi"
+    assert a["position_manual"] is False
+    for k in ("street", "commune", "neighborhood"):
+        assert k in a                 # champs présents (remplis par géocodage)
+    # Placement manuel : pas de précision GPS (elle serait fausse).
+    m = client.post("/api/alerts", json={
+        "type": "vol", "description": "vol", "lat": -11.66, "lng": 27.48,
+        "accuracy": 12, "position_manual": True}).get_json()
+    assert m["position_manual"] is True and m["gps_accuracy_m"] is None
+    # Précision absurde ignorée ; hors agglomération → ville inconnue.
+    x = client.post("/api/alerts", json={
+        "type": "vol", "description": "vol", "lat": -4.33, "lng": 15.31,
+        "accuracy": -3}).get_json()
+    assert x["gps_accuracy_m"] is None and x["city"] is None
+    # Position approximative : ni précision ni ville.
+    ap = client.post("/api/alerts", json={
+        "type": "vol", "description": "vol", "lat": -11.66, "lng": 27.48,
+        "accuracy": 8, "position_approx": True}).get_json()
+    assert ap["gps_accuracy_m"] is None and ap["city"] is None
+
+    # Heure affichée = heure LOCALE de Lubumbashi (UTC+2), pas l'UTC stocké.
+    from datetime import datetime, timedelta
+    utc = datetime.fromisoformat(a["created_at"].replace("Z", ""))
+    assert a["time"] == (utc + timedelta(hours=2)).strftime("%H:%M")
+    assert a["created_local"] == (utc + timedelta(hours=2)).strftime("%Y-%m-%d %H:%M")
+
+    d = parse_osm_address({"road": "Avenue Kasai", "neighbourhood": "Makutano",
+                           "city_district": "Lubumbashi", "city": "Lubumbashi"})
+    assert d == {"street": "Avenue Kasai", "neighborhood": "Makutano",
+                 "commune": "Lubumbashi", "city": "Lubumbashi"}
+    d = parse_osm_address({"road": "Rue Mitwaba", "suburb": "Kenya",
+                           "quarter": "Bongonga"}, -11.69, 27.50)
+    assert d["commune"] == "Kenya" and d["neighborhood"] == "Bongonga"
+    assert d["city"] == "Lubumbashi"
+
+
 def test_citizen_track_alert_by_reference():
     _, client = make_client()
     r = client.post("/api/alerts", json={

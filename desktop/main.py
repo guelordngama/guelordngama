@@ -1278,7 +1278,7 @@ class MainWindow(QWidget):
         table.setRowCount(len(items))
         for i, a in enumerate(items):
             cells = [
-                (a.get("created_at") or "").replace("T", " ")[:16],
+                a.get("created_local") or (a.get("created_at") or "").replace("T", " ")[:16],
                 (a.get("type") or "").capitalize(),
                 a.get("neighborhood") or "—",
                 theme.urgency_label(a.get("urgency")),
@@ -1335,6 +1335,7 @@ class MainWindow(QWidget):
     def _on_alert_updated(self, alert):
         self._note_alert_change(self.alerts.get(alert["id"]), alert)
         self.alerts[alert["id"]] = alert
+        self._update_open_popup(alert)
         self._refresh_all()
         self.page_map.add_alert(alert)
 
@@ -1435,6 +1436,7 @@ class MainWindow(QWidget):
             else:
                 self._note_alert_change(self.alerts.get(aid), a)
             self.alerts[aid] = a  # intègre aussi les changements de statut
+            self._update_open_popup(a)
         if new_ids:
             # Alertes rattrapées par le filet de sécurité : on notifie sans
             # ouvrir un incident par alerte.
@@ -1726,9 +1728,20 @@ class MainWindow(QWidget):
     @staticmethod
     def _alert_label(a):
         t = (a.get("type") or "alerte").capitalize()
-        where = a.get("neighborhood") or a.get("commune") or ""
+        place = ", ".join(x for x in (a.get("street"), a.get("neighborhood"),
+                                     a.get("commune") and f"commune {a['commune']}") if x)
         ref = a.get("reference")
-        return t, " · ".join(x for x in (where, f"#{ref}" if ref else "") if x)
+        who = a.get("reporter_name")
+        return t, " · ".join(x for x in (who, place, f"#{ref}" if ref else "") if x)
+
+    def _update_open_popup(self, alert):
+        """Fiche d'incident ouverte : on y reporte l'adresse géocodée / le statut."""
+        popup = self._open_popups.get(alert.get("id"))
+        if popup is not None and hasattr(popup, "update_alert"):
+            try:
+                popup.update_alert(alert)
+            except RuntimeError:          # fenêtre déjà détruite
+                self._open_popups.pop(alert.get("id"), None)
 
     def _notify_new_alert(self, a):
         t, where = self._alert_label(a)

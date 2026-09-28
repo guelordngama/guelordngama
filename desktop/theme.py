@@ -47,7 +47,7 @@ STATUS_COLORS = {
     "cloturee": "#22c55e",
 }
 STATUS_LABELS = {
-    "active": "En cours",
+    "active": "En attente",
     "assignee": "Affectée",
     "cloturee": "Résolue",
 }
