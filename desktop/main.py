@@ -91,26 +91,48 @@ def _resolve_tile_base(api_base):
     return b
 
 
-def app_icon():
-    """Icône d'application (bouclier SafeCity) rendue à la volée, sans fichier."""
-    from PySide6.QtGui import QColor, QFont, QIcon, QLinearGradient, QPainter, QPixmap
+def shield_pixmap(size=64):
+    """Logo SafeCity (bouclier bicolore + coche), dessiné en vectoriel."""
+    from PySide6.QtCore import QPointF
+    from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QPixmap
 
-    pm = QPixmap(64, 64)
+    pm = QPixmap(size, size)
     pm.fill(Qt.transparent)
     p = QPainter(pm)
     p.setRenderHint(QPainter.Antialiasing)
-    grad = QLinearGradient(0, 0, 0, 64)
-    grad.setColorAt(0, QColor("#3d8bff"))
-    grad.setColorAt(1, QColor("#1e40af"))
-    p.setBrush(grad)
+    k = size / 48.0
+
+    def pt(x, y):
+        return QPointF(x * k, y * k)
+
+    shield = QPainterPath()
+    shield.moveTo(pt(24, 3)); shield.lineTo(pt(40, 9)); shield.lineTo(pt(40, 20))
+    shield.cubicTo(pt(40, 30.5), pt(33.2, 38.4), pt(24, 42))
+    shield.cubicTo(pt(14.8, 38.4), pt(8, 30.5), pt(8, 20))
+    shield.lineTo(pt(8, 9)); shield.closeSubpath()
     p.setPen(Qt.NoPen)
-    p.drawRoundedRect(10, 8, 44, 48, 12, 12)
-    f = QFont(); f.setPointSize(24); f.setBold(True)
-    p.setFont(f)
-    p.setPen(QColor("white"))
-    p.drawText(pm.rect(), Qt.AlignCenter, "🛡")
+    p.setBrush(QColor("#2563eb"))
+    p.drawPath(shield)
+    right = QPainterPath()
+    right.moveTo(pt(24, 3)); right.lineTo(pt(40, 9)); right.lineTo(pt(40, 20))
+    right.cubicTo(pt(40, 30.5), pt(33.2, 38.4), pt(24, 42)); right.closeSubpath()
+    p.setBrush(QColor("#173157"))
+    p.drawPath(right)
+    pen = QPen(QColor("white"), 3.4 * k)
+    pen.setCapStyle(Qt.RoundCap); pen.setJoinStyle(Qt.RoundJoin)
+    p.setPen(pen); p.setBrush(Qt.NoBrush)
+    check = QPainterPath()
+    check.moveTo(pt(16, 24)); check.lineTo(pt(22, 30)); check.lineTo(pt(33, 18))
+    p.drawPath(check)
     p.end()
-    return QIcon(pm)
+    return pm
+
+
+def app_icon():
+    """Icône d'application (bouclier SafeCity) rendue à la volée, sans fichier."""
+    from PySide6.QtGui import QIcon
+
+    return QIcon(shield_pixmap(64))
 
 
 # --------------------------------------------------------------------------- #
@@ -175,6 +197,7 @@ class LoginDialog(QDialog):
         self.setMinimumWidth(400)
         self.setStyleSheet(theme.QSS + f"""
             QDialog {{ background: {theme.BG}; }}
+            QWidget#loginForm {{ background: {theme.BG}; }}
             QTabWidget::pane {{ border: 1px solid {theme.BORDER}; border-radius: 10px;
                                 background: {theme.BG}; top: -1px; }}
             QTabBar::tab {{ background: {theme.PANEL}; color: {theme.MUTED};
@@ -185,17 +208,27 @@ class LoginDialog(QDialog):
                                    border: none; font-weight: 600; padding: 2px; }}
         """)
 
-        root = QVBoxLayout(self)
-        root.setContentsMargins(28, 24, 28, 24)
+        # Mise en page en deux colonnes (maquette) : héro navy + formulaire.
+        self.setMinimumSize(920, 600)
+        outer = QHBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+        outer.addWidget(self._build_hero(), 11)
+        form_side = QWidget()
+        form_side.setObjectName("loginForm")
+        outer.addWidget(form_side, 10)
+
+        root = QVBoxLayout(form_side)
+        root.setContentsMargins(40, 34, 40, 28)
         root.setSpacing(6)
 
-        brand = QLabel("🛡️  SafeCity")
-        brand.setStyleSheet(f"font-size: 26px; font-weight: 800; color: {theme.TEXT};")
-        sub = QLabel("Centre de surveillance — Mairie")
+        brand = QLabel("Connexion opérateur")
+        brand.setStyleSheet(f"font-size: 22px; font-weight: 800; color: {theme.TEXT};")
+        sub = QLabel("Centre de surveillance — Mairie de Lubumbashi")
         sub.setObjectName("muted")
         root.addWidget(brand)
         root.addWidget(sub)
-        root.addSpacing(12)
+        root.addSpacing(14)
 
         tabs = QTabWidget()
         tabs.setUsesScrollButtons(False)
@@ -221,6 +254,61 @@ class LoginDialog(QDialog):
         self.info.setObjectName("muted")
         self.info.setWordWrap(True)
         root.addWidget(self.info)
+
+    def _build_hero(self):
+        """Panneau gauche navy : logo, accroche, points forts."""
+        hero = QFrame()
+        hero.setObjectName("loginHero")
+        hero.setStyleSheet(
+            "QFrame#loginHero { background: qlineargradient(x1:0, y1:0, x2:1, y2:1,"
+            " stop:0 #1d3f73, stop:0.55 #0f2447, stop:1 #0a1730); }"
+            "QFrame#loginHero QLabel { background: transparent; color: #eaf1ff; }")
+        v = QVBoxLayout(hero)
+        v.setContentsMargins(40, 36, 40, 30)
+        v.setSpacing(10)
+
+        top = QHBoxLayout()
+        top.setSpacing(12)
+        logo = QLabel()
+        logo.setPixmap(shield_pixmap(46))
+        top.addWidget(logo)
+        names = QVBoxLayout()
+        names.setSpacing(0)
+        t = QLabel("SafeCity")
+        t.setStyleSheet("font-size: 24px; font-weight: 800;")
+        st = QLabel("Lubumbashi")
+        st.setStyleSheet("font-size: 12px; color: #a8c4ee;")
+        names.addWidget(t)
+        names.addWidget(st)
+        top.addLayout(names)
+        top.addStretch()
+        v.addLayout(top)
+        v.addStretch(2)
+
+        h = QLabel("Centre de commandement")
+        h.setStyleSheet("font-size: 28px; font-weight: 800;")
+        v.addWidget(h)
+        p = QLabel("Recevez les alertes citoyennes en temps réel, localisez le danger "
+                   "et coordonnez l'intervention des agents sur le terrain.")
+        p.setWordWrap(True)
+        p.setStyleSheet("font-size: 14px; color: #c3d4ef;")
+        v.addWidget(p)
+        v.addSpacing(8)
+        badges = QHBoxLayout()
+        badges.setSpacing(8)
+        for txt in ("🚨 Alerte", "📍 Localisation", "🚓 Intervention"):
+            b = QLabel(txt)
+            b.setStyleSheet("font-size: 12px; font-weight: 600; padding: 6px 12px;"
+                            " border-radius: 13px; background: rgba(255,255,255,0.10);"
+                            " border: 1px solid rgba(255,255,255,0.18);")
+            badges.addWidget(b)
+        badges.addStretch()
+        v.addLayout(badges)
+        v.addStretch(3)
+        foot = QLabel("SafeCity · Mairie de Lubumbashi — RD Congo")
+        foot.setStyleSheet("font-size: 11px; color: #8aa6d0;")
+        v.addWidget(foot)
+        return hero
 
     # ---- Onglet Connexion ----
     def _build_login_tab(self):
@@ -432,18 +520,33 @@ class Sidebar(QFrame):
     def __init__(self):
         super().__init__()
         self.setObjectName("sidebar")
-        self.setFixedWidth(280)
+        self.setFixedWidth(260)
         root = QVBoxLayout(self)
         root.setContentsMargins(14, 18, 14, 14)
-        root.setSpacing(6)
+        root.setSpacing(4)
 
-        brand = QLabel("🛡️ SafeCity")
+        head = QHBoxLayout()
+        head.setSpacing(11)
+        logo = QLabel()
+        logo.setPixmap(shield_pixmap(40))
+        logo.setFixedSize(40, 40)
+        head.addWidget(logo)
+        names = QVBoxLayout()
+        names.setSpacing(3)
+        brand = QLabel("SafeCity")
         brand.setObjectName("brand")
-        sub = QLabel("Centre de commandement")
+        sub = QLabel("Opérateur")
         sub.setObjectName("brandSub")
-        root.addWidget(brand)
-        root.addWidget(sub)
-        root.addSpacing(16)
+        names.addWidget(brand)
+        names.addWidget(sub, 0, Qt.AlignLeft)
+        head.addLayout(names)
+        head.addStretch()
+        root.addLayout(head)
+        root.addSpacing(8)
+        section = QLabel("CENTRE DE COMMANDEMENT")
+        section.setObjectName("sideSection")
+        root.addWidget(section)
+        root.addSpacing(4)
 
         self.group = QButtonGroup(self)
         self.group.setExclusive(True)
@@ -464,7 +567,7 @@ class Sidebar(QFrame):
 
         root.addStretch()
         self.badge = QLabel("● Hors ligne")
-        self.badge.setStyleSheet("color: #ff8181; font-weight: 700; padding: 6px 10px;")
+        self.badge.setStyleSheet("color: #fca5a5; font-weight: 700; padding: 6px 10px;")
         root.addWidget(self.badge)
 
         logout = QPushButton("  🔒   Déconnexion")
@@ -476,7 +579,7 @@ class Sidebar(QFrame):
     def set_online(self, ok):
         self.badge.setText("● En ligne" if ok else "● Hors ligne")
         self.badge.setStyleSheet(
-            f"color: {'#22c55e' if ok else '#ff8181'}; font-weight: 700; padding: 6px 10px;"
+            f"color: {'#4ade80' if ok else '#fca5a5'}; font-weight: 700; padding: 6px 10px;"
         )
 
     def select(self, idx):
@@ -609,9 +712,7 @@ class MainWindow(QWidget):
         self.btn_theme.clicked.connect(self._toggle_theme)
         tl.addWidget(self.btn_theme)
         tl.addSpacing(16)
-        who = QLabel(f"👮 {self.operator.get('name', '—')}  ·  {self.operator.get('role', '')}")
-        who.setStyleSheet("font-weight: 700;")
-        tl.addWidget(who)
+        tl.addWidget(self._user_chip())
         right.addWidget(topbar)
 
         # Horloge
@@ -692,10 +793,41 @@ class MainWindow(QWidget):
         self.page_history.export_csv.connect(lambda: self._export_history("csv"))
         self.page_history.export_xlsx.connect(lambda: self._export_history("xlsx"))
 
+    def _user_chip(self):
+        """Pastille opérateur (avatar à initiales + nom + rôle), comme la maquette."""
+        name = self.operator.get("name") or "Opérateur"
+        role = {"admin": "Administrateur", "operator": "Opérateur",
+                "supervisor": "Superviseur"}.get(self.operator.get("role"), "Opérateur")
+        letters = [w for w in "".join(c if c.isalpha() or c == " " else " " for c in name).split() if w]
+        initials = ((letters[0][0] if letters else "O") + (letters[1][0] if len(letters) > 1 else "")).upper()
+        chip = QFrame()
+        chip.setObjectName("userChip")
+        chip.setFixedHeight(42)
+        lay = QHBoxLayout(chip)
+        lay.setContentsMargins(5, 4, 14, 4)
+        lay.setSpacing(9)
+        av = QLabel(initials)
+        av.setObjectName("avatar")
+        av.setAlignment(Qt.AlignCenter)
+        av.setFixedSize(30, 30)
+        lay.addWidget(av)
+        col = QVBoxLayout()
+        col.setSpacing(0)
+        n = QLabel(name)
+        n.setObjectName("chipName")
+        r = QLabel(role)
+        r.setObjectName("chipRole")
+        col.addWidget(n)
+        col.addWidget(r)
+        lay.addLayout(col)
+        return chip
+
     def _tick_clock(self):
         from datetime import datetime
 
-        self.clock.setText(datetime.now().strftime("%A %d %B %Y · %H:%M:%S"))
+        from pages import fr_date
+
+        self.clock.setText(fr_date(datetime.now(), with_time=True))
 
     def _toggle_sound(self):
         from PySide6.QtCore import QSettings
@@ -802,8 +934,15 @@ class MainWindow(QWidget):
                 self._unread_agent_ids = set()
                 self.sidebar.set_badge(self.IDX_AGENTS, 0)
             self.page_map.set_agents(agents)
+            self.page_dashboard.set_agents(agents)
         except Exception as e:
             QMessageBox.warning(self, "Agents", str(e))
+
+    def _push_agents(self):
+        """Propage la liste d'agents courante à la carte et au tableau de bord."""
+        agents = list(self.page_agents.agents.values())
+        self.page_map.set_agents(agents)
+        self.page_dashboard.set_agents(agents)
 
     def _load_analytics(self, period):
         try:
@@ -856,7 +995,7 @@ class MainWindow(QWidget):
         significant = prev is None or prev.get("availability") != agent.get("availability")
         self.page_agents.update_agent(agent)
         try:
-            self.page_map.set_agents(list(self.page_agents.agents.values()))
+            self._push_agents()
         except Exception:
             pass
         if significant and self.stack.currentIndex() != self.IDX_AGENTS:
@@ -865,7 +1004,7 @@ class MainWindow(QWidget):
 
     def _on_agent_deleted(self, agent_id):
         self.page_agents.remove_agent(agent_id)
-        self.page_map.set_agents(list(self.page_agents.agents.values()))
+        self._push_agents()
         if self.stack.currentIndex() != self.IDX_AGENTS:
             self._unread_agent_ids.add(agent_id)
             self.sidebar.set_badge(self.IDX_AGENTS, len(self._unread_agent_ids))
@@ -1049,7 +1188,7 @@ class MainWindow(QWidget):
         try:
             self.api.delete_agent(agent["id"])
             self.page_agents.remove_agent(agent["id"])
-            self.page_map.set_agents(list(self.page_agents.agents.values()))
+            self._push_agents()
             Toast(self, "Agent supprimé 🗑️", "#ef4444").show_for(2500)
         except Exception as e:
             QMessageBox.warning(self, "Suppression d'agent", str(e))
@@ -1062,7 +1201,7 @@ class MainWindow(QWidget):
                 "L'agent doit être connecté au portail (position GPS active).")
             return
         self._navigate(2)  # carte
-        self.page_map.set_agents(list(self.page_agents.agents.values()))
+        self._push_agents()
         self.page_map.focus_agent(agent["lat"], agent["lng"])
 
     def _agent_history(self, agent):
@@ -1131,7 +1270,7 @@ class MainWindow(QWidget):
                 "L'itinéraire est tracé entre un agent et l'incident qu'il traite.")
             return
         self._navigate(2)
-        self.page_map.set_agents(list(self.page_agents.agents.values()))
+        self._push_agents()
         self.page_map.show_route(agent["lat"], agent["lng"], alert["lat"], alert["lng"])
         Toast(self, "Itinéraire le plus rapide tracé 🧭", theme.ACCENT).show_for(2500)
 
@@ -1434,8 +1573,8 @@ def main():
     app.setWindowIcon(app_icon())
     settings = QSettings("SafeCity", "Operateur")
     # Applique le thème mémorisé (clair / sombre) avant de construire l'UI.
-    saved_theme = settings.value("theme", "dark")
-    theme.set_mode(saved_theme if saved_theme in ("light", "dark") else "dark")
+    saved_theme = settings.value("theme", "light")
+    theme.set_mode(saved_theme if saved_theme in ("light", "dark") else "light")
     app.setStyleSheet(theme.QSS)
 
     # Adresse du serveur : SAFECITY_API (explicite) sinon celle enregistrée dans

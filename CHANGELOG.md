@@ -2,6 +2,38 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.16.0] — 2026-09-28 — Nouveau design (site citoyen, portail agents, poste opérateur)
+
+### Changé — refonte visuelle calquée sur la maquette
+- **Système visuel commun** aux 3 applications : thème clair par défaut (le
+  sombre reste disponible), cartes blanches, accent bleu, logo bouclier vectoriel.
+- **Site citoyen** : connexion en deux colonnes ; tableau de bord avec barre
+  latérale (Accueil, Mes alertes, Suivre une alerte, À propos, Paramètres) ;
+  Accueil = bouton SOS + position actuelle + dernière alerte ; écrans Détails,
+  Confirmation et Suivi en cartes ; nouveaux écrans Mes alertes, À propos,
+  Paramètres ; barre d'onglets en bas sur mobile. Libellés FR/SW ajoutés.
+- **Portail agents** : connexion en deux colonnes ; barre latérale Mes missions
+  / Carte / Messagerie / Historique ; cartes de mission avec « Accepter la
+  mission », « Localiser », **Google Maps** (itinéraire vers le citoyen) et
+  « Terminer l'intervention » ; messagerie en bulles ; onglets mobiles.
+- **Poste opérateur** : barre latérale navy avec logo, tuiles de statistiques
+  pleines (bleu/rouge/vert/navy), alertes récentes + zones à risque, nouveau
+  bandeau **Agents disponibles**, pastille opérateur (initiales) dans la barre
+  supérieure, écran de connexion en deux colonnes, référence de l'alerte dans le
+  pop-up d'incident.
+
+### Corrigé
+- **Mises à jour du site citoyen invisibles sur les téléphones** : le service
+  worker servait la coquille en « cache d'abord » avec un nom de cache jamais
+  modifié, donc l'ancienne version restait affichée (d'où les Ctrl+F5). Il passe
+  en **réseau d'abord** (cache seulement hors-ligne), purge l'ancien cache et
+  n'enregistre plus les tuiles de carte (stockage qui grossissait sans limite).
+- Portail agents : carte centrée sur **Lubumbashi** (elle l'était sur Kinshasa).
+- Poste opérateur : dates affichées **en français** quelle que soit la langue de
+  Windows ; couleurs translucides corrigées (Qt lit `#RRGGBBAA` comme
+  `#AARRGGBB` : les pastilles « en cours » et le surlignage « non lu »
+  apparaissaient en bordeaux opaque).
+
 ## [1.15.4] — 2026-07-31 — Console moins alarmante : journaux d'accès aux tuiles masqués
 
 ### Corrigé (« regarde ce qui s'affiche » — mur rouge dans la console)

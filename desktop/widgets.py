@@ -30,12 +30,17 @@ def _fmt_coords(lat, lng):
     return f"{abs(lat):.5f}°{ns}, {abs(lng):.5f}°{ew}"
 
 
-def _shadow(widget, blur=24, alpha=90):
+def _shadow(widget, blur=22, alpha=None):
+    """Ombre douce sous les cartes (plus légère en thème clair)."""
+    if alpha is None:
+        alpha = 22 if theme.current_mode() == "light" else 90
+    else:
+        alpha = min(alpha, 26) if theme.current_mode() == "light" else alpha
     eff = QGraphicsDropShadowEffect(widget)
     eff.setBlurRadius(blur)
     eff.setXOffset(0)
-    eff.setYOffset(6)
-    eff.setColor(QColor(0, 0, 0, alpha))
+    eff.setYOffset(4)
+    eff.setColor(QColor(16, 24, 40, alpha))
     widget.setGraphicsEffect(eff)
 
 
@@ -48,13 +53,21 @@ class StatCard(QFrame):
 
     clicked = Signal()
 
-    def __init__(self, icon, label, color=theme.ACCENT):
+    def __init__(self, icon, label, color=theme.ACCENT, filled=False):
         super().__init__()
-        self.setObjectName("card")
+        self.setObjectName("statFilled" if filled else "card")
         self.setMinimumHeight(110)
         self._color = color
         self._clickable = False
+        self._filled = filled
         _shadow(self)
+        if filled:
+            # Tuile pleine (maquette) : dégradé de la couleur, texte blanc.
+            dark = QColor(color).darker(128).name()
+            self.setStyleSheet(
+                f"QFrame#statFilled {{ background: qlineargradient(x1:0, y1:0, x2:1, y2:1,"
+                f" stop:0 {color}, stop:1 {dark}); border: none; border-radius: 16px; }}"
+                f"QFrame#statFilled QLabel {{ color: white; background: transparent; }}")
         lay = QHBoxLayout(self)
         lay.setContentsMargins(18, 16, 18, 16)
         lay.setSpacing(14)
@@ -63,7 +76,8 @@ class StatCard(QFrame):
         chip.setAlignment(Qt.AlignCenter)
         chip.setFixedSize(52, 52)
         chip.setStyleSheet(
-            f"background: {color}22; border-radius: 14px; font-size: 24px;"
+            f"background: {'rgba(255,255,255,0.20)' if filled else theme.tint(color, 0.14)};"
+            " border-radius: 14px; font-size: 24px;"
         )
         lay.addWidget(chip)
 
@@ -71,12 +85,13 @@ class StatCard(QFrame):
         col.setSpacing(2)
         self.value = QLabel("0")
         self.value.setObjectName("cardValue")
-        self.value.setStyleSheet(f"color: {color};")
+        self.value.setStyleSheet(f"color: {'white' if filled else color};")
         lbl = QLabel(label)
         lbl.setObjectName("cardLabel")
         self.subtitle = QLabel("")
         self.subtitle.setObjectName("muted")
-        self.subtitle.setStyleSheet("font-size: 11px;")
+        self.subtitle.setStyleSheet(
+            "font-size: 11px;" + (" color: rgba(255,255,255,0.85);" if filled else ""))
         self.subtitle.hide()
         col.addStretch()
         col.addWidget(self.value)
@@ -139,7 +154,7 @@ class Badge(QLabel):
         self.setAlignment(Qt.AlignCenter)
         self.setFixedHeight(24)
         self.setStyleSheet(
-            f"background: {color}26; color: {color}; border-radius: 12px;"
+            f"background: {theme.tint(color, 0.15)}; color: {color}; border-radius: 12px;"
             f"padding: 0 12px; font-weight: 700; font-size: 12px;"
         )
 
@@ -205,7 +220,9 @@ class IncidentPopup(QDialog):
         htext.setSpacing(2)
         title = QLabel(f"🚨  {(alert.get('type') or '').upper()}")
         title.setStyleSheet("color: white; font-size: 22px; font-weight: 800;")
-        sub = QLabel(f"Niveau d'urgence : {theme.urgency_label(alert.get('urgency'))}")
+        ref = alert.get("reference")
+        sub = QLabel((f"#{ref}  ·  " if ref else "")
+                     + f"Niveau d'urgence : {theme.urgency_label(alert.get('urgency'))}")
         sub.setStyleSheet("color: rgba(255,255,255,0.92); font-weight: 600;")
         htext.addWidget(title)
         htext.addWidget(sub)
@@ -221,7 +238,7 @@ class IncidentPopup(QDialog):
         self.timer_label = QLabel("")
         self.timer_label.setAlignment(Qt.AlignCenter)
         self.timer_label.setStyleSheet(
-            f"background: {color}22; color: {color}; font-weight: 800; "
+            f"background: {theme.tint(color, 0.14)}; color: {color}; font-weight: 800; "
             f"padding: 7px; font-size: 13px;")
         root.addWidget(self.timer_label)
         self._elapsed_timer = QTimer(self)
@@ -251,7 +268,7 @@ class IncidentPopup(QDialog):
             banner.setAlignment(Qt.AlignCenter)
             banner.setWordWrap(True)
             banner.setStyleSheet(
-                f"background: {theme.ACCENT}22; color: {theme.ACCENT}; "
+                f"background: {theme.tint(theme.ACCENT, 0.14)}; color: {theme.ACCENT}; "
                 f"font-weight: 800; padding: 8px; font-size: 13px;")
             root.addWidget(banner)
 

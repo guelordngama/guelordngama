@@ -68,7 +68,7 @@ def _fmt_duration(seconds):
 def _pill_style(color):
     """Feuille de style pour une pastille de situation colorée."""
     return (
-        f"background: {color}22; color: {color}; border: 1px solid {color}55;"
+        f"background: {theme.tint(color, 0.13)}; color: {color}; border: 1px solid {theme.tint(color, 0.35)};"
         "border-radius: 14px; padding: 6px 14px; font-weight: 600;"
     )
 
@@ -158,10 +158,11 @@ class DashboardPage(QWidget):
         # Rangée de tuiles (cliquables → navigation)
         cards = QHBoxLayout()
         cards.setSpacing(16)
-        self.card_today = StatCard("🚨", "Alertes aujourd'hui", theme.ACCENT)
-        self.card_progress = StatCard("⏳", "Alertes en cours", "#f97316")
-        self.card_resolved = StatCard("✅", "Alertes résolues", "#22c55e")
-        self.card_agents = StatCard("👮", "Agents connectés", theme.ACCENT_2)
+        # Tuiles pleines colorées (maquette) : rouge / bleu / vert / navy.
+        self.card_today = StatCard("🚨", "Alertes aujourd'hui", "#2563eb", filled=True)
+        self.card_progress = StatCard("⏳", "Alertes en cours", "#ef4444", filled=True)
+        self.card_resolved = StatCard("✅", "Alertes résolues", "#16a34a", filled=True)
+        self.card_agents = StatCard("👮", "Agents connectés", "#1b3a6b", filled=True)
         for c in (self.card_today, self.card_progress, self.card_resolved, self.card_agents):
             c.set_clickable(True)
             cards.addWidget(c)
@@ -172,26 +173,22 @@ class DashboardPage(QWidget):
         self.card_agents.clicked.connect(lambda: self.navigate.emit(self.NAV_AGENTS))
         root.addLayout(cards)
 
-        # Graphiques (2 colonnes)
-        gr = QHBoxLayout()
-        gr.setSpacing(16)
+        # Graphiques + dernières alertes
         self.card_types = Card("Répartition par type d'incident")
         self.card_zones = Card("Zones à risque (top communes)")
         self._types_holder = QVBoxLayout()
         self._zones_holder = QVBoxLayout()
         self.card_types.v.addLayout(self._types_holder)
         self.card_zones.v.addLayout(self._zones_holder)
-        gr.addWidget(self.card_types, 3)
-        gr.addWidget(self.card_zones, 2)
-        root.addLayout(gr)
 
-        # Dernières alertes
+        # Dernières alertes (à gauche) + zones à risque (à droite)
         recent = Card("Dernières alertes")
         top = QHBoxLayout()
-        title = QLabel("Dernières alertes")
+        title = QLabel("Alertes récentes")
         title.setObjectName("sectionTitle")
         btn_map = QPushButton("🗺️ Voir la carte")
         btn_map.setObjectName("ghost")
+        btn_map.setCursor(Qt.PointingHandCursor)
         btn_map.clicked.connect(self.go_to_map.emit)
         top.addWidget(title)
         top.addStretch()
@@ -201,10 +198,28 @@ class DashboardPage(QWidget):
         recent.v.insertLayout(0, top)
 
         self.recent_table = _table(["Heure", "Type", "Quartier", "Distance", "Urgence", "Statut"])
-        self.recent_table.setMinimumHeight(240)
+        self.recent_table.setMinimumHeight(260)
         self.recent_table.cellDoubleClicked.connect(self._on_double)
         recent.add(self.recent_table)
-        root.addWidget(recent)
+
+        row2 = QHBoxLayout()
+        row2.setSpacing(16)
+        row2.addWidget(recent, 3)
+        row2.addWidget(self.card_zones, 2)
+        root.addLayout(row2)
+
+        # Agents disponibles (bandeau de pastilles, comme la maquette)
+        self.card_agents_strip = Card("Agents disponibles")
+        self._agents_row = QHBoxLayout()
+        self._agents_row.setSpacing(10)
+        self.card_agents_strip.v.addLayout(self._agents_row)
+        self._agents_empty = QLabel("Aucun agent enregistré.")
+        self._agents_empty.setObjectName("muted")
+        self._agents_row.addWidget(self._agents_empty)
+        self._agents_row.addStretch()
+        root.addWidget(self.card_agents_strip)
+
+        root.addWidget(self.card_types)
 
         self._chart_types = None
         self._chart_zones = None
@@ -263,6 +278,52 @@ class DashboardPage(QWidget):
         rows = alerts[:8]
         _fill_alert_table(self.recent_table, rows)
 
+    def set_agents(self, agents):
+        """Bandeau « Agents disponibles » : avatar, nom et disponibilité."""
+        _clear(self._agents_row)
+        agents = [a for a in (agents or []) if a.get("role", "agent") == "agent"]
+        order = {"available": 0, "busy": 1, "offline": 2}
+        agents.sort(key=lambda a: (order.get(a.get("availability"), 3), a.get("name") or ""))
+        avail = sum(1 for a in agents if a.get("availability") == "available")
+        title = self.card_agents_strip.findChild(QLabel, "sectionTitle")
+        if title:
+            title.setText(f"Agents disponibles ({avail}/{len(agents)})")
+        if not agents:
+            lbl = QLabel("Aucun agent enregistré.")
+            lbl.setObjectName("muted")
+            self._agents_row.addWidget(lbl)
+        labels = {"available": ("Libre", "#16a34a"), "busy": ("En mission", "#f97316"),
+                  "offline": ("Hors service", "#64748b")}
+        for a in agents[:8]:
+            txt, col = labels.get(a.get("availability"), ("—", "#64748b"))
+            chip = QFrame()
+            chip.setObjectName("agentChip")
+            chip.setStyleSheet(
+                f"QFrame#agentChip {{ background: {theme.BG_ALT}; border: 1px solid {theme.BORDER};"
+                f" border-radius: 12px; }} QFrame#agentChip QLabel {{ background: transparent; }}")
+            h = QHBoxLayout(chip)
+            h.setContentsMargins(8, 6, 12, 6)
+            h.setSpacing(8)
+            name = a.get("name") or "Agent"
+            ini = _initials(name)
+            av = QLabel(ini)
+            av.setAlignment(Qt.AlignCenter)
+            av.setFixedSize(30, 30)
+            av.setStyleSheet(f"background: {col}; color: white; border-radius: 15px;"
+                             " font-weight: 800; font-size: 11px;")
+            h.addWidget(av)
+            col_l = QVBoxLayout()
+            col_l.setSpacing(0)
+            n = QLabel(name)
+            n.setStyleSheet("font-weight: 700; font-size: 12.5px;")
+            st = QLabel(txt)
+            st.setStyleSheet(f"color: {col}; font-size: 11px; font-weight: 700;")
+            col_l.addWidget(n)
+            col_l.addWidget(st)
+            h.addLayout(col_l)
+            self._agents_row.addWidget(chip)
+        self._agents_row.addStretch()
+
     def _update_header(self):
         from datetime import datetime
 
@@ -275,7 +336,7 @@ class DashboardPage(QWidget):
         else:
             salut = "Bonsoir"
         self.greeting.setText(f"{salut}, centre de supervision")
-        self.subhead.setText(now.strftime("%A %d %B %Y").capitalize())
+        self.subhead.setText(fr_date(now))
 
     def _on_double(self, row, _col):
         it = self.recent_table.item(row, 0)
@@ -758,7 +819,7 @@ class AgentsPage(QWidget):
                 item = _item(text, color, bold=is_unread)
                 item.setData(Qt.UserRole, a["id"])
                 if is_unread:
-                    item.setBackground(QColor(theme.ACCENT + "22"))
+                    item.setBackground(theme.qtint(theme.ACCENT, 0.14))
                 self.table.setItem(i, j, item)
         self.c_total.set_value(len(agents))
         self.c_avail.set_value(n_av); self.c_busy.set_value(n_bu); self.c_offline.set_value(n_of)
@@ -1780,7 +1841,7 @@ def _fill_alert_table(table, alerts, with_citizen=False, hide_distance=False, un
             it = _item(text, color, bold=is_unread)
             it.setData(Qt.UserRole, a["id"])
             if is_unread:
-                it.setBackground(QColor(theme.ACCENT + "22"))  # fond teinté « non lu »
+                it.setBackground(theme.qtint(theme.ACCENT, 0.14))  # fond teinté « non lu »
             table.setItem(i, col, it)
             col += 1
 
@@ -1800,6 +1861,24 @@ def _fill_alert_table(table, alerts, with_citizen=False, hide_distance=False, un
         put(theme.urgency_label(a.get("urgency")), theme.urgency_color(a.get("urgency")))
         put(theme.STATUS_LABELS.get(a.get("status"), a.get("status")),
             theme.STATUS_COLORS.get(a.get("status")))
+
+
+def _initials(name):
+    """Initiales d'avatar : « Jean Kabila » -> JK, « Agent 04 » -> A4."""
+    parts = [w for w in (name or "").split() if w]
+    if not parts:
+        return "?"
+    first = parts[0][0]
+    if len(parts) > 1:
+        second = parts[1].lstrip("0")[:1] if parts[1].isdigit() else parts[1][0]
+        return (first + (second or parts[1][-1])).upper()
+    return first.upper()
+
+
+def fr_date(dt, with_time=False):
+    """Date en français, indépendante de la langue du système (« Lundi 28 septembre 2026 »)."""
+    s = f"{_JOURS_FR[dt.weekday()]} {dt.day} {_MOIS_FR[dt.month - 1]} {dt.year}"
+    return s + (dt.strftime(" · %H:%M:%S") if with_time else "")
 
 
 def _clear(layout):

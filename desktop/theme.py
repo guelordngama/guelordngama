@@ -5,16 +5,21 @@ Centralise la palette de couleurs et la feuille de style Qt (QSS). Deux modes :
 """
 
 # --- Palettes (sombre / clair) ---
+# Même système visuel que le site citoyen et le portail agents : surfaces claires,
+# cartes blanches, accent bleu, et barre latérale navy (dans les deux modes).
 DARK = dict(
-    BG="#0b1220", BG_ALT="#111a2e", PANEL="#16223c", PANEL_2="#1c2b48",
-    SIDEBAR="#0d1526", BORDER="#233250", TEXT="#e6ecf5", MUTED="#8595b4",
-    ACCENT="#3d8bff", ACCENT_2="#5eead4",
+    BG="#0b1220", BG_ALT="#0f1a2e", PANEL="#131f36", PANEL_2="#182843",
+    SIDEBAR="#0a1426", BORDER="#22324f", TEXT="#e6ecf5", MUTED="#93a1bd",
+    ACCENT="#3b82f6", ACCENT_2="#14b8a6",
 )
 LIGHT = dict(
-    BG="#eef2f8", BG_ALT="#f4f7fb", PANEL="#ffffff", PANEL_2="#eaf0f8",
-    SIDEBAR="#e2e9f4", BORDER="#d3dcea", TEXT="#16223c", MUTED="#5a6b8c",
+    BG="#eef2f8", BG_ALT="#f5f7fb", PANEL="#ffffff", PANEL_2="#f1f5fb",
+    SIDEBAR="#0f1f3d", BORDER="#e3e9f2", TEXT="#16223c", MUTED="#64748b",
     ACCENT="#2563eb", ACCENT_2="#0e9488",
 )
+# Couleurs de la barre latérale navy (identiques dans les deux modes).
+SIDE_TEXT = "#c3cfe6"
+SIDE_MUTED = "#7f93b8"
 
 # Constantes de palette actives (mises à jour par set_mode). Valeurs par défaut
 # = thème sombre ; renseignées réellement à l'appel de set_mode() en fin de module.
@@ -48,6 +53,26 @@ STATUS_LABELS = {
 }
 
 
+def tint(color, alpha):
+    """Couleur translucide pour les QSS : « rgba(r,g,b,a) ».
+
+    Attention : Qt lit un hexadécimal à 8 chiffres comme #AARRGGBB (alpha EN
+    PREMIER) ; « #ef444422 » ne donne donc PAS un rouge transparent. On passe
+    toujours par cette fonction pour les fonds teintés.
+    """
+    c = (color or "#000000").lstrip("#")[:6]
+    r, g, b = int(c[0:2], 16), int(c[2:4], 16), int(c[4:6], 16)
+    return f"rgba({r},{g},{b},{alpha})"
+
+
+def qtint(color, alpha):
+    """Même chose que tint() mais renvoie un QColor (pour setBackground)."""
+    from PySide6.QtGui import QColor
+    c = QColor(color)
+    c.setAlphaF(alpha)
+    return c
+
+
 def urgency_color(u):
     return URGENCY_COLORS.get(u, ACCENT)
 
@@ -64,39 +89,55 @@ def _build_qss(p):
     outline: none;
 }}
 QWidget#root {{ background: {p['BG']}; }}
+QStackedWidget {{ background: {p['BG']}; }}
+QScrollArea, QScrollArea > QWidget, QScrollArea > QWidget > QWidget {{ background: transparent; }}
 
-/* --- Menu latéral --- */
+/* --- Menu latéral (navy) --- */
 QFrame#sidebar {{
     background: {p['SIDEBAR']};
-    border-right: 1px solid {p['BORDER']};
+    border: none;
 }}
-QLabel#brand {{ font-size: 20px; font-weight: 800; color: {p['TEXT']}; }}
-QLabel#brandSub {{ font-size: 11px; color: {p['MUTED']}; }}
+QFrame#sidebar QLabel {{ color: {SIDE_TEXT}; background: transparent; }}
+QLabel#brand {{ font-size: 19px; font-weight: 800; color: white; }}
+QLabel#brandSub {{
+    font-size: 11px; font-weight: 700; color: #93c5fd;
+    background: rgba(59,130,246,0.18); border-radius: 9px; padding: 2px 9px;
+}}
+QLabel#sideSection {{ font-size: 10.5px; font-weight: 800; color: {SIDE_MUTED}; letter-spacing: 1px; }}
 
 QPushButton#navBtn {{
     text-align: left;
-    padding: 12px 12px;
+    padding: 11px 12px;
     border: none;
     border-radius: 10px;
     background: transparent;
-    color: {p['MUTED']};
+    color: {SIDE_TEXT};
     font-size: 13.5px;
     font-weight: 600;
 }}
-QPushButton#navBtn:hover {{ background: {p['PANEL']}; color: {p['TEXT']}; }}
+QPushButton#navBtn:hover {{ background: rgba(255,255,255,0.07); color: white; }}
 QPushButton#navBtn:checked {{
     background: {p['ACCENT']};
     color: white;
 }}
 QPushButton#logoutBtn {{
-    text-align: left; padding: 12px 16px; border: none; border-radius: 10px;
-    background: transparent; color: #ff8181; font-size: 14px; font-weight: 600;
+    text-align: left; padding: 11px 14px; border: none; border-radius: 10px;
+    background: transparent; color: #fca5a5; font-size: 13.5px; font-weight: 600;
 }}
-QPushButton#logoutBtn:hover {{ background: rgba(239,68,68,0.15); }}
+QPushButton#logoutBtn:hover {{ background: rgba(239,68,68,0.16); }}
 
 /* --- Barre supérieure --- */
-QFrame#topbar {{ background: {p['BG_ALT']}; border-bottom: 1px solid {p['BORDER']}; }}
-QLabel#pageTitle {{ font-size: 22px; font-weight: 800; }}
+QFrame#topbar {{ background: {p['PANEL']}; border-bottom: 1px solid {p['BORDER']}; }}
+QLabel#pageTitle {{ font-size: 21px; font-weight: 800; }}
+QFrame#userChip {{
+    background: {p['BG_ALT']}; border: 1px solid {p['BORDER']}; border-radius: 20px;
+}}
+QLabel#avatar {{
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {p['ACCENT']}, stop:1 #1b3a6b);
+    color: white; border-radius: 15px; font-weight: 800; font-size: 12px;
+}}
+QLabel#chipName {{ font-weight: 700; font-size: 13px; }}
+QLabel#chipRole {{ color: {p['MUTED']}; font-size: 11px; }}
 QLabel#clock {{ color: {p['MUTED']}; font-size: 13px; }}
 
 /* --- Cartes / panneaux --- */
@@ -105,6 +146,7 @@ QFrame#card, QFrame#panel {{
     border: 1px solid {p['BORDER']};
     border-radius: 16px;
 }}
+QLabel#pill {{ border-radius: 14px; padding: 6px 14px; font-weight: 700; }}
 QLabel#cardValue {{ font-size: 30px; font-weight: 800; }}
 QLabel#cardLabel {{ color: {p['MUTED']}; font-size: 12px; font-weight: 600; }}
 QLabel#sectionTitle {{ font-size: 15px; font-weight: 700; }}
@@ -113,20 +155,24 @@ QLabel#muted {{ color: {p['MUTED']}; }}
 /* --- Tableaux --- */
 QTableWidget {{
     background: {p['PANEL']};
+    alternate-background-color: {p['BG_ALT']};
     border: 1px solid {p['BORDER']};
     border-radius: 12px;
-    gridline-color: {p['BORDER']};
-    selection-background-color: {p['ACCENT']};
+    gridline-color: transparent;
+    selection-background-color: rgba(37,99,235,0.18);
+    selection-color: {p['TEXT']};
 }}
 QHeaderView::section {{
-    background: {p['BG_ALT']};
+    background: {p['PANEL_2']};
     color: {p['MUTED']};
-    padding: 10px;
+    padding: 10px 8px;
     border: none;
     border-bottom: 1px solid {p['BORDER']};
     font-weight: 700;
+    font-size: 12px;
 }}
-QTableWidget::item {{ padding: 6px; border-bottom: 1px solid {p['BORDER']}; }}
+QTableWidget::item {{ padding: 6px 8px; border-bottom: 1px solid {p['BORDER']}; }}
+QTableCornerButton::section {{ background: {p['PANEL_2']}; border: none; }}
 
 /* --- Boutons --- */
 QPushButton {{
@@ -137,25 +183,26 @@ QPushButton {{
     padding: 10px 16px;
     font-weight: 700;
 }}
-QPushButton:hover {{ background: #529bff; }}
+QPushButton:hover {{ background: #1d4ed8; }}
 QPushButton:disabled {{ background: {p['BORDER']}; color: {p['MUTED']}; }}
 QPushButton#ghost {{ background: {p['PANEL']}; color: {p['TEXT']}; border: 1px solid {p['BORDER']}; }}
-QPushButton#ghost:hover {{ background: {p['BG_ALT']}; }}
+QPushButton#ghost:hover {{ background: {p['BG_ALT']}; border: 1px solid {p['ACCENT']}; }}
 QPushButton#danger {{ background: #ef4444; }}
 QPushButton#danger:hover {{ background: #f56565; }}
-QPushButton#success {{ background: #22c55e; }}
+QPushButton#success {{ background: #16a34a; }}
 QPushButton#warn {{ background: #eab308; color: #1a1400; }}
 
 /* --- Champs --- */
-QLineEdit, QComboBox {{
-    background: {p['BG_ALT']};
+QLineEdit, QComboBox, QTextEdit, QPlainTextEdit, QSpinBox, QDateEdit {{
+    background: {p['PANEL']};
     border: 1px solid {p['BORDER']};
     border-radius: 10px;
     padding: 10px 12px;
     color: {p['TEXT']};
     selection-background-color: {p['ACCENT']};
 }}
-QLineEdit:focus, QComboBox:focus {{ border: 1px solid {p['ACCENT']}; }}
+QLineEdit:focus, QComboBox:focus, QTextEdit:focus {{ border: 1px solid {p['ACCENT']}; }}
+QComboBox::drop-down, QDateEdit::drop-down {{ border: none; width: 26px; }}
 QComboBox QAbstractItemView {{
     background: {p['PANEL']}; border: 1px solid {p['BORDER']};
     selection-background-color: {p['ACCENT']};
@@ -168,7 +215,7 @@ QScrollBar::handle:vertical:hover {{ background: {p['MUTED']}; }}
 QScrollBar::add-line, QScrollBar::sub-line {{ height: 0; }}
 
 /* --- Barre d'état --- */
-QFrame#statusbar {{ background: {p['BG_ALT']}; border-top: 1px solid {p['BORDER']}; }}
+QFrame#statusbar {{ background: {p['PANEL']}; border-top: 1px solid {p['BORDER']}; }}
 QFrame#statusbar QLabel {{ color: {p['MUTED']}; font-size: 12px; }}
 
 QDialog {{ background: {p['BG']}; }}
@@ -192,5 +239,5 @@ def current_mode():
     return _MODE
 
 
-# Initialise QSS avec le thème par défaut (sombre) au chargement du module.
-QSS = _build_qss(DARK)
+# Initialise QSS avec le thème par défaut (clair) au chargement du module.
+set_mode("light")
