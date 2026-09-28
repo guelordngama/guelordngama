@@ -16,7 +16,7 @@
   (function initTheme() {
     const KEY = "safecity_theme";
     const root = document.documentElement;
-    apply(localStorage.getItem(KEY) || "dark");
+    apply(localStorage.getItem(KEY) || "light");
     function apply(mode) {
       root.setAttribute("data-theme", mode);
       const btn = document.getElementById("theme-toggle");
@@ -464,7 +464,8 @@
 
   function initMap() {
     if (typeof L === "undefined") { throw new Error("Leaflet non chargé"); }
-    state.map = L.map("map").setView([-4.325, 15.3222], 13);
+    // Centre de Lubumbashi (jamais Kinshasa).
+    state.map = L.map("map").setView([-11.6647, 27.4794], 13);
     // Tuiles servies par le proxy du serveur SafeCity (/tiles/…) : contourne le
     // blocage des CDN externes par le pare-feu.
     L.tileLayer(API + "/tiles/{z}/{x}/{y}.png",
@@ -664,6 +665,9 @@
       bAccept.textContent = accepted ? "✅ Prise en charge" : "✅ Accepter";
       bAccept.disabled = accepted;
       bAccept.addEventListener("click", () => accept(a.id));
+      // Itinéraire Google Maps vers le citoyen (téléphone de l'agent).
+      const gm = node.querySelector(".btn-gmaps");
+      if (gm) gm.href = "https://www.google.com/maps/dir/?api=1&destination=" + a.lat + "," + a.lng;
       node.querySelector(".btn-locate").addEventListener("click", () => {
         if (state.map) state.map.setView([a.lat, a.lng], 16);
         if (state.markers[a.id]) state.markers[a.id].openPopup();
