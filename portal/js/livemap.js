@@ -13,8 +13,10 @@
   var URG_LABEL = { faible: "Faible", moyenne: "Moyen", haute: "Élevé", critique: "Critique" };
   var TYPE_NAMES = { vol: "Vol", braquage: "Braquage", incendie: "Incendie", accident: "Accident",
                      violence: "Violence", agression: "Agression", autre: "Autre" };
-  var STATUS = { active: ["EN ATTENTE", "#ef4444"], assignee: ["PRISE EN CHARGE", "#f97316"],
-                 cloturee: ["CLÔTURÉE", "#16a34a"] };
+  var STATUS = { active: ["EN ATTENTE", "#ef4444"], assignee: ["EN COURS", "#f97316"],
+                 cloturee: ["TRAITÉ", "#16a34a"] };
+  // N° d'intervention « SC-2026-0048 » (repli : code de suivi).
+  function num(a) { return a.incident_number || a.reference || String(a.id); }
   var AVAIL = { available: ["Disponible", "#16a34a"], busy: ["En intervention", "#f97316"],
                 offline: ["Hors service", "#64748b"] };
 
@@ -147,11 +149,12 @@
         ["Quartier", esc(a.neighborhood || "—")], ["Ville", esc(a.city || "—")],
         ["GPS", gps(a.lat, a.lng)], ["Précision", esc(precision(a))], ["Heure", esc(a.time || "—")],
         ["Statut", '<span style="color:' + st[1] + '">' + st[0] + "</span>"]];
-      if (a.assigned_agent) rows.push(["Agent", esc(isMine(a) ? "Moi (" + a.assigned_agent.name + ")" : a.assigned_agent.name)]);
+      if (a.assigned_agent) rows.push(["Agent", "👮 " + esc(isMine(a) ? "Moi (" + a.assigned_agent.name + ")" : a.assigned_agent.name) +
+                                       " → Intervention #" + esc(num(a))]);
       if (r) rows.push(["Mon trajet", km(r.distance_m) + " · " + mins(r.duration_s) + (r.source === "direct" ? " (estimé)" : "")]);
       else if (self) rows.push(["Distance", km(dist(self, [a.lat, a.lng])) + " de vous (vol d'oiseau)"]);
       var html = '<div class="lm-fiche"><h3>' + (a.status === "active" ? "🔴 " : "🟠 ") +
-        esc((TYPE_NAMES[a.type] || a.type || "").toUpperCase()) + (a.reference ? " #" + esc(a.reference) : "") + "</h3><table>";
+        esc((TYPE_NAMES[a.type] || a.type || "").toUpperCase()) + " #" + esc(num(a)) + "</h3><table>";
       rows.forEach(function (x) {
         html += "<tr" + (x[0] === "GPS" ? ' class="sep"' : "") + "><td>" + esc(x[0]) + " :</td><td>" + x[1] + "</td></tr>";
       });
@@ -168,8 +171,8 @@
         '<tr><td>Statut :</td><td><span style="color:' + st[1] + '">' + st[0] + "</span></td></tr>" +
         "<tr><td>Position :</td><td>" + (age == null ? "—" : age < 1 ? "à l'instant" : "il y a " + age + " min") + "</td></tr>";
       if (self) html += "<tr><td>Distance :</td><td>" + km(dist(self, [g.lat, g.lng])) + " de vous</td></tr>";
-      if (a) html += '<tr class="sep"><td>Intervention :</td><td>' + esc(TYPE_NAMES[a.type] || a.type) +
-        (a.reference ? " #" + esc(a.reference) : "") + "</td></tr><tr><td>Lieu :</td><td>" + esc(placeLine(a)) + "</td></tr>";
+      if (a) html += '<tr class="sep"><td>Intervention :</td><td>#' + esc(num(a)) + " · " + esc(TYPE_NAMES[a.type] || a.type) +
+        "</td></tr><tr><td>Lieu :</td><td>" + esc(placeLine(a)) + "</td></tr>";
       return html + "</table></div>";
     }
 
@@ -249,7 +252,7 @@
         L.polyline(myRoute.coordinates, { color: "#fff", weight: 9, opacity: 0.9 }).addTo(L_ROUTES);
         L.polyline(myRoute.coordinates, { color: "#2563eb", weight: 6, opacity: 0.95,
                                          dashArray: myRoute.source === "direct" ? "8,8" : null })
-          .bindTooltip("🧭 Mon trajet · " + km(myRoute.distance_m) + " · " + mins(myRoute.duration_s) +
+          .bindTooltip("🧭 Mon trajet → Intervention #" + esc(num(alerts[myRouteFor])) + " · " + km(myRoute.distance_m) + " · " + mins(myRoute.duration_s) +
                        (myRoute.source === "direct" ? " (estimé)" : ""), { permanent: true, direction: "center", className: "lm-route-label" })
           .addTo(L_ROUTES);
       }
@@ -258,7 +261,7 @@
         var g = agents[k], a = g.current_alert_id != null ? alerts[g.current_alert_id] : null;
         if (+k === opts.selfId || !a || a.status !== "assignee" || g.lat == null) return;
         L.polyline([[g.lat, g.lng], [a.lat, a.lng]], { color: "#f97316", weight: 3, dashArray: "6,8", opacity: 0.9 })
-          .bindTooltip(esc(g.name) + " → " + esc(TYPE_NAMES[a.type] || a.type) + " · " + km(dist([g.lat, g.lng], [a.lat, a.lng])),
+          .bindTooltip("👮 " + esc(g.name) + " → Intervention #" + esc(num(a)) + " · " + km(dist([g.lat, g.lng], [a.lat, a.lng])),
                        { sticky: true }).addTo(L_ROUTES);
       });
     }

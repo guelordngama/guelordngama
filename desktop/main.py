@@ -56,7 +56,7 @@ from pages import (
     StatisticsPage,
 )
 from sound import AlarmPlayer
-from widgets import AgentDialog, IncidentPopup, Toast
+from widgets import AgentDialog, IncidentPopup, Toast, assignment_parts, incident_ref
 
 # Serveur par défaut : la production de la mairie de Lubumbashi.
 # Priorité effective (résolue dans main()) : variable SAFECITY_API >
@@ -857,6 +857,11 @@ class MainWindow(QWidget):
         self._notif_timer.start(60000)
         self.page_settings.change_password.connect(self._change_password)
         self.page_settings.server_changed.connect(self._save_server_url)
+        self.page_history.request_load.connect(self._load_history)
+        self.page_history.open_incident.connect(self._open_incident_any)
+        self._history_timer = QTimer(self)
+        self._history_timer.setSingleShot(True)
+        self._history_timer.timeout.connect(lambda: self.page_history.reload())
         self.page_history.export_csv.connect(lambda: self._export_history("csv"))
         self.page_history.export_xlsx.connect(lambda: self._export_history("xlsx"))
 
@@ -973,6 +978,8 @@ class MainWindow(QWidget):
             self._notifs_mark_read(lambda n: n.get("kind") == "agent")
         elif idx == 4:
             self._load_citizens()
+        elif idx == 5:
+            self.page_history.reload()       # historique chargé depuis le serveur
         elif idx == 7:
             self._load_analytics(self.page_analytics.period.currentData())
         elif idx == self.IDX_CHAT:
@@ -1080,7 +1087,6 @@ class MainWindow(QWidget):
             self._on_alert_updated(updated)
             self._load_agents()
             self.alarm.play_ack()
-            Toast(self, f"👮 {agent.get('name')} affecté", "#eab308").show_for(2500)
         except Exception as e:
             QMessageBox.warning(self, "Erreur", str(e))
 
@@ -1458,7 +1464,8 @@ class MainWindow(QWidget):
         alerts = self._sorted_alerts()
         self.page_dashboard.set_alerts(alerts)
         self.page_live.set_alerts(alerts)
-        self.page_history.set_alerts(alerts)
+        if self.stack.currentIndex() == 5:   # historique affiché : on le rafraîchit
+            self._history_timer.start(1500)
         self.page_map.set_alerts(alerts)
         self._refresh_stats()
 
@@ -1607,6 +1614,32 @@ class MainWindow(QWidget):
         popup.raise_()
         popup.activateWindow()
 
+    def _load_history(self, filters):
+        """Historique des incidents : page demandée + compteurs par statut."""
+        try:
+            result = self.api.get_alerts(filters=filters)
+            counts = {}
+            for st in ("", "active", "assignee", "cloturee"):
+                f = {k: v for k, v in filters.items() if k != "status"}
+                f.update(page=1, page_size=1)
+                if st:
+                    f["status"] = st
+                r = self.api.get_alerts(filters=f)
+                counts[st or "all"] = r.get("total", 0) if isinstance(r, dict) else len(r)
+            self.page_history.set_result(result, counts)
+        except Exception as e:
+            self.page_history.set_error(str(e))
+
+    def _open_incident_any(self, alert_id):
+        """Ouvre la fiche d'un incident, même ancien (hors des alertes en mémoire)."""
+        if alert_id not in self.alerts:
+            try:
+                self.alerts[alert_id] = self.api.get_alert(alert_id)
+            except Exception as e:
+                QMessageBox.warning(self, "Incident", str(e))
+                return
+        self._open_incident_by_id(alert_id)
+
     def _open_incident_by_id(self, alert_id):
         # Ouverture manuelle (double-clic / « Détails ») → l'alerte est « lue ».
         self._mark_alert_read(alert_id)
@@ -1699,7 +1732,6 @@ class MainWindow(QWidget):
                 self._on_alert_updated(updated)
                 self._load_agents()
                 self.alarm.play_ack()
-                Toast(self, "Agent assigné 👮", "#eab308").show_for(2500)
             except Exception as e:
                 QMessageBox.warning(self, "Erreur", str(e))
 
@@ -1841,9 +1873,8 @@ class MainWindow(QWidget):
         t = (a.get("type") or "alerte").capitalize()
         place = ", ".join(x for x in (a.get("street"), a.get("neighborhood"),
                                      a.get("commune") and f"commune {a['commune']}") if x)
-        ref = a.get("reference")
         who = a.get("reporter_name")
-        return t, " · ".join(x for x in (who, place, f"#{ref}" if ref else "") if x)
+        return t, " · ".join(x for x in (who, place, f"#{incident_ref(a)}") if x)
 
     def _update_open_popup(self, alert):
         """Fiche d'incident ouverte : on y reporte l'adresse géocodée / le statut."""
@@ -1868,16 +1899,22 @@ class MainWindow(QWidget):
         agent = (new.get("assigned_agent") or {}).get("name")
         prev_agent = (prev.get("assigned_agent") or {}).get("name")
         ref = {"alert_id": new.get("id")}
-        if prev.get("status") != new.get("status"):
-            if new.get("status") == "assignee":
-                self._notify("update", f"🚔 Alerte prise en charge : {t}",
-                             " · ".join(x for x in (where, agent and f"Agent : {agent}") if x),
-                             ref=ref, color="#f97316")
-            elif new.get("status") == "cloturee":
-                self._notify("update", f"✅ Alerte clôturée : {t}", where, ref=ref, color="#16a34a")
-        elif agent and agent != prev_agent:
-            self._notify("update", f"👮 {agent} affecté à l'alerte : {t}", where,
-                         ref=ref, color="#f97316")
+        if prev.get("status") != new.get("status") and new.get("status") == "cloturee":
+            self._notify("update", f"✅ Intervention #{incident_ref(new)} traitée : {t}", where,
+                         ref=ref, color="#16a34a")
+        elif agent and (agent != prev_agent or prev.get("status") != new.get("status")):
+            self._announce_assignment(new)
+
+    def _announce_assignment(self, alert):
+        """« 👮 Agent Patrick → Intervention #SC-2026-0048 » + position + statut :
+        notification, bandeau à l'écran et fiche ouverte mise à jour."""
+        line, pos, status = assignment_parts(alert)
+        t = (alert.get("type") or "alerte").capitalize()
+        where = alert.get("neighborhood") or alert.get("commune") or ""
+        self._notify("update", f"👮 {line}",
+                     f"Position : {pos}\nStatut : {status} · {t}" + (f" — {where}" if where else ""),
+                     ref={"alert_id": alert.get("id")}, color="#f97316")
+        Toast(self, f"👮 {line}  ·  {status}", "#f97316").show_for(6000)
 
     def _notify_message(self, m, read=False):
         who = m.get("sender_name") or "Utilisateur"

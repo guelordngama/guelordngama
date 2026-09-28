@@ -187,6 +187,9 @@ class ApiClient:
     def delete_agent(self, agent_id):
         return self._request("DELETE", f"/api/agents/{agent_id}", auth=True)
 
+    def get_alert(self, alert_id):
+        return self._request("GET", f"/api/alerts/{alert_id}", auth=True)
+
     def get_stats(self):
         return self._request("GET", "/api/stats", auth=True)
 

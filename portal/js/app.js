@@ -594,8 +594,8 @@
   // ---- Fiche d'alerte (format du centre) ----
   const TYPE_NAMES = { vol: "Vol", braquage: "Braquage", incendie: "Incendie", accident: "Accident",
     violence: "Violence", agression: "Agression", autre: "Autre" };
-  const STATUS_FICHE = { active: ["EN ATTENTE", "#ef4444"], assignee: ["PRISE EN CHARGE", "#f97316"],
-    cloturee: ["CLÔTURÉE", "#16a34a"] };
+  const STATUS_FICHE = { active: ["EN ATTENTE", "#ef4444"], assignee: ["EN COURS", "#f97316"],
+    cloturee: ["TRAITÉ", "#16a34a"] };
   // « Avenue Kasai » -> ["Avenue", "Kasai"] ; inconnu -> ["Avenue / Rue", …]
   function streetParts(street) {
     const s = (street || "").trim(), low = s.toLowerCase();
@@ -687,7 +687,7 @@
       const st = STATUS_FICHE[a.status] || [(a.status || "—").toUpperCase(), "#64748b"];
       node.querySelector(".alert-type").textContent =
         (TYPE_NAMES[a.type] || (a.type || "").toUpperCase()).toUpperCase() +
-        (a.reference ? "  #" + a.reference : "") + (dup > 0 ? "  🔁" + (dup + 1) : "");
+        "  #" + (a.incident_number || a.reference || a.id) + (dup > 0 ? "  🔁" + (dup + 1) : "");
       node.querySelector(".alert-meta").innerHTML =
         dupLine + approxLine +
         '<div class="fiche">' +
@@ -706,6 +706,8 @@
         ficheRow("Heure", escapeHtml(a.time || "—") +
           (a.distance_m != null ? " · 📏 " + Math.round(a.distance_m) + " m" : "")) +
         ficheRow("Statut", '<span class="fiche-status" style="color:' + st[1] + "\">" + st[0] + "</span>") +
+        (a.assigned_agent ? ficheRow("Agent", "👮 " + escapeHtml(a.assigned_agent.name) + " → Intervention #" +
+          escapeHtml(a.incident_number || a.reference || a.id)) : "") +
         "</div>" + descLine;
       // Position GPS exacte cliquable → copie (pour la transmettre par radio/tel).
       const coordsEl = node.querySelector(".alert-coords");

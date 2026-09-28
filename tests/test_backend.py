@@ -374,6 +374,50 @@ def test_security_uploads_signed_links():
     assert client.get(path, headers={"Authorization": "Bearer " + cit}).status_code == 403
 
 
+def test_incident_numbers_history_and_assignment():
+    """N° d'intervention SC-AAAA-NNNN séquentiel, recherche, agent affecté avec
+    position et statut (affichage « Agent X → Intervention #… »)."""
+    from datetime import datetime, timedelta
+    app, client = make_client()
+    h = _staff(client)
+    year = (datetime.utcnow() + timedelta(hours=2)).year
+    nums = []
+    for t in ("braquage", "accident", "incendie"):
+        a = client.post("/api/alerts", json={"type": t, "description": t, "lat": -11.66 - len(nums),
+                                             "lng": 27.48}).get_json()
+        nums.append(a["incident_number"])
+    assert nums == [f"SC-{year}-0001", f"SC-{year}-0002", f"SC-{year}-0003"]
+    # Le code citoyen reste aléatoire et distinct du numéro interne.
+    assert a["reference"] != a["incident_number"] and not a["reference"].startswith(f"SC-{year}")
+    # Recherche par numéro (historique).
+    r = client.get(f"/api/alerts?q=SC-{year}-0002&page=1&page_size=10", headers=h).get_json()
+    assert r["total"] == 1 and r["items"][0]["type"] == "accident"
+    # Affectation : l'alerte porte la position et le statut de l'agent.
+    agents = client.get("/api/agents", headers=h).get_json()
+    ag = [x for x in agents if x["role"] == "agent"][0]
+    tok = client.post("/api/auth/login", json={"email": ag["email"], "password": "safecity123"}).get_json()["token"]
+    client.post("/api/agents/me/location", json={"lat": -11.67, "lng": 27.49},
+                headers={"Authorization": "Bearer " + tok})
+    alert_id = r["items"][0]["id"]
+    up = client.post(f"/api/alerts/{alert_id}/assign-agent", json={"agent_id": ag["id"]}, headers=h).get_json()
+    aa = up["assigned_agent"]
+    assert aa["name"] == ag["name"] and aa["lat"] == -11.67 and aa["availability"] == "busy"
+    assert up["status"] == "assignee" and up["incident_number"] == f"SC-{year}-0002"
+    # Deux alertes au même instant : le numéro déjà pris est détecté, on réessaie.
+    import backend.services.alerts as svc
+    real, calls = svc._next_incident_number, {"n": 0}
+    def colliding():
+        calls["n"] += 1
+        return f"SC-{year}-0001" if calls["n"] <= 2 else real()
+    svc._next_incident_number = colliding
+    try:
+        d = client.post("/api/alerts", json={"type": "vol", "description": "v", "lat": -11.7,
+                                             "lng": 27.5}).get_json()
+    finally:
+        svc._next_incident_number = real
+    assert d["incident_number"] == f"SC-{year}-0004" and calls["n"] == 3
+
+
 def test_citizen_track_alert_by_reference():
     _, client = make_client()
     r = client.post("/api/alerts", json={

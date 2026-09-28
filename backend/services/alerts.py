@@ -38,6 +38,43 @@ def _generate_ref():
     return "SC-" + secrets.token_hex(5).upper()
 
 
+def _next_incident_number():
+    """Prochain numéro d'intervention de l'année en cours (heure de Lubumbashi)."""
+    from datetime import datetime
+
+    from sqlalchemy import func
+
+    from ..models import to_local
+
+    year = to_local(datetime.utcnow()).year
+    prefix = f"SC-{year}-"
+    last = (Alert.query.with_entities(Alert.incident_number)
+            .filter(Alert.incident_number.like(prefix + "%"))
+            # longueur d'abord : « …-10000 » passe après « …-9999 »
+            .order_by(func.length(Alert.incident_number).desc(),
+                      Alert.incident_number.desc()).first())
+    seq = int(last[0].rsplit("-", 1)[1]) + 1 if last and last[0] else 1
+    return f"{prefix}{seq:04d}"
+
+
+def _commit_with_incident_number(alert):
+    """Enregistre l'alerte avec un numéro unique (réessaie si deux alertes
+    arrivent au même instant et visent le même numéro)."""
+    from sqlalchemy.exc import IntegrityError
+
+    for _ in range(8):
+        alert.incident_number = _next_incident_number()
+        db.session.add(alert)
+        try:
+            db.session.commit()
+            return
+        except IntegrityError:
+            db.session.rollback()
+    alert.incident_number = None       # repli : l'alerte n'est jamais perdue
+    db.session.add(alert)
+    db.session.commit()
+
+
 def track_alert(reference):
     """Suivi citoyen d'une alerte par sa référence publique. Renvoie une vue
     minimale (aucune donnée sensible) ou None si la référence est inconnue."""
@@ -180,8 +217,11 @@ def create_alert(data):
         reporter_id=data.get("reporter_id"),
         duplicate_of_id=primary.id if primary else None,
     )
-    db.session.add(alert)
-    db.session.commit()
+    if primary is None:
+        _commit_with_incident_number(alert)   # incident principal : numéro « SC-AAAA-NNNN »
+    else:
+        db.session.add(alert)                 # doublon : pas de numéro propre
+        db.session.commit()
 
     if primary is not None:
         # Doublon : on NE crée PAS un nouvel incident à l'écran (pas de pop-up ni
@@ -244,7 +284,8 @@ def list_alerts(filters=None, page=1, page_size=50):
     if f.get("urgency"):
         query = query.filter(Alert.urgency == f["urgency"])
     if f.get("neighborhood"):
-        query = query.filter(Alert.neighborhood.ilike(f"%{f['neighborhood']}%"))
+        like_n = f"%{f['neighborhood']}%"
+        query = query.filter(or_(Alert.neighborhood.ilike(like_n), Alert.commune.ilike(like_n)))
     if f.get("agent_id"):
         query = query.filter(Alert.assigned_agent_id == f["agent_id"])
     if f.get("q"):
@@ -255,6 +296,10 @@ def list_alerts(filters=None, page=1, page_size=50):
             Alert.neighborhood.ilike(like),
             Alert.description.ilike(like),
             Alert.address.ilike(like),
+            Alert.incident_number.ilike(like),
+            Alert.public_ref.ilike(like),
+            Alert.street.ilike(like),
+            Alert.commune.ilike(like),
         ))
     for key, op in (("date_from", ">="), ("date_to", "<=")):
         if f.get(key):

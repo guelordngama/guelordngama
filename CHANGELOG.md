@@ -2,6 +2,33 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.22.0] — 2026-09-28 — Gestion des incidents : n° d'intervention, affectation, historique
+
+### Ajouté
+- **N° d'intervention** « **SC-2026-0048** » : séquentiel par année (heure de
+  Lubumbashi), attribué à chaque incident principal (pas aux doublons),
+  unique même si deux alertes arrivent au même instant. Les incidents existants
+  sont numérotés par la migration `f3c7a9e1b5d2` (ordre chronologique). Le
+  citoyen garde son **code de suivi aléatoire** (non devinable : un numéro
+  séquentiel permettrait de suivre les alertes des autres).
+- **Affectation** : « 👮 **Agent Patrick → Intervention #SC-2026-0048** » avec
+  la **position de l'agent** (GPS, distance jusqu'à l'alerte, temps estimé,
+  fraîcheur de la position) et son **statut** — dans la fiche d'incident (mise
+  à jour en direct), le bandeau de confirmation, les notifications, la fiche
+  copiable, la carte en temps réel et le portail agents. Le serveur joint la
+  position et la disponibilité de l'agent à chaque alerte affectée.
+- **Historique des incidents** (poste opérateur) : Référence, Type, Quartier,
+  Heure, Statut, Agent, Urgence — chargé **depuis le serveur** (tout
+  l'historique, pas seulement les dernières alertes), période (aujourd'hui,
+  7 j, 30 j, tout), statut, recherche (n°, quartier, rue, commune, citoyen,
+  téléphone), pages, compteurs cliquables (incidents / en attente / en cours /
+  traités) ; double-clic = fiche de l'incident, même ancien.
+- Colonnes **N°** et **Agent** dans les tableaux (tableau de bord, alertes en
+  direct) ; n° d'intervention dans l'export CSV / Excel.
+
+### Changé
+- Statuts harmonisés partout : **En attente** → **En cours** → **Traité**.
+
 ## [1.21.2] — 2026-09-28 — SÉCURITÉ : photos, vocaux et vidéos protégés
 
 ### Sécurité

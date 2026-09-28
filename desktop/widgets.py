@@ -37,8 +37,56 @@ TYPE_NAMES = {"vol": "Vol", "braquage": "Braquage", "incendie": "Incendie",
               "accident": "Accident", "violence": "Violence", "agression": "Agression",
               "autre": "Autre"}
 STATUS_FICHE = {"active": ("EN ATTENTE", "#ef4444"),
-                "assignee": ("PRISE EN CHARGE", "#f97316"),
-                "cloturee": ("CLÔTURÉE", "#16a34a")}
+                "assignee": ("EN COURS", "#f97316"),
+                "cloturee": ("TRAITÉ", "#16a34a")}
+AGENT_STATUS = {"available": "Disponible", "busy": "En intervention", "offline": "Hors service"}
+
+
+def incident_ref(alert):
+    """« SC-2026-0048 » (n° d'intervention) ; repli sur le code de suivi."""
+    return alert.get("incident_number") or alert.get("reference") or f"{alert.get('id', '')}"
+
+
+def _haversine_m(a_lat, a_lng, b_lat, b_lng):
+    import math
+
+    r = 6371000.0
+    p1, p2 = math.radians(a_lat), math.radians(b_lat)
+    dp, dl = math.radians(b_lat - a_lat), math.radians(b_lng - a_lng)
+    x = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return 2 * r * math.asin(min(1.0, math.sqrt(x)))
+
+
+def _ago(iso):
+    from datetime import datetime
+
+    try:
+        dt = datetime.fromisoformat((iso or "").replace("Z", ""))
+    except ValueError:
+        return ""
+    m = int((datetime.utcnow() - dt).total_seconds() // 60)
+    return "à l'instant" if m < 1 else f"il y a {m} min" if m < 60 else f"il y a {m // 60} h"
+
+
+def assignment_parts(alert):
+    """(ligne agent, position, statut) pour « Agent X → Intervention #… »."""
+    ag = alert.get("assigned_agent") or {}
+    if not ag:
+        return "Non affecté", "—", "—"
+    line = f"{ag.get('name') or 'Agent'} → Intervention #{incident_ref(alert)}"
+    if ag.get("lat") is not None and ag.get("lng") is not None:
+        pos = gps_signed(ag["lat"], ag["lng"])
+        extra = []
+        if alert.get("lat") is not None:
+            d = _haversine_m(ag["lat"], ag["lng"], alert["lat"], alert["lng"])
+            extra.append(f"à {d / 1000:.1f} km".replace(".", ",") if d >= 1000 else f"à {round(d)} m")
+            extra.append(f"≈ {max(1, round(d * 1.3 / 1000 / 25 * 60))} min en moto")
+        if ag.get("last_seen"):
+            extra.append(_ago(ag["last_seen"]))
+        pos += "  (" + " · ".join(x for x in extra if x) + ")" if extra else ""
+    else:
+        pos = "Position inconnue (portail non connecté)"
+    return line, pos, AGENT_STATUS.get(ag.get("availability"), ag.get("availability") or "—")
 _STREET_KINDS = ((("avenue ", "av. ", "av "), "Avenue"), (("rue ",), "Rue"),
                  (("boulevard ", "bd "), "Boulevard"), (("route ",), "Route"),
                  (("chaussée ", "chaussee "), "Chaussée"), (("place ",), "Place"))
@@ -103,16 +151,17 @@ def alert_fiche(alert):
         ("precision", "Précision", precision_text(alert)),
         ("time", "Heure", alert.get("time") or "—"),
         ("status", "Statut", status),
-    ]
+    ] + list(zip(("agent", "agent_pos", "agent_status"),
+                 ("Agent", "Position agent", "Statut agent"), assignment_parts(alert)))
 
 
 def alert_fiche_text(alert):
     """Fiche texte à copier-coller (WhatsApp, SMS, radio)."""
-    head = {"active": "🔴 NOUVELLE ALERTE", "assignee": "🟠 ALERTE PRISE EN CHARGE",
-            "cloturee": "🟢 ALERTE CLÔTURÉE"}.get(alert.get("status"), "🔴 ALERTE")
-    lines = [head + (f"  #{alert['reference']}" if alert.get("reference") else ""), ""]
+    head = {"active": "🔴 NOUVELLE ALERTE", "assignee": "🟠 INTERVENTION EN COURS",
+            "cloturee": "🟢 INTERVENTION TRAITÉE"}.get(alert.get("status"), "🔴 ALERTE")
+    lines = [head + f"  #{incident_ref(alert)}", ""]
     for key, label, value in alert_fiche(alert):
-        if key == "gps":
+        if key in ("gps", "agent"):
             lines.append("")
         lines.append(f"{label} : {value}")
     if alert.get("lat") is not None:
@@ -311,8 +360,7 @@ class IncidentPopup(QDialog):
         self.title_label = QLabel(self._title_text(alert))
         self.title_label.setStyleSheet("color: white; font-size: 22px; font-weight: 800;")
         title = self.title_label
-        ref = alert.get("reference")
-        sub = QLabel((f"#{ref}  ·  " if ref else "")
+        sub = QLabel(f"#{incident_ref(alert)}  ·  "
                      + f"{TYPE_NAMES.get(alert.get('type'), (alert.get('type') or '').capitalize())}"
                      + f"  ·  Urgence : {theme.urgency_label(alert.get('urgency'))}")
         sub.setStyleSheet("color: rgba(255,255,255,0.92); font-weight: 600;")
@@ -569,8 +617,8 @@ class IncidentPopup(QDialog):
     # ---- Fiche : style et mise à jour en direct ----
     @staticmethod
     def _title_text(alert):
-        return {"active": "🔴  NOUVELLE ALERTE", "assignee": "🟠  ALERTE PRISE EN CHARGE",
-                "cloturee": "🟢  ALERTE CLÔTURÉE"}.get(alert.get("status"), "🔴  ALERTE")
+        return {"active": "🔴  NOUVELLE ALERTE", "assignee": "🟠  INTERVENTION EN COURS",
+                "cloturee": "🟢  INTERVENTION TRAITÉE"}.get(alert.get("status"), "🔴  ALERTE")
 
     @staticmethod
     def _value_style(key, alert):
@@ -584,6 +632,10 @@ class IncidentPopup(QDialog):
             return "font-weight: 800; color: #b45309;"
         if key == "gps":
             return "font-weight: 800; font-family: Consolas, 'DejaVu Sans Mono', monospace;"
+        if key == "agent" and alert.get("assigned_agent"):
+            return f"font-weight: 800; color: {theme.ACCENT};"
+        if key == "agent_status" and alert.get("assigned_agent"):
+            return "font-weight: 800; color: #f97316;"
         return "font-weight: 700;"
 
     def update_alert(self, alert):

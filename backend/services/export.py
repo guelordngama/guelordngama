@@ -14,7 +14,7 @@ except Exception:  # pragma: no cover
     OPENPYXL_AVAILABLE = False
 
 COLUMNS = [
-    ("id", "ID"), ("time_full", "Date/heure"), ("type", "Type"),
+    ("incident_number", "N° intervention"), ("time_full", "Date/heure"), ("type", "Type"),
     ("urgency", "Urgence"), ("status", "Statut"), ("neighborhood", "Quartier"),
     ("lat", "Latitude"), ("lng", "Longitude"),
     ("reporter_name", "Citoyen"), ("reporter_phone", "Téléphone"),
@@ -28,6 +28,7 @@ def _rows(filters):
     for a in result["items"]:
         yield {
             "id": a["id"],
+            "incident_number": a.get("incident_number") or "",
             "time_full": a.get("created_local") or (a.get("created_at") or "").replace("T", " ")[:19],
             "type": a.get("type"),
             "urgency": a.get("urgency"),

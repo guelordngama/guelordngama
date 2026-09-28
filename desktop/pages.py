@@ -205,7 +205,8 @@ class DashboardPage(QWidget):
         recent.v.takeAt(0).widget().deleteLater()
         recent.v.insertLayout(0, top)
 
-        self.recent_table = _table(["Heure", "Type", "Quartier", "Distance", "Urgence", "Statut"])
+        self._recent_cols = ["ref", "time", "type", "place", "urgency", "status", "agent"]
+        self.recent_table = _table([_ALERT_COLS[k] for k in self._recent_cols])
         self.recent_table.setMinimumHeight(260)
         self.recent_table.cellDoubleClicked.connect(self._on_double)
         recent.add(self.recent_table)
@@ -284,7 +285,7 @@ class DashboardPage(QWidget):
 
     def set_alerts(self, alerts):
         rows = alerts[:8]
-        _fill_alert_table(self.recent_table, rows)
+        _fill_alert_table(self.recent_table, rows, cols=self._recent_cols)
 
     def set_agents(self, agents):
         """Bandeau « Agents disponibles » : avatar, nom et disponibilité."""
@@ -458,9 +459,9 @@ class LiveAlertsPage(QWidget):
         self.result_label.setObjectName("muted")
         root.addWidget(self.result_label)
 
-        self.table = _table(
-            ["Heure", "Type", "Citoyen", "Quartier", "Distance", "Urgence", "Statut"]
-        )
+        self._cols = ["ref", "time", "type", "citizen", "place", "distance", "urgency",
+                      "status", "agent"]
+        self.table = _table([_ALERT_COLS[k] for k in self._cols])
         self.table.cellDoubleClicked.connect(self._on_double)
         root.addWidget(self.table, 1)
 
@@ -490,7 +491,7 @@ class LiveAlertsPage(QWidget):
         b_close.clicked.connect(lambda: self._emit(self.request_close))
 
     def set_alerts(self, alerts, searching=False):
-        _fill_alert_table(self.table, alerts, with_citizen=True, unread_ids=self._unread)
+        _fill_alert_table(self.table, alerts, unread_ids=self._unread, cols=self._cols)
         if searching:
             self.result_label.setText(f"🔎 {len(alerts)} résultat(s) pour la recherche")
         elif not alerts:
@@ -942,17 +943,39 @@ class AnalyticsPage(QWidget):
 
 
 class HistoryPage(QWidget):
+    """Historique des incidents (registre) : Référence, Type, Quartier, Heure,
+    Statut, Agent, Urgence — chargé depuis le serveur (tout l'historique, pas
+    seulement les alertes récentes), avec filtres, recherche et pages."""
+
     export_csv = Signal()
     export_xlsx = Signal()
+    request_load = Signal(dict)     # filtres -> MainWindow interroge le serveur
+    open_incident = Signal(int)
+
+    PAGE_SIZE = 50
+    COLS = ["ref", "type", "place", "datetime", "status", "agent", "urgency"]
+    HEADERS = ["Référence", "Type", "Quartier", "Heure", "Statut", "Agent", "Urgence"]
 
     def __init__(self):
         super().__init__()
+        from PySide6.QtWidgets import QComboBox, QLineEdit
+
+        self._page = 1
+        self._pages = 1
         root = QVBoxLayout(self)
-        root.setContentsMargins(24, 20, 24, 24)
+        root.setContentsMargins(24, 20, 24, 20)
+        root.setSpacing(14)
+
         top = QHBoxLayout()
-        title = QLabel("Historique des alertes clôturées")
-        title.setObjectName("sectionTitle")
-        top.addWidget(title)
+        col = QVBoxLayout()
+        col.setSpacing(2)
+        title = QLabel("📊 Historique des incidents")
+        title.setObjectName("pageTitle")
+        self.sub = QLabel("Toutes les interventions enregistrées par le centre.")
+        self.sub.setObjectName("muted")
+        col.addWidget(title)
+        col.addWidget(self.sub)
+        top.addLayout(col)
         top.addStretch()
         b_csv = QPushButton("⬇️ Exporter CSV"); b_csv.setObjectName("ghost")
         b_xlsx = QPushButton("⬇️ Exporter Excel"); b_xlsx.setObjectName("success")
@@ -960,12 +983,130 @@ class HistoryPage(QWidget):
         b_xlsx.clicked.connect(self.export_xlsx.emit)
         top.addWidget(b_csv); top.addWidget(b_xlsx)
         root.addLayout(top)
-        self.table = _table(["Heure", "Type", "Citoyen", "Quartier", "Urgence", "Statut"])
-        root.addWidget(self.table)
 
-    def set_alerts(self, alerts):
-        closed = [a for a in alerts if a.get("status") == "cloturee"]
-        _fill_alert_table(self.table, closed, with_citizen=True, hide_distance=True)
+        # Compteurs (période et recherche courantes)
+        cards = QHBoxLayout()
+        cards.setSpacing(14)
+        self.c_total = StatCard("📋", "Incidents", "#1b3a6b", filled=True)
+        self.c_wait = StatCard("🔴", "En attente", "#ef4444", filled=True)
+        self.c_prog = StatCard("🚔", "En cours", "#f97316", filled=True)
+        self.c_done = StatCard("✅", "Traités", "#16a34a", filled=True)
+        for c, st in ((self.c_total, ""), (self.c_wait, "active"), (self.c_prog, "assignee"),
+                      (self.c_done, "cloturee")):
+            c.setMinimumHeight(92)
+            c.set_clickable(True)
+            c.clicked.connect(lambda s=st: self._pick_status(s))
+            cards.addWidget(c)
+        root.addLayout(cards)
+
+        # Filtres
+        f = QHBoxLayout()
+        f.setSpacing(10)
+        self.period = QComboBox()
+        for label, key in (("Aujourd'hui", "today"), ("7 derniers jours", "7"),
+                           ("30 derniers jours", "30"), ("Tout l'historique", "all")):
+            self.period.addItem(label, key)
+        self.period.setCurrentIndex(2)
+        self.status = QComboBox()
+        for label, key in (("Tous les statuts", ""), ("En attente", "active"),
+                           ("En cours", "assignee"), ("Traité", "cloturee")):
+            self.status.addItem(label, key)
+        self.q = QLineEdit()
+        self.q.setPlaceholderText("🔎 N° (SC-2026-0048), quartier, rue, commune, citoyen, téléphone…")
+        self.q.returnPressed.connect(lambda: self.reload(reset=True))
+        b_go = QPushButton("Rechercher")
+        b_go.clicked.connect(lambda: self.reload(reset=True))
+        self.period.currentIndexChanged.connect(lambda _i: self.reload(reset=True))
+        self.status.currentIndexChanged.connect(lambda _i: self.reload(reset=True))
+        f.addWidget(self.period)
+        f.addWidget(self.status)
+        f.addWidget(self.q, 1)
+        f.addWidget(b_go)
+        root.addLayout(f)
+
+        self.table = _table(self.HEADERS)
+        self.table.cellDoubleClicked.connect(self._on_double)
+        self.table.setToolTip("Double-cliquez sur un incident pour ouvrir sa fiche")
+        root.addWidget(self.table, 1)
+
+        # Pagination
+        pg = QHBoxLayout()
+        self.b_prev = QPushButton("◀ Précédent"); self.b_prev.setObjectName("ghost")
+        self.b_next = QPushButton("Suivant ▶"); self.b_next.setObjectName("ghost")
+        self.page_label = QLabel("")
+        self.page_label.setObjectName("muted")
+        self.b_prev.clicked.connect(lambda: self._go(self._page - 1))
+        self.b_next.clicked.connect(lambda: self._go(self._page + 1))
+        pg.addWidget(self.page_label)
+        pg.addStretch()
+        pg.addWidget(self.b_prev)
+        pg.addWidget(self.b_next)
+        root.addLayout(pg)
+
+    # ---- Filtres -> requête ----
+    def filters(self, page=None, status=None):
+        from datetime import datetime, timedelta, timezone
+
+        d = {"page": page or self._page, "page_size": self.PAGE_SIZE}
+        st = self.status.currentData() if status is None else status
+        if st:
+            d["status"] = st
+        if self.q.text().strip():
+            d["q"] = self.q.text().strip()
+        per = self.period.currentData()
+        if per != "all":
+            local_now = datetime.now().astimezone()
+            start = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
+            if per != "today":
+                start -= timedelta(days=int(per) - 1)
+            # Le serveur stocke en UTC : minuit local converti en UTC.
+            d["date_from"] = start.astimezone(timezone.utc).replace(tzinfo=None).isoformat(timespec="seconds")
+        return d
+
+    def reload(self, reset=False):
+        if reset:
+            self._page = 1
+        self.request_load.emit(self.filters())
+
+    def _go(self, page):
+        if 1 <= page <= self._pages:
+            self._page = page
+            self.reload()
+
+    def _pick_status(self, st):
+        i = self.status.findData(st)
+        if i >= 0:
+            self.status.setCurrentIndex(i)     # déclenche le rechargement
+
+    # ---- Résultats ----
+    def set_result(self, result, counts=None):
+        items = result.get("items", []) if isinstance(result, dict) else list(result or [])
+        total = result.get("total", len(items)) if isinstance(result, dict) else len(items)
+        self._pages = max(1, result.get("pages", 1) if isinstance(result, dict) else 1)
+        self._page = min(self._page, self._pages)
+        _fill_alert_table(self.table, items, cols=self.COLS)
+        self.page_label.setText(f"Page {self._page} / {self._pages}  ·  {total} incident(s)")
+        self.b_prev.setEnabled(self._page > 1)
+        self.b_next.setEnabled(self._page < self._pages)
+        if counts:
+            self.c_total.set_value(counts.get("all", total))
+            self.c_wait.set_value(counts.get("active", 0))
+            self.c_prog.set_value(counts.get("assignee", 0))
+            self.c_done.set_value(counts.get("cloturee", 0))
+        self.sub.setText(f"{self.period.currentText()} — double-cliquez pour ouvrir la fiche d'un incident.")
+
+    def set_error(self, message):
+        self.page_label.setText(f"⚠️ Historique indisponible : {message}")
+
+    # Compatibilité : l'ancien appel avec les alertes en mémoire est ignoré
+    # (l'historique vient désormais du serveur).
+    def set_alerts(self, _alerts):
+        pass
+
+    def _on_double(self, row, _col):
+        it = self.table.item(row, 0)
+        if it:
+            self.open_incident.emit(int(it.data(Qt.UserRole)))
 
 
 class ChatPage(QWidget):
@@ -2122,38 +2263,79 @@ class NotificationsPage(QWidget):
         return row
 
 
-def _fill_alert_table(table, alerts, with_citizen=False, hide_distance=False, unread_ids=None):
+# Colonnes disponibles pour les tableaux d'alertes.
+_ALERT_COLS = {
+    "ref": "N°", "time": "Heure", "datetime": "Heure", "type": "Type", "citizen": "Citoyen",
+    "place": "Quartier", "distance": "Distance", "urgency": "Urgence", "status": "Statut",
+    "agent": "Agent",
+}
+
+
+def incident_label(a):
+    """N° d'intervention (« SC-2026-0048 ») ; repli sur le code de suivi."""
+    return a.get("incident_number") or (("#" + a["reference"]) if a.get("reference") else f"#{a.get('id')}")
+
+
+def _when(a):
+    """« 13:48 » aujourd'hui, sinon « 27/09 13:48 » (heure de Lubumbashi)."""
+    from datetime import datetime
+
+    loc = a.get("created_local")          # « AAAA-MM-JJ HH:MM » (heure locale)
+    if not loc:
+        return a.get("time") or "—"
+    day, hm = loc.split(" ") if " " in loc else (loc, "")
+    if day == datetime.now().strftime("%Y-%m-%d"):
+        return hm or a.get("time") or "—"
+    y, m, d = day.split("-")
+    return f"{d}/{m} {hm}".strip()
+
+
+def _fill_alert_table(table, alerts, with_citizen=False, hide_distance=False, unread_ids=None,
+                      cols=None):
+    """Remplit un tableau d'alertes. ``cols`` : liste de clés de _ALERT_COLS
+    (sinon colonnes historiques déduites de with_citizen / hide_distance)."""
     unread_ids = unread_ids or set()
+    if cols is None:
+        cols = ["time", "type"] + (["citizen"] if with_citizen else []) + ["place"] + \
+               ([] if hide_distance else ["distance"]) + ["urgency", "status"]
     table.setRowCount(len(alerts))
     for i, a in enumerate(alerts):
-        col = 0
         is_unread = a["id"] in unread_ids
-
-        def put(text, color=None):
-            nonlocal col
+        for c, key in enumerate(cols):
+            color = None
+            if key == "ref":
+                text = incident_label(a)
+            elif key == "time":
+                text = a.get("time") or "—"
+            elif key == "datetime":
+                text = _when(a)
+            elif key == "type":
+                # Marqueur de doublons regroupés : « Incendie 🔁3 ».
+                text = (a.get("type") or "").capitalize()
+                if a.get("duplicate_count"):
+                    text += f"  🔁{a['duplicate_count'] + 1}"
+            elif key == "citizen":
+                text = a.get("reporter_name") or "Anonyme"
+            elif key == "place":
+                text = a.get("neighborhood") or a.get("commune") or "—"
+            elif key == "distance":
+                text = f"{round(a['distance_m'])} m" if a.get("distance_m") is not None else "—"
+            elif key == "urgency":
+                text, color = theme.urgency_label(a.get("urgency")), theme.urgency_color(a.get("urgency"))
+            elif key == "status":
+                text = theme.STATUS_LABELS.get(a.get("status"), a.get("status") or "—")
+                color = theme.STATUS_COLORS.get(a.get("status"))
+            elif key == "agent":
+                text = (a.get("assigned_agent") or {}).get("name") or "—"
+            else:
+                text = "—"
+            if c == 0 and is_unread:
+                text = "● " + text
             it = _item(text, color, bold=is_unread)
             it.setData(Qt.UserRole, a["id"])
             if is_unread:
                 it.setBackground(theme.qtint(theme.ACCENT, 0.14))  # fond teinté « non lu »
-            table.setItem(i, col, it)
-            col += 1
-
-        time_txt = a.get("time", "—")
-        put(("● " + time_txt) if is_unread else time_txt)
-        # Marqueur de doublons regroupés : « Incendie 🔁3 » (3 signalements liés).
-        type_txt = (a.get("type") or "").capitalize()
-        dup = a.get("duplicate_count") or 0
-        if dup > 0:
-            type_txt += f"  🔁{dup + 1}"
-        put(type_txt)
-        if with_citizen:
-            put(a.get("reporter_name") or "Anonyme")
-        put(a.get("neighborhood") or "—")
-        if not hide_distance:
-            put(f"{round(a['distance_m'])} m" if a.get("distance_m") is not None else "—")
-        put(theme.urgency_label(a.get("urgency")), theme.urgency_color(a.get("urgency")))
-        put(theme.STATUS_LABELS.get(a.get("status"), a.get("status")),
-            theme.STATUS_COLORS.get(a.get("status")))
+            table.setItem(i, c, it)
 
 
 def _initials(name):

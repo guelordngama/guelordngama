@@ -127,6 +127,10 @@ class Alert(TimestampMixin, db.Model):
     # Référence publique (ex. « SC-A1B2C3 ») communiquée au citoyen pour suivre
     # son alerte sans exposer les données sensibles ni permettre l'énumération.
     public_ref = db.Column(db.String(16), unique=True, index=True)
+    # Numéro d'intervention interne, séquentiel par année : « SC-2026-0048 »
+    # (personnel uniquement ; le citoyen garde son code de suivi aléatoire,
+    # non devinable). Attribué aux incidents principaux, pas aux doublons.
+    incident_number = db.Column(db.String(20), unique=True, index=True)
     type = db.Column(db.String(30), nullable=False, default="autre", index=True)
     description = db.Column(db.Text)
 
@@ -228,6 +232,7 @@ class Alert(TimestampMixin, db.Model):
         return {
             "id": self.id,
             "reference": self.public_ref,
+            "incident_number": self.incident_number,
             "type": self.type,
             "description": self.description,
             "lat": self.lat,
@@ -253,7 +258,12 @@ class Alert(TimestampMixin, db.Model):
             "status": self.status,
             "assigned_team": self.assigned_team.to_dict() if self.assigned_team else None,
             "assigned_agent": (
-                {"id": self.assigned_agent.id, "name": self.assigned_agent.name}
+                # Position et statut de l'agent affecté (affichage « Agent X →
+                # Intervention #… », distance, carte).
+                {"id": self.assigned_agent.id, "name": self.assigned_agent.name,
+                 "availability": self.assigned_agent.availability,
+                 "lat": self.assigned_agent.lat, "lng": self.assigned_agent.lng,
+                 "last_seen": _iso(self.assigned_agent.last_seen)}
                 if self.assigned_agent else None
             ),
             "distance_m": round(self.distance_m, 1) if self.distance_m is not None else None,

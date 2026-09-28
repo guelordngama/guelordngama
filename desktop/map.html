@@ -140,8 +140,10 @@
   var URG_RANK = { critique: 0, haute: 1, moyenne: 2, faible: 3 };
   var TYPE_NAMES = { vol: "Vol", braquage: "Braquage", incendie: "Incendie", accident: "Accident",
                      violence: "Violence", agression: "Agression", autre: "Autre" };
-  var STATUS = { active: ["EN ATTENTE", "#ef4444"], assignee: ["PRISE EN CHARGE", "#f97316"],
-                 cloturee: ["CLÔTURÉE", "#16a34a"] };
+  var STATUS = { active: ["EN ATTENTE", "#ef4444"], assignee: ["EN COURS", "#f97316"],
+                 cloturee: ["TRAITÉ", "#16a34a"] };
+  // N° d'intervention « SC-2026-0048 » (repli : code de suivi).
+  function num(a) { return a.incident_number || a.reference || String(a.id); }
   var AVAIL = { available: ["Disponible", "#16a34a"], busy: ["En intervention", "#f97316"],
                 offline: ["Hors service", "#64748b"] };
 
@@ -279,12 +281,11 @@
       ["Quartier", esc(a.neighborhood || "—")], ["Ville", esc(a.city || "—")],
       ["GPS", gps(a.lat, a.lng)], ["Précision", esc(precision(a))], ["Heure", esc(a.time || "—")],
       ["Statut", '<span style="color:' + st[1] + '">' + st[0] + "</span>"]];
-    if (a.assigned_agent) rows.push(["Agent", esc(a.assigned_agent.name) +
+    if (a.assigned_agent) rows.push(["Agent", "👮 " + esc(a.assigned_agent.name) + " → Intervention #" + esc(num(a)) +
       (r ? " · " + km(r.distance_m) + " · " + mins(r.duration_s) : "")]);
     else if (near) rows.push(["Plus proche", esc(near.ag.name) + " · " + km(near.d) + " (vol d'oiseau)"]);
     var html = '<div class="fiche"><h3>' + (a.status === "active" ? "🔴 " : "🟠 ") +
-      esc((TYPE_NAMES[a.type] || a.type || "").toUpperCase()) + (a.reference ? " #" + esc(a.reference) : "") +
-      "</h3><table>";
+      esc((TYPE_NAMES[a.type] || a.type || "").toUpperCase()) + " #" + esc(num(a)) + "</h3><table>";
     rows.forEach(function (r, i) {
       html += "<tr" + (r[0] === "GPS" ? ' class="sep"' : "") + "><td>" + esc(r[0]) + " :</td><td>" + r[1] + "</td></tr>";
     });
@@ -303,7 +304,7 @@
       "<tr><td>GPS :</td><td>" + gps(ag.lat, ag.lng) + "</td></tr>" +
       "<tr><td>Position :</td><td>" + (age == null ? "—" : age < 1 ? "à l'instant" : "il y a " + age + " min") + "</td></tr>";
     if (a) html += '<tr class="sep"><td>Intervention :</td><td>' +
-      esc(TYPE_NAMES[a.type] || a.type) + (a.reference ? " #" + esc(a.reference) : "") + "</td></tr>" +
+      "Intervention #" + esc(num(a)) + " · " + esc(TYPE_NAMES[a.type] || a.type) + "</td></tr>" +
       "<tr><td>Lieu :</td><td>" + esc(placeLine(a)) + "</td></tr>" +
       (r ? "<tr><td>Trajet :</td><td>" + km(r.distance_m) + " · " + mins(r.duration_s) +
            (r.source === "direct" ? " (estimé)" : "") + "</td></tr>" : "");
@@ -380,8 +381,8 @@
       L.polyline(r.coordinates, { color: "#fff", weight: 8, opacity: 0.9 }).addTo(g);
       var line = L.polyline(r.coordinates, { color: "#f97316", weight: 5, opacity: 0.95,
                                              dashArray: direct ? "8,8" : null }).addTo(g);
-      line.bindTooltip("🚓 " + esc(a.assigned_agent ? a.assigned_agent.name : "Agent") + " → " +
-        esc(TYPE_NAMES[a.type] || a.type) + " · " + km(r.distance_m) + " · " + mins(r.duration_s) +
+      line.bindTooltip("👮 " + esc(a.assigned_agent ? a.assigned_agent.name : "Agent") + " → Intervention #" +
+        esc(num(a)) + " · " + km(r.distance_m) + " · " + mins(r.duration_s) +
         (direct ? " (estimé)" : ""), { permanent: true, direction: "center", className: "route-label" });
       g.addTo(L_ROUTES);
       lRoute[id] = g;
@@ -423,12 +424,13 @@
       var st = STATUS[a.status] || ["—", "#64748b"], c = URGENCY[a.urgency] || "#ef4444";
       var r = routes[a.id], near = a.status === "active" ? nearestFree(a) : null;
       var agentLine = a.assigned_agent
-        ? "🚓 " + esc(a.assigned_agent.name) + (r ? " · " + km(r.distance_m) + " · " + mins(r.duration_s) : "")
+        ? "👮 " + esc(a.assigned_agent.name) + " → Intervention #" + esc(num(a)) +
+          (r ? " · " + km(r.distance_m) + " · " + mins(r.duration_s) : "")
         : near ? "📏 Plus proche : " + esc(near.ag.name) + " · " + km(near.d) : "⚠️ Aucun agent disponible localisé";
       return '<div class="item' + (String(selected) === String(a.id) ? " sel" : "") + '" data-id="' + a.id +
         '" style="border-left-color:' + c + '">' +
         '<div class="it-top"><span class="it-type">' + esc(TYPE_NAMES[a.type] || a.type) +
-        (a.reference ? ' <span style="color:var(--muted);font-weight:600">#' + esc(a.reference) + "</span>" : "") +
+        ' <span style="color:var(--muted);font-weight:600">#' + esc(num(a)) + "</span>" +
         '</span><span class="pill" style="background:' + st[1] + '22;color:' + st[1] + '">' + st[0] + "</span></div>" +
         '<div class="it-line">📍 ' + esc(placeLine(a)) + "</div>" +
         '<div class="it-line m">👤 ' + esc(a.reporter_name || "Anonyme") + (a.reporter_phone ? " · 📞 " + esc(a.reporter_phone) : "") +

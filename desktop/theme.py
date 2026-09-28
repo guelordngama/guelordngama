@@ -43,13 +43,13 @@ URGENCY_LABELS = {
 }
 STATUS_COLORS = {
     "active": "#ef4444",
-    "assignee": "#eab308",
+    "assignee": "#f97316",
     "cloturee": "#22c55e",
 }
 STATUS_LABELS = {
     "active": "En attente",
-    "assignee": "Affectée",
-    "cloturee": "Résolue",
+    "assignee": "En cours",
+    "cloturee": "Traité",
 }
 
 
