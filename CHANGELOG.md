@@ -2,6 +2,37 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.21.1] — 2026-09-28 — SÉCURITÉ : fuite de données personnelles corrigée
+
+### Sécurité (important — mettre à jour serveur ET postes opérateur ensemble)
+- **Temps réel (Socket.IO)** : toute connexion, même anonyme (y compris le
+  site citoyen), rejoignait la salle de surveillance et recevait en direct les
+  alertes avec **nom, téléphone et position GPS des citoyens**, les e-mails et
+  téléphones des agents et les messages internes. Désormais :
+  - un **jeton du personnel** (agent, opérateur, superviseur, admin — compte
+    actif) est exigé pour rejoindre la salle ; sinon la connexion est acceptée
+    (indicateur « connecté » du site citoyen) mais **ne reçoit aucune donnée** ;
+  - le message « connected » n'est plus diffusé à tout le monde ;
+  - la présence (« en ligne ») utilise l'identité du jeton, et non un
+    identifiant envoyé par le client (usurpation impossible).
+- **API REST** : `GET /api/alerts`, `GET /api/alerts/<id>`, `GET /api/stats` et
+  `GET /api/teams` (positions des patrouilles) étaient lisibles **sans
+  connexion**. Ils exigent maintenant un compte du personnel (401 anonyme, 403
+  citoyen). Le suivi citoyen par référence reste public et sans donnée
+  personnelle.
+- Poste opérateur et portail : envoient leur jeton à la connexion temps réel
+  (renvoyé automatiquement à chaque reconnexion) et sur les appels protégés.
+- Le compteur « agents connectés » ne compte plus que le personnel.
+- Tests : accès anonyme / citoyen refusé (REST), aucune donnée reçue par une
+  connexion anonyme, citoyenne ou à jeton falsifié (temps réel), présence non
+  usurpable. Vérifié de bout en bout sur un vrai serveur (poste opérateur,
+  portail, site citoyen).
+
+### À savoir pour le déploiement
+- Un **ancien poste opérateur** (sans cette mise à jour) ne recevra plus les
+  alertes ni le temps réel : mettre à jour les postes opérateur en même temps
+  que le serveur.
+
 ## [1.21.0] — 2026-09-28 — Portail agents : carte en temps réel
 
 ### Ajouté

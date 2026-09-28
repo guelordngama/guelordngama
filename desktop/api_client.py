@@ -131,7 +131,7 @@ class ApiClient:
         path = "/api/alerts"
         if params:
             path += "?" + urllib.parse.urlencode(params)
-        return self._request("GET", path)
+        return self._request("GET", path, auth=True)
 
     def get_analytics(self, period="month"):
         return self._request("GET", f"/api/analytics?period={period}", auth=True)
@@ -188,7 +188,7 @@ class ApiClient:
         return self._request("DELETE", f"/api/agents/{agent_id}", auth=True)
 
     def get_stats(self):
-        return self._request("GET", "/api/stats")
+        return self._request("GET", "/api/stats", auth=True)
 
     def get_route(self, a_lat, a_lng, b_lat, b_lng):
         """Itinéraire (calculé par le serveur SafeCity) : coordonnées + distance/durée."""
@@ -197,7 +197,7 @@ class ApiClient:
             auth=True)
 
     def get_teams(self):
-        return self._request("GET", "/api/teams")
+        return self._request("GET", "/api/teams", auth=True)
 
     def get_agents(self):
         return self._request("GET", "/api/agents", auth=True)
@@ -322,7 +322,11 @@ class ApiClient:
         for attempt in range(1, 41):  # ~2 min de tentatives (thread daemon)
             for tr in transports:
                 try:
-                    self.sio.connect(self.base_url, transports=[tr])
+                    # Jeton obligatoire : sans lui, le serveur n'envoie aucune
+                    # donnée (alertes, agents, messages). Fonction → le jeton
+                    # courant est renvoyé à chaque reconnexion.
+                    self.sio.connect(self.base_url, transports=[tr],
+                                     auth=lambda: {"token": self.token or ""})
                     print(f"[SafeCity] Temps réel connecté via {tr}.")
                     return  # connecté : l'événement "connect" passe l'UI en ligne
                 except Exception as e:  # pragma: no cover - dépend du réseau

@@ -24,6 +24,17 @@ def make_client():
     return app, app.test_client()
 
 
+_STAFF_TOKENS = {}
+
+
+def _staff(client):
+    """En-têtes d'un opérateur connecté (mis en cache par client de test)."""
+    key = id(client)
+    if key not in _STAFF_TOKENS:
+        _STAFF_TOKENS[key] = _login(client)
+    return _STAFF_TOKENS[key]
+
+
 def _login(client):
     res = client.post(
         "/api/auth/login",
@@ -164,7 +175,7 @@ def test_create_and_list_alert():
     assert alert["address"]
     assert "°" in alert["address"]
 
-    alerts = client.get("/api/alerts").get_json()
+    alerts = client.get("/api/alerts", headers=_staff(client)).get_json()
     assert isinstance(alerts, list) and len(alerts) == 1
 
 
@@ -269,6 +280,63 @@ def test_agent_positions_for_portal_map():
         assert "email" not in i and "phone" not in i and "permissions" not in i
 
 
+def test_security_personal_data_requires_staff():
+    """Fuite corrigée : alertes (nom, téléphone, GPS des citoyens), patrouilles et
+    statistiques ne sont plus lisibles sans compte du personnel."""
+    from types import SimpleNamespace
+    from backend.security import generate_token
+    app, client = make_client()
+    a = client.post("/api/alerts", json={"type": "vol", "description": "vol",
+                    "lat": -11.66, "lng": 27.48, "reporter_name": "Jean",
+                    "reporter_phone": "+243812345678"}).get_json()
+    for url in ("/api/alerts", f"/api/alerts/{a['id']}", "/api/stats", "/api/teams"):
+        assert client.get(url).status_code == 401, url
+    with app.app_context():
+        citizen = generate_token(SimpleNamespace(id=999, role="citizen", email="c@x", name="C"))
+    hc = {"Authorization": "Bearer " + citizen}
+    for url in ("/api/alerts", f"/api/alerts/{a['id']}", "/api/stats", "/api/teams"):
+        assert client.get(url, headers=hc).status_code == 403, url
+    h = _login(client)
+    for url in ("/api/alerts", f"/api/alerts/{a['id']}", "/api/stats", "/api/teams"):
+        assert client.get(url, headers=h).status_code == 200, url
+    # Le citoyen suit toujours SON alerte par référence (sans données personnelles).
+    t = client.get("/api/alerts/track/" + a["reference"]).get_json()
+    assert "reporter_phone" not in t and "lat" not in t
+
+
+def test_security_realtime_only_for_staff():
+    """Temps réel : seul le personnel authentifié reçoit alertes / agents / messages."""
+    from types import SimpleNamespace
+    from backend import socketio
+    from backend.realtime import online_user_ids
+    from backend.security import generate_token
+    app, client = make_client()
+    op_token = client.post("/api/auth/login", json={
+        "email": "operateur@safecity.local", "password": "safecity123"}).get_json()["token"]
+    with app.app_context():
+        citizen = generate_token(SimpleNamespace(id=999, role="citizen", email="c@x", name="C"))
+    anon = socketio.test_client(app)
+    cit = socketio.test_client(app, auth={"token": citizen})
+    forged = socketio.test_client(app, auth={"token": op_token[:-4] + "abcd"})
+    staff = socketio.test_client(app, auth={"token": op_token})
+    for c in (anon, cit, forged, staff):
+        assert c.is_connected()
+    first = anon.get_received()
+    assert [e["args"][0]["authorized"] for e in first if e["name"] == "connected"] == [False]
+    cit.get_received(); forged.get_received(); staff.get_received()
+    # Usurpation de présence : un anonyme se déclare « utilisateur 1 ».
+    anon.emit("identify", {"uid": 1})
+    assert 1 not in online_user_ids()
+    client.post("/api/alerts", json={"type": "vol", "description": "vol", "lat": -11.66,
+                                     "lng": 27.48, "reporter_phone": "+243812345678"})
+    for c, name in ((anon, "anonyme"), (cit, "citoyen"), (forged, "jeton falsifié")):
+        assert c.get_received() == [], name + " ne doit rien recevoir"
+    got = [e["name"] for e in staff.get_received()]
+    assert "new_alert" in got
+    for c in (anon, cit, forged, staff):
+        c.disconnect()
+
+
 def test_citizen_track_alert_by_reference():
     _, client = make_client()
     r = client.post("/api/alerts", json={
@@ -329,7 +397,7 @@ def test_duplicate_alerts_are_grouped():
     assert a4["duplicate_of"] is None, "trop loin : pas un doublon"
 
     # La liste opérateur ne montre que les incidents principaux (doublon masqué).
-    alerts = client.get("/api/alerts").get_json()
+    alerts = client.get("/api/alerts", headers=_staff(client)).get_json()
     ids = {a["id"] for a in alerts}
     assert a2["id"] not in ids and a1["id"] in ids
     primary = next(a for a in alerts if a["id"] == a1["id"])
@@ -340,7 +408,7 @@ def test_list_alerts_pagination():
     _, client = make_client()
     for _ in range(3):
         client.post("/api/alerts", json={"type": "vol", "lat": -4.3, "lng": 15.3})
-    page = client.get("/api/alerts?page=1&page_size=2").get_json()
+    page = client.get("/api/alerts?page=1&page_size=2", headers=_staff(client)).get_json()
     assert page["total"] == 3
     assert page["page_size"] == 2
     assert len(page["items"]) == 2
@@ -401,7 +469,7 @@ def test_bad_login_rejected():
 def test_stats_shape():
     _, client = make_client()
     client.post("/api/alerts", json={"type": "incendie", "lat": -4.3, "lng": 15.3})
-    stats = client.get("/api/stats").get_json()
+    stats = client.get("/api/stats", headers=_staff(client)).get_json()
     assert stats["total_count"] == 1
     assert "by_type" in stats and "dangerous_zones" in stats
 
@@ -422,10 +490,10 @@ def test_search_filters():
                                      "neighborhood": "Gombe", "reporter_name": "Alice"})
     client.post("/api/alerts", json={"type": "vol", "lat": -4.3, "lng": 15.3,
                                      "neighborhood": "Limete", "reporter_name": "Bob"})
-    assert client.get("/api/alerts?type=incendie").get_json()["total"] == 1
-    assert client.get("/api/alerts?q=Alice").get_json()["total"] == 1
-    assert client.get("/api/alerts?neighborhood=Limete").get_json()["total"] == 1
-    assert client.get("/api/alerts?urgency=critique").get_json()["total"] == 1
+    assert client.get("/api/alerts?type=incendie", headers=_staff(client)).get_json()["total"] == 1
+    assert client.get("/api/alerts?q=Alice", headers=_staff(client)).get_json()["total"] == 1
+    assert client.get("/api/alerts?neighborhood=Limete", headers=_staff(client)).get_json()["total"] == 1
+    assert client.get("/api/alerts?urgency=critique", headers=_staff(client)).get_json()["total"] == 1
 
 
 def test_agent_accept_and_tracking():

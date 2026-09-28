@@ -23,7 +23,11 @@ FILTER_KEYS = ("status", "type", "urgency", "neighborhood", "agent_id", "q",
                "date_from", "date_to")
 
 
+# Consultation réservée au personnel : ces données contiennent le nom, le
+# téléphone et la position GPS des citoyens (le citoyen suit SON alerte via
+# /track/<référence>, qui ne renvoie rien de personnel).
 @bp.get("")
+@require_auth(roles=["agent", "operator", "supervisor", "admin"])
 def list_():
     filters = {k: request.args.get(k) for k in FILTER_KEYS if request.args.get(k)}
     if "agent_id" in filters:
@@ -56,6 +60,7 @@ def track(ref):
 
 
 @bp.get("/<int:alert_id>")
+@require_auth(roles=["agent", "operator", "supervisor", "admin"])
 def detail(alert_id):
     return jsonify(alerts_service.get_alert(alert_id).to_dict())
 

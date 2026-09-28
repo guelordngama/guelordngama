@@ -486,7 +486,10 @@
   function connectRealtime() {
     if (typeof io === "undefined") { throw new Error("Socket.IO non chargé"); }
     try {
-      state.socket = io(API, { transports: ["polling", "websocket"] });
+      // Jeton obligatoire : sans lui, le serveur n'envoie aucune donnée.
+      // (Fonction → le jeton courant est renvoyé à chaque reconnexion.)
+      state.socket = io(API, { transports: ["polling", "websocket"],
+                               auth: (cb) => cb({ token: state.token || "" }) });
       state.socket.on("connect", () => {
         setConn(true);
         if (state.agent) state.socket.emit("identify", { uid: state.agent.id });
