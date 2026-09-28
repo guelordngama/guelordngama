@@ -2,6 +2,29 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.19.0] — 2026-09-28 — Site citoyen : GPS précis et adresse détaillée
+
+### Ajouté
+- **GPS affiné** : au lieu de garder la première position du téléphone (souvent
+  issue du Wi-Fi ou des antennes, ±100 à 1000 m), l'application écoute le GPS
+  jusqu'à 30 s et garde la position la plus précise ; elle s'arrête dès ±10 m.
+  Une erreur passagère du GPS n'interrompt plus l'affinage.
+- **Carte « Ma position actuelle »** : GPS au format `-11.xxxxxx, 27.xxxxxx`,
+  précision (±8 m) avec niveau Excellente / Bonne / Moyenne / Faible et barre
+  de qualité, Commune, Avenue / Rue, Quartier, Ville ; conseil + bouton
+  « Améliorer » si la précision est faible.
+- Écran Détails : même fiche de position ; confirmation : GPS avec précision
+  et quartier / commune.
+- Serveur : `GET /api/geo/reverse` (adresse d'une position pour l'app
+  citoyenne ; le téléphone ne peut pas joindre OpenStreetMap à travers le
+  pare-feu). Limité à 30 requêtes/min par appareil, cache ~11 m, et au plus
+  1 requête/s vers OpenStreetMap pour tout le serveur (règle d'usage).
+- Libellés FR / Kiswahili ; la fiche se traduit à chaud.
+
+### Corrigé
+- Changer de langue effaçait l'affichage de la position (balise de traduction
+  sur la zone GPS).
+
 ## [1.18.0] — 2026-09-28 — Fiche d'alerte détaillée (commune, avenue, précision GPS)
 
 ### Ajouté

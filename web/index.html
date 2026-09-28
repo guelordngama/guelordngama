@@ -251,7 +251,7 @@
               <div class="card pos-card">
                 <div class="mini-pin">📍</div>
                 <h3 data-i18n="home.myPosition">Ma position actuelle</h3>
-                <div id="gps-box" class="gps-box"><span id="gps-text" data-i18n="alert.gps">Acquisition de la position…</span></div>
+                <div id="gps-box" class="gps-box"><div id="gps-text" class="loc-block">Recherche du signal GPS…</div></div>
               </div>
               <div class="card">
                 <h3 data-i18n="home.lastAlert">Dernière alerte</h3>
@@ -306,10 +306,7 @@
               </div>
 
               <label class="field-label" data-i18n="details.myPosition">📍 Ma position</label>
-              <div class="location-summary">
-                <div><span class="ls-label" data-i18n="details.neighborhood">Quartier</span><span id="ls-neighborhood">—</span></div>
-                <div><span class="ls-label" data-i18n="details.position">Position</span><span id="ls-address">—</span></div>
-              </div>
+              <div id="loc-summary" class="loc-rows loc-summary"></div>
 
               <p class="pick-hint">📍 <span data-i18n="details.pickHint">Touchez la carte pour indiquer votre
                 position exacte (utile si le GPS ne marche pas).</span></p>

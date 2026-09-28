@@ -214,6 +214,31 @@ def test_alert_location_details_and_accuracy():
     assert d["city"] == "Lubumbashi"
 
 
+def test_geo_reverse_endpoint():
+    """Adresse d'une position pour l'app citoyenne (service OSM simulé)."""
+    import backend.api.geo as geo_api
+    app, client = make_client()
+    # Géocodage désactivé (tests) : pas d'adresse inventée, ville déduite.
+    r = client.get("/api/geo/reverse?lat=-11.6876&lng=27.5026")
+    assert r.status_code == 200
+    d = r.get_json()
+    assert d["available"] is False and d["city"] == "Lubumbashi" and d["commune"] is None
+    assert client.get("/api/geo/reverse?lat=abc&lng=27").status_code == 400
+    assert client.get("/api/geo/reverse?lat=-95&lng=27").status_code == 400
+    # Service disponible : on renvoie les champs détaillés.
+    app.config["GEOCODING_ENABLED"] = True
+    orig = geo_api.reverse_geocode_details
+    geo_api.reverse_geocode_details = lambda lat, lng: {
+        "street": "Avenue Sendwe", "neighborhood": "Bongonga", "commune": "Kenya",
+        "city": "Lubumbashi", "address": "x"}
+    try:
+        d = client.get("/api/geo/reverse?lat=-11.6876&lng=27.5026").get_json()
+    finally:
+        geo_api.reverse_geocode_details = orig
+    assert d == {"available": True, "street": "Avenue Sendwe", "neighborhood": "Bongonga",
+                 "commune": "Kenya", "city": "Lubumbashi"}
+
+
 def test_citizen_track_alert_by_reference():
     _, client = make_client()
     r = client.post("/api/alerts", json={

@@ -4,6 +4,7 @@ et résolution approximative du quartier / adresse à partir du GPS.
 import json
 import math
 import threading
+import time
 import urllib.parse
 import urllib.request
 
@@ -55,6 +56,19 @@ def coords_label(lat, lng):
 
 _GEO_CACHE = {}
 _GEO_LOCK = threading.Lock()
+# Politique d'usage de Nominatim : au plus 1 requête par seconde pour tout le
+# serveur (sinon l'adresse IP de la mairie peut être bloquée).
+_RATE_LOCK = threading.Lock()
+_last_call = [0.0]
+_MIN_INTERVAL = 1.05
+
+
+def _throttle():
+    with _RATE_LOCK:
+        wait = _MIN_INTERVAL - (time.monotonic() - _last_call[0])
+        if wait > 0:
+            time.sleep(wait)
+        _last_call[0] = time.monotonic()
 
 
 # Centre de Lubumbashi et ses communes officielles : sert à classer les champs
@@ -136,7 +150,7 @@ def reverse_geocode_details(lat, lng, timeout=6):
     Renvoie un dict (street, neighborhood, commune, city, address) ou None si
     le service est injoignable — on n'invente jamais de faux lieu.
     """
-    key = (round(lat, 5), round(lng, 5))
+    key = (round(lat, 4), round(lng, 4))   # ≈ 11 m : inutile de réinterroger
     with _GEO_LOCK:
         if key in _GEO_CACHE:
             return _GEO_CACHE[key]
@@ -149,6 +163,7 @@ def reverse_geocode_details(lat, lng, timeout=6):
         req = urllib.request.Request(url, headers={
             "User-Agent": "SafeCity/1.0 (plateforme municipale de securite - Lubumbashi)",
         })
+        _throttle()
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             data = json.load(resp)
         d = parse_osm_address(data.get("address", {}), lat, lng)
@@ -159,6 +174,8 @@ def reverse_geocode_details(lat, lng, timeout=6):
     except Exception:  # pragma: no cover - dépend du réseau du serveur
         return None     # pas mis en cache : on retentera à la prochaine alerte
     with _GEO_LOCK:
+        if len(_GEO_CACHE) > 5000:      # borne mémoire
+            _GEO_CACHE.clear()
         _GEO_CACHE[key] = result
     return result
 

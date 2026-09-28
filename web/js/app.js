@@ -511,63 +511,211 @@
   // ---------------------------------------------------------------------- //
   // Géolocalisation
   // ---------------------------------------------------------------------- //
-  function acquireGPS() {
-    if (!navigator.geolocation) {
-      $("gps-text").textContent = "Géolocalisation non supportée par ce navigateur.";
-      return;
-    }
-    const box = $("gps-box");
-    if (box) box.classList.remove("gps-error", "gps-ok");
-    $("gps-text").textContent = "Acquisition de la position…";
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        // Ne pas écraser un point placé manuellement par le citoyen.
-        if (state.manual) return;
-        state.lat = pos.coords.latitude;
-        state.lng = pos.coords.longitude;
-        state.accuracy = pos.coords.accuracy;   // précision en mètres
-        if (box) { box.classList.remove("gps-error"); box.classList.add("gps-ok"); }
-        $("gps-text").innerHTML =
-          "✅ Position obtenue : <b>" + state.lat.toFixed(5) + ", " + state.lng.toFixed(5) +
-          "</b> (±" + Math.round(pos.coords.accuracy) + " m)";
-        if (pickMarker) pickMarker.setLatLng([state.lat, state.lng]);
-        if (pickMap) pickMap.setView([state.lat, state.lng], 15);
-        resolveNeighborhood();
-      },
-      (err) => {
-        if (box) box.classList.remove("gps-ok");
-        // Une position existe déjà (placée à la main, ou GPS précédent) : on la
-        // conserve au lieu de l'effacer.
-        if (state.lat != null && state.lng != null) {
-          $("gps-text").innerHTML =
-            "⚠️ GPS indisponible pour l'instant — <b>position actuelle conservée</b> : "
-            + formatCoords(state.lat, state.lng)
-            + ". Vous pouvez aussi toucher la carte pour l'ajuster.";
-          return;
-        }
-        if (box) box.classList.add("gps-error");
-        $("gps-text").innerHTML =
-          "⚠️ <b>Position GPS non obtenue</b> (" + err.message + "). " +
-          "Activez la localisation puis <a href=\"#\" id=\"gps-retry\">réessayez</a>, " +
-          "ou <b>touchez la carte</b> pour placer votre position. " +
-          "Sinon l'alerte partira avec une <b>position approximative</b>.";
-        var r = $("gps-retry");
-        if (r) r.addEventListener("click", (e) => { e.preventDefault(); acquireGPS(); });
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
+  // Affinage du GPS : la 1re position d'un téléphone vient souvent du Wi-Fi ou
+  // des antennes (±100 à 1000 m). On écoute le GPS quelques secondes et on garde
+  // la position la plus PRÉCISE, jusqu'à ±10 m ou 30 s maximum.
+  const GPS_TARGET_M = 10, GPS_MAX_MS = 30000;
+  let gpsWatch = null, gpsStopTimer = null;
+  state.searching = false;
+  state.place = null;          // {street, neighborhood, commune, city, available}
+  state.placeFor = null;       // position pour laquelle l'adresse a été cherchée
+  state.placeLoading = false;
+
+  function stopGpsWatch() {
+    if (gpsWatch != null && navigator.geolocation) navigator.geolocation.clearWatch(gpsWatch);
+    gpsWatch = null;
+    if (gpsStopTimer) { clearTimeout(gpsStopTimer); gpsStopTimer = null; }
+    if (state.searching) { state.searching = false; renderLocation(); }
   }
 
-  // Récupère quartier/adresse via le backend (reverse geocode).
-  function resolveNeighborhood() {
+  function acquireGPS() {
+    if (!navigator.geolocation) {
+      $("gps-text").textContent = tr("gps.unsupported", "Géolocalisation non supportée par ce navigateur.");
+      return;
+    }
+    stopGpsWatch();
+    state.searching = true;
+    const box = $("gps-box");
+    if (box) box.classList.remove("gps-error");
+    renderLocation();
+    gpsWatch = navigator.geolocation.watchPosition(onGpsFix, onGpsError,
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
+    gpsStopTimer = setTimeout(stopGpsWatch, GPS_MAX_MS);
+  }
+
+  function onGpsFix(pos) {
+    if (state.manual) return;       // ne pas écraser un point placé à la main
+    const acc = pos.coords.accuracy;
+    // Pendant l'affinage, on ne remplace une position que par une plus précise.
+    if (state.lat != null && state.accuracy != null && state.fixAt &&
+        Date.now() - state.fixAt < GPS_MAX_MS && acc > state.accuracy) return;
+    state.lat = pos.coords.latitude;
+    state.lng = pos.coords.longitude;
+    state.accuracy = acc;           // précision en mètres
+    state.fixAt = Date.now();
+    const box = $("gps-box");
+    if (box) { box.classList.remove("gps-error"); box.classList.add("gps-ok"); }
+    if (pickMarker) pickMarker.setLatLng([state.lat, state.lng]);
+    if (pickMap) pickMap.setView([state.lat, state.lng], 17);
+    if (acc <= GPS_TARGET_M) stopGpsWatch();
+    renderLocation();
+    lookupAddress();
+  }
+
+  function onGpsError(err) {
+    // Une position existe déjà : erreur passagère (délai, signal perdu un
+    // instant) pendant l'affinage → on garde la position ET on continue
+    // d'écouter le GPS (le minuteur de 30 s arrêtera l'affinage). Seul un refus
+    // d'autorisation arrête tout.
+    if (state.lat != null && state.lng != null) {
+      if (err && err.code === 1) stopGpsWatch();
+      return;
+    }
+    // Pas encore de position : délai dépassé (code 3) → on patiente encore
+    // tant que le minuteur global court ; sinon on affiche l'aide.
+    if (err && err.code === 3 && gpsStopTimer) return;
+    stopGpsWatch();
+    const box = $("gps-box");
+    if (box) { box.classList.remove("gps-ok"); box.classList.add("gps-error"); }
+    $("gps-text").innerHTML =
+      "⚠️ <b>" + tr("gps.notObtained", "Position GPS non obtenue") + "</b> (" + escapeHtml(err.message) + "). " +
+      tr("gps.errorHelp", "Activez la localisation puis") + ' <a href="#" id="gps-retry">' +
+      tr("gps.retry", "réessayez") + "</a>, " + tr("gps.orTapMap",
+      "ou touchez la carte pour placer votre position. Sinon l'alerte partira avec une position approximative.");
+    const r = $("gps-retry");
+    if (r) r.addEventListener("click", (e) => { e.preventDefault(); acquireGPS(); });
+    renderSummary();
+  }
+
+  // ---- Adresse (commune, avenue, quartier, ville) via le serveur SafeCity ----
+  let addrTimer = null;
+  function distM(a, b) {
+    const R = 6371000, r = Math.PI / 180;
+    const dLat = (b[0] - a[0]) * r, dLng = (b[1] - a[1]) * r;
+    const x = Math.sin(dLat / 2) ** 2 + Math.cos(a[0] * r) * Math.cos(b[0] * r) * Math.sin(dLng / 2) ** 2;
+    return 2 * R * Math.asin(Math.min(1, Math.sqrt(x)));
+  }
+  function lookupAddress() {
     if (state.lat == null) return;
-    // Le backend fournira quartier/adresse à la création ; on affiche une
-    // estimation locale simple en attendant.
-    state.neighborhood = state.neighborhood || "En cours…";
-    state.address = state.address ||
-      state.lat.toFixed(5) + ", " + state.lng.toFixed(5);
-    $("ls-neighborhood").textContent = state.neighborhood;
-    $("ls-address").textContent = state.address;
+    const here = [state.lat, state.lng];
+    // Inutile de redemander pour quelques mètres d'écart.
+    if (state.placeFor && distM(state.placeFor, here) < 15 && state.place) { renderLocation(); return; }
+    clearTimeout(addrTimer);
+    state.placeLoading = true;
+    renderLocation();
+    addrTimer = setTimeout(async () => {
+      const q = [state.lat, state.lng];
+      try {
+        const r = await fetch(API + "/api/geo/reverse?lat=" + q[0] + "&lng=" + q[1]);
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        const d = await r.json();
+        // La position a pu changer entre-temps : on ne garde que la réponse à jour.
+        if (state.lat === q[0] && state.lng === q[1]) { state.place = d; state.placeFor = q; }
+      } catch (e) {
+        state.place = { available: false };
+        state.placeFor = null;
+      } finally {
+        state.placeLoading = false;
+        renderLocation();
+      }
+    }, 1200);
+  }
+
+  function escapeHtml(t) {
+    return String(t == null ? "" : t).replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+  function gpsSigned(lat, lng) {
+    return lat == null ? "—" : Number(lat).toFixed(6) + ", " + Number(lng).toFixed(6);
+  }
+  // « Avenue Sendwe » -> ["Avenue", "Sendwe"]
+  function streetParts(street) {
+    const s = (street || "").trim(), low = s.toLowerCase();
+    const kinds = [[["avenue ", "av. ", "av "], "Avenue"], [["rue "], "Rue"],
+      [["boulevard ", "bd "], "Boulevard"], [["route "], "Route"], [["chaussée "], "Chaussée"]];
+    for (const [pre, label] of kinds) for (const p of pre) if (low.startsWith(p)) return [label, s.slice(p.length).trim() || s];
+    return [tr("loc.street", "Avenue / Rue"), s];
+  }
+  function quality(acc) {
+    if (acc == null) return null;
+    if (acc <= 10) return ["excellent", tr("gps.q.excellent", "Excellente"), "#16a34a"];
+    if (acc <= 30) return ["good", tr("gps.q.good", "Bonne"), "#16a34a"];
+    if (acc <= 100) return ["medium", tr("gps.q.medium", "Moyenne"), "#d97706"];
+    return ["weak", tr("gps.q.weak", "Faible"), "#dc2626"];
+  }
+  function placeValue(key) {
+    if (state.lat == null) return "—";
+    if (state.place && state.place[key]) return escapeHtml(state.place[key]);
+    if (key === "city" && state.place && state.place.city) return escapeHtml(state.place.city);
+    if (state.placeLoading) return '<span class="loc-wait">' + tr("geo.searching", "Recherche…") + "</span>";
+    return "—";
+  }
+  function locRows() {
+    const [stLabel, stVal] = streetParts(state.place && state.place.street);
+    const q = quality(state.accuracy);
+    const prec = state.manual ? tr("gps.manualShort", "Placée à la main")
+      : state.accuracy == null ? "—"
+      : "±" + Math.round(state.accuracy) + " m · <b style=\"color:" + q[2] + "\">" + q[1] + "</b>";
+    return [
+      [tr("loc.commune", "Commune"), placeValue("commune")],
+      [stLabel, stVal ? escapeHtml(stVal) : placeValue("street")],
+      [tr("loc.quartier", "Quartier"), placeValue("neighborhood")],
+      [tr("loc.city", "Ville"), placeValue("city")],
+      ["GPS", '<span class="loc-gps">' + gpsSigned(state.lat, state.lng) + "</span>"],
+      [tr("gps.precision", "Précision"), prec],
+    ];
+  }
+  function rowsHTML(rows) {
+    return rows.map(([k, v]) => '<div class="loc-row"><span>' + escapeHtml(k) + "</span><b>" + v + "</b></div>").join("");
+  }
+
+  // Carte « Ma position actuelle » (accueil).
+  function renderLocation() {
+    const el = $("gps-text");
+    if (!el) return;
+    if (state.lat == null) {
+      el.innerHTML = '<div class="loc-status searching"><span class="dot"></span>' +
+        (state.searching ? tr("gps.searching", "Recherche du signal GPS…") : tr("gps.waiting", "Position non disponible")) + "</div>";
+      renderSummary();
+      return;
+    }
+    const q = quality(state.accuracy);
+    let status;
+    if (state.manual) status = '<div class="loc-status manual"><span class="dot"></span>' + tr("gps.manual", "Position placée à la main") + "</div>";
+    else if (state.searching) status = '<div class="loc-status searching"><span class="dot"></span>' + tr("gps.refining", "GPS actif · amélioration de la précision…") + "</div>";
+    else status = '<div class="loc-status ok"><span class="dot"></span>' + tr("gps.active", "GPS actif") + "</div>";
+    let bar = "";
+    if (q && !state.manual) {
+      const pct = { excellent: 100, good: 75, medium: 45, weak: 18 }[q[0]];
+      bar = '<div class="loc-bar"><i style="width:' + pct + "%;background:" + q[2] + '"></i></div>';
+    }
+    let hint = "";
+    if (q && !state.manual && !state.searching && (q[0] === "medium" || q[0] === "weak")) {
+      hint = '<p class="loc-hint">' + tr("gps.weakHint", "Précision faible : sortez à découvert et activez la localisation précise.") +
+        ' <a href="#" id="gps-improve">' + tr("gps.improve", "Améliorer") + "</a></p>";
+    }
+    el.innerHTML = status + '<div class="loc-coords">' + gpsSigned(state.lat, state.lng) + "</div>" + bar +
+      '<div class="loc-rows">' + rowsHTML(locRows().filter((r) => r[0] !== "GPS")) + "</div>" + hint;
+    const imp = $("gps-improve");
+    if (imp) imp.addEventListener("click", (e) => { e.preventDefault(); acquireGPS(); });
+    renderSummary();
+  }
+
+  // Changement de langue (bouton SW/FR ou Réglages) : on redessine la position.
+  document.addEventListener("click", (e) => {
+    if (e.target.closest("#lang-toggle")) setTimeout(renderLocation, 0);
+  });
+  document.addEventListener("change", (e) => {
+    if (e.target && e.target.id === "set-lang") setTimeout(renderLocation, 0);
+  });
+
+  // Récapitulatif « Ma position » de l'écran Détails.
+  function renderSummary() {
+    const host = $("loc-summary");
+    if (!host) return;
+    host.innerHTML = state.lat == null
+      ? '<p class="loc-wait">' + tr("gps.waiting", "Position non disponible") + "</p>"
+      : rowsHTML(locRows());
   }
 
   // ---------------------------------------------------------------------- //
@@ -579,13 +727,12 @@
     state.lng = latlng.lng;
     state.manual = true;      // choix volontaire → position considérée fiable
     state.accuracy = null;    // pas de précision GPS pour un point placé à la main
-    state.neighborhood = null; state.address = null;
+    stopGpsWatch();
     if (pickMarker) pickMarker.setLatLng(latlng);
     const box = $("gps-box");
     if (box) { box.classList.remove("gps-error"); box.classList.add("gps-ok"); }
-    $("gps-text").innerHTML = "📍 <b>" + tr("details.manualSet", "Position placée à la main")
-      + "</b> : " + formatCoords(latlng.lat, latlng.lng);
-    resolveNeighborhood();
+    renderLocation();
+    lookupAddress();
   }
   function initPickMap() {
     if (typeof L === "undefined") return;  // Leaflet indisponible
@@ -610,7 +757,8 @@
   // Écran 1 -> 2 : bouton ALERTE
   // ---------------------------------------------------------------------- //
   $("btn-alert").addEventListener("click", () => {
-    if (state.lat == null) acquireGPS();
+    // Position absente ou datant de plus d'une minute : on relance le GPS.
+    if (!state.manual && (state.lat == null || !state.fixAt || Date.now() - state.fixAt > 60000)) acquireGPS();
     show("details");
     setTimeout(initPickMap, 120);  // carte visible → on l'initialise
   });
@@ -618,7 +766,7 @@
   // Recentrer sur la position GPS (annule un éventuel placement manuel).
   $("btn-use-gps").addEventListener("click", () => {
     state.manual = false;
-    $("gps-text").textContent = "Acquisition de la position…";
+    state.accuracy = null; state.fixAt = null;
     acquireGPS();
   });
   $("btn-back").addEventListener("click", () => show("alert"));
@@ -851,7 +999,7 @@
     $("cf-type").textContent = typeLabel(state.type || "autre");
     $("cf-urgency").textContent = "En attente";
     $("cf-urgency").className = "";
-    $("cf-neighborhood").textContent = state.neighborhood || "—";
+    $("cf-neighborhood").textContent = placeLine() || "—";
     $("cf-distance").textContent = "—";
     $("cf-eta").textContent = "—";
     $("cf-type").closest("#screen-confirm").querySelector(".confirm-sub").textContent =
@@ -993,13 +1141,14 @@
     const urg = $("cf-urgency");
     urg.textContent = capitalize(alert.urgency);
     urg.className = "urg-" + alert.urgency;
-    $("cf-neighborhood").textContent = alert.neighborhood || "—";
+    $("cf-neighborhood").textContent = alert.neighborhood || placeLine() || "—";
     $("cf-distance").textContent =
       alert.distance_m != null ? Math.round(alert.distance_m) + " m" : "—";
     $("cf-eta").textContent =
       alert.eta_moto_min != null ? alert.eta_moto_min + " min" : "—";
     // Coordonnées GPS : affichées ; si approximatives, on avertit clairement.
-    $("cf-coords-val").textContent = formatCoords(alert.lat, alert.lng);
+    $("cf-coords-val").textContent = gpsSigned(alert.lat, alert.lng) +
+      (alert.gps_accuracy_m != null ? "  (±" + Math.round(alert.gps_accuracy_m) + " m)" : "");
     const approx = !!alert.position_approx;
     $("cf-coords").classList.toggle("approx", approx);
     $("cf-approx").hidden = !approx;
@@ -1040,7 +1189,7 @@
 
   // Cliquer sur la position exacte la copie (pratique pour la transmettre).
   $("cf-coords").addEventListener("click", () => {
-    const v = $("cf-coords-val").textContent;
+    const v = ($("cf-coords-val").textContent || "").split("  (")[0];
     if (!v || v === "—") return;
     const done = () => toast("📍 " + tr("confirm.coordsCopied", "Position copiée") + " : " + v);
     if (navigator.clipboard) navigator.clipboard.writeText(v).then(done, done);
@@ -1091,6 +1240,12 @@
     show("alert");
     acquireGPS();
   });
+
+  // « Bongonga, commune Kenya » d'après l'adresse trouvée avant l'envoi.
+  function placeLine() {
+    const p = state.place || {};
+    return [p.neighborhood, p.commune && tr("loc.communeOf", "commune") + " " + p.commune].filter(Boolean).join(", ");
+  }
 
   function capitalize(s) {
     return s ? s.charAt(0).toUpperCase() + s.slice(1) : "";

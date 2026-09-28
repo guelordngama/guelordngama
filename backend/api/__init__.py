@@ -7,6 +7,7 @@ def register_blueprints(app):
     from .audit import bp as audit_bp
     from .auth import bp as auth_bp
     from .export import bp as export_bp
+    from .geo import bp as geo_bp
     from .health import bp as health_bp
     from .messages import bp as messages_bp
     from .reports import bp as reports_bp
@@ -27,6 +28,7 @@ def register_blueprints(app):
     app.register_blueprint(uploads_bp)
     app.register_blueprint(tiles_bp)
     app.register_blueprint(audit_bp)
+    app.register_blueprint(geo_bp)
 
     # En développement, le backend sert aussi les fronts (app citoyenne au « / »,
     # portail au « /portal/ ») pour tout avoir sur la même origine (pas de CORS).
