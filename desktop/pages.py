@@ -41,6 +41,11 @@ def _table(headers):
     t.setSelectionBehavior(QAbstractItemView.SelectRows)
     t.setEditTriggers(QAbstractItemView.NoEditTriggers)
     t.setAlternatingRowColors(False)
+    # Défilement fluide au pixel (par défaut Qt saute ligne par ligne : avec des
+    # lignes de hauteurs différentes la barre « saute » et paraît bloquée).
+    t.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
+    t.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
+    t.verticalScrollBar().setSingleStep(18)
     return t
 
 
@@ -1382,10 +1387,21 @@ class ChatPage(QWidget):
         else:
             self._scroll_to_bottom()
 
+    def has_message(self, mid):
+        return mid is not None and mid in getattr(self, "_shown_ids", set())
+
     def add_message(self, m):
+        """Ajoute un message (ignoré s'il est déjà affiché : le même message peut
+        arriver par la réponse d'envoi, le temps réel ET le rafraîchissement).
+        Renvoie True s'il a été ajouté."""
+        if self.has_message(m.get("id")):
+            return False
         self._maybe_add_date_divider(m)
         self._add_bubble(m)
-        self._scroll_to_bottom()
+        # Mon message : toujours en bas. Message reçu : seulement si je suis déjà
+        # en bas (on ne coupe pas la lecture de l'historique).
+        self._scroll_to_bottom(force=m.get("sender_id") == self.me_id)
+        return True
 
     def _maybe_add_date_divider(self, m):
         """Insère une pastille de date (Aujourd'hui / Hier / 24 juillet 2026)
@@ -1399,6 +1415,7 @@ class ChatPage(QWidget):
 
     def _clear_messages(self):
         self._sent_ticks = []
+        self._shown_ids = set()
         # Retire toutes les bulles en gardant le stretch final.
         while self._msgs.count() > 1:
             item = self._msgs.takeAt(0)
@@ -1496,6 +1513,10 @@ class ChatPage(QWidget):
         self._msgs.insertWidget(self._msgs.count() - 1, wrap)
 
     def _add_bubble(self, m, unread=False):
+        if m.get("id") is not None:
+            if not hasattr(self, "_shown_ids"):
+                self._shown_ids = set()
+            self._shown_ids.add(m["id"])
         mine = m.get("sender_id") == self.me_id
         bg = self.BUBBLE_ME if mine else self.BUBBLE_OTHER
         name_color = "#8fe3cf" if mine else theme.ACCENT_2
@@ -1764,10 +1785,26 @@ class ChatPage(QWidget):
 
         QDesktopServices.openUrl(QUrl(url))
 
-    def _scroll_to_bottom(self):
+    def _scroll_to_bottom(self, force=True):
+        """Descend en bas de la conversation. La hauteur des bulles n'est connue
+        qu'après la mise en page : on recolle donc aussi au bas quand la plage de
+        la barre change (sinon la vue s'arrêtait au-dessus du dernier message)."""
         from PySide6.QtCore import QTimer
         bar = self.scroll.verticalScrollBar()
+        if not force and bar.maximum() - bar.value() > 120:
+            return      # l'utilisateur lit plus haut : on ne le déplace pas
+        if not getattr(self, "_stick_hooked", False):
+            self._stick_hooked = True
+            self._stick_until_ms = 0
+            bar.rangeChanged.connect(self._on_chat_range)
+        from PySide6.QtCore import QDateTime
+        self._stick_until_ms = QDateTime.currentMSecsSinceEpoch() + 800
         QTimer.singleShot(0, lambda: bar.setValue(bar.maximum()))
+
+    def _on_chat_range(self, _mn, mx):
+        from PySide6.QtCore import QDateTime
+        if QDateTime.currentMSecsSinceEpoch() <= getattr(self, "_stick_until_ms", 0):
+            self.scroll.verticalScrollBar().setValue(mx)
 
     def _scroll_to_widget(self, w):
         """Positionne la vue pour que le widget ``w`` (séparateur « Nouveaux
@@ -1855,7 +1892,20 @@ class SettingsPage(QWidget):
         super().__init__()
         from PySide6.QtWidgets import QFormLayout, QLineEdit
 
-        root = QVBoxLayout(self)
+        # Page défilante (écrans de portable).
+        scroll = QScrollArea(self)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.NoFrame)
+        scroll.setObjectName("pageScroll")
+        scroll.setStyleSheet("QScrollArea#pageScroll { background: transparent; border: none; }")
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.addWidget(scroll)
+        content = QWidget()
+        content.setObjectName("pageContent")
+        content.setStyleSheet("QWidget#pageContent { background: transparent; }")
+        scroll.setWidget(content)
+        root = QVBoxLayout(content)
         root.setContentsMargins(24, 20, 24, 24)
         root.setSpacing(16)
         card = Card("Paramètres")
@@ -1997,8 +2047,10 @@ class SecurityPage(QWidget):
         outer.setContentsMargins(0, 0, 0, 0)
         outer.addWidget(scroll)
         content = QWidget()
-        content.setStyleSheet("background: transparent;")
-        scroll.setStyleSheet("background: transparent;")
+        content.setObjectName("pageContent")
+        content.setStyleSheet("QWidget#pageContent { background: transparent; }")
+        scroll.setObjectName("pageScroll")
+        scroll.setStyleSheet("QScrollArea#pageScroll { background: transparent; border: none; }")
         scroll.setWidget(content)
         root = QVBoxLayout(content)
         root.setContentsMargins(24, 20, 24, 24)
@@ -2210,8 +2262,10 @@ class AboutPage(QWidget):
         outer.addWidget(scroll)
 
         content = QWidget()
-        content.setStyleSheet("background: transparent;")
-        scroll.setStyleSheet("background: transparent;")
+        content.setObjectName("pageContent")
+        content.setStyleSheet("QWidget#pageContent { background: transparent; }")
+        scroll.setObjectName("pageScroll")
+        scroll.setStyleSheet("QScrollArea#pageScroll { background: transparent; border: none; }")
         scroll.setWidget(content)
         root = QVBoxLayout(content)
         root.setContentsMargins(28, 24, 28, 28)

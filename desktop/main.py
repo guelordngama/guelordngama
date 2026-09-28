@@ -576,6 +576,23 @@ class Sidebar(QFrame):
         root.addWidget(section)
         root.addSpacing(4)
 
+        # Menu défilant : sur un écran de portable (768 px, zoom Windows 125 %)
+        # les 14 entrées ne tiennent pas en hauteur — sans défilement, la fenêtre
+        # débordait de l'écran et le bas des pages devenait inaccessible.
+        from PySide6.QtWidgets import QScrollArea
+        nav_scroll = QScrollArea()
+        nav_scroll.setObjectName("sideScroll")
+        nav_scroll.setWidgetResizable(True)
+        nav_scroll.setFrameShape(QFrame.NoFrame)
+        nav_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        nav_host = QWidget()
+        nav_host.setObjectName("sideNav")
+        nav_host.setStyleSheet("QWidget#sideNav { background: transparent; }")
+        nav = QVBoxLayout(nav_host)
+        nav.setContentsMargins(0, 0, 4, 0)
+        nav.setSpacing(3)
+        nav_scroll.setWidget(nav_host)
+
         self.group = QButtonGroup(self)
         self.group.setExclusive(True)
         self._base_text = {}     # idx -> texte de base du bouton
@@ -590,10 +607,10 @@ class Sidebar(QFrame):
             b.setCursor(Qt.PointingHandCursor)
             b.clicked.connect(lambda _=False, idx=i: self.navigate.emit(idx))
             self.group.addButton(b, i)
-            root.addWidget(b)
+            nav.addWidget(b)
+        nav.addStretch()
         self.group.button(0).setChecked(True)
-
-        root.addStretch()
+        root.addWidget(nav_scroll, 1)
         self.badge = QLabel("● Hors ligne")
         self.badge.setStyleSheet("color: #fca5a5; font-weight: 700; padding: 6px 10px;")
         root.addWidget(self.badge)
@@ -685,8 +702,8 @@ class MainWindow(QWidget):
         self.setWindowTitle(
             f"SafeCity — Centre de commandement · {operator.get('name', '')}".strip(" ·"))
         self.setWindowIcon(app_icon())
-        self.setMinimumSize(1040, 640)
-        self.resize(1320, 860)
+        self.setMinimumSize(900, 540)
+        self._fit_to_screen(1320, 860)
         self.setStyleSheet(theme.QSS)
         self.alarm = AlarmPlayer()
         # Préférence son (activé par défaut), mémorisée entre sessions.
@@ -978,6 +995,23 @@ class MainWindow(QWidget):
         if hasattr(self.page_chat, "apply_theme"):
             self.page_chat.apply_theme()
 
+    def _fit_to_screen(self, width, height):
+        """Taille initiale adaptée à l'écran : jamais plus grande que la surface
+        disponible (barre des tâches exclue), sinon le bas des pages et leurs
+        barres de défilement sortent de l'écran."""
+        self.opens_maximized = False
+        screen = QApplication.primaryScreen()
+        if screen is None:
+            self.resize(width, height)
+            return
+        avail = screen.availableGeometry()
+        if avail.width() < width + 40 or avail.height() < height + 40:
+            self.opens_maximized = True
+        w, h = min(width, avail.width() - 20), min(height, avail.height() - 40)
+        self.resize(max(w, self.minimumWidth()), max(h, self.minimumHeight()))
+        self.move(avail.x() + (avail.width() - self.width()) // 2,
+                  avail.y() + max(0, (avail.height() - self.height()) // 2))
+
     # ---- Navigation ----
     def _navigate(self, idx):
         self.stack.setCurrentIndex(idx)
@@ -1263,10 +1297,16 @@ class MainWindow(QWidget):
 
     def _send_message(self, text, attachment="", voice="", voice_duration=0, video=""):
         try:
-            self.api.send_message(text, attachment=attachment or None, voice=voice or None,
-                                  voice_duration=voice_duration or None, video=video or None)
+            sent = self.api.send_message(text, attachment=attachment or None, voice=voice or None,
+                                         voice_duration=voice_duration or None, video=video or None)
         except Exception as e:
-            QMessageBox.warning(self, "Messagerie", str(e))
+            QMessageBox.warning(self, "Messagerie", _api_error_message(e))
+            return
+        # Affichage IMMÉDIAT depuis la réponse du serveur : on n'attend pas l'écho
+        # temps réel (qui peut être coupé par le réseau ou un pare-feu). S'il
+        # arrive ensuite, il est ignoré (pas de doublon).
+        if isinstance(sent, dict) and sent.get("id") is not None:
+            self._on_chat_message(sent)
 
     def _change_password(self, current, new):
         try:
@@ -1281,7 +1321,8 @@ class MainWindow(QWidget):
         QSettings("SafeCity", "Operateur").setValue("server_url", url)
 
     def _on_chat_message(self, msg):
-        self.page_chat.add_message(msg)
+        if not self.page_chat.add_message(msg):
+            return  # déjà affiché (réponse d'envoi / rafraîchissement) : rien à refaire
         # Mémorise l'id pour que le filet de sécurité REST ne le re-notifie pas.
         if msg.get("id") is not None:
             self._known_msg_ids.add(msg["id"])
@@ -1506,6 +1547,12 @@ class MainWindow(QWidget):
             return
         fresh = [m for m in msgs if m.get("id") is not None
                  and m.get("id") not in self._known_msg_ids]
+        # Temps réel coupé : les messages manqués s'affichent quand même dans la
+        # conversation (dans l'ordre), sans avoir à actualiser.
+        if self._msg_bootstrapped:
+            for m in sorted(msgs, key=lambda x: x.get("id") or 0):
+                if m.get("id") is not None:
+                    self.page_chat.add_message(m)
         for m in msgs:
             if m.get("id") is not None:
                 self._known_msg_ids.add(m["id"])
@@ -2080,7 +2127,10 @@ def main():
         sys.exit(0)
 
     window = MainWindow(api, login.user or {"name": "Opérateur", "role": "operator"})
-    window.show()
+    if window.opens_maximized:
+        window.showMaximized()          # petit écran : toute la surface utile
+    else:
+        window.show()
     sys.exit(app.exec())
 
 

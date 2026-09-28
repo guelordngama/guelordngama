@@ -107,7 +107,7 @@ QLabel#sideSection {{ font-size: 10.5px; font-weight: 800; color: {SIDE_MUTED}; 
 
 QPushButton#navBtn {{
     text-align: left;
-    padding: 11px 12px;
+    padding: 9px 12px;
     border: none;
     border-radius: 10px;
     background: transparent;
@@ -209,10 +209,17 @@ QComboBox QAbstractItemView {{
 }}
 
 /* --- Barres de défilement --- */
-QScrollBar:vertical {{ background: transparent; width: 10px; margin: 2px; }}
-QScrollBar::handle:vertical {{ background: {p['BORDER']}; border-radius: 5px; min-height: 30px; }}
-QScrollBar::handle:vertical:hover {{ background: {p['MUTED']}; }}
-QScrollBar::add-line, QScrollBar::sub-line {{ height: 0; }}
+/* Poignée bien visible et assez large pour être saisie ; rails transparents
+   (sans eux Qt dessine un motif par défaut et le clic sur le rail saute). */
+QScrollBar:vertical {{ background: transparent; width: 12px; margin: 2px 1px; }}
+QScrollBar:horizontal {{ background: transparent; height: 12px; margin: 1px 2px; }}
+QScrollBar::handle:vertical {{ background: {p['MUTED']}; border-radius: 5px; min-height: 36px; }}
+QScrollBar::handle:horizontal {{ background: {p['MUTED']}; border-radius: 5px; min-width: 36px; }}
+QScrollBar::handle:hover, QScrollBar::handle:pressed {{ background: {p['ACCENT']}; }}
+QScrollBar::add-page, QScrollBar::sub-page {{ background: transparent; }}
+QScrollBar::add-line, QScrollBar::sub-line {{ width: 0; height: 0; border: none; background: none; }}
+QScrollArea#sideScroll, QScrollArea#sideScroll > QWidget > QWidget {{ background: transparent; border: none; }}
+QScrollArea#sideScroll QScrollBar::handle:vertical {{ background: rgba(255,255,255,0.28); }}
 
 /* --- Barre d'état --- */
 QFrame#statusbar {{ background: {p['PANEL']}; border-top: 1px solid {p['BORDER']}; }}

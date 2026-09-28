@@ -2,6 +2,23 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.23.2] — 2026-09-28 — Poste opérateur : défilement et messagerie
+
+### Corrigé
+- **Barres de défilement** : sur un écran de portable (768 px, zoom Windows
+  125 %), le menu de gauche (14 entrées) imposait une hauteur minimale de 779 px
+  et la fenêtre s'ouvrait en 860 px : elle débordait de l'écran, le bas des pages
+  et de leurs barres de défilement devenait inaccessible. Le menu défile
+  désormais, la fenêtre s'adapte à l'écran (agrandie sur petit écran), la page
+  Paramètres défile, les tableaux défilent au pixel (plus de sauts), et les
+  barres sont plus visibles et plus faciles à saisir.
+- **Messagerie** : un message envoyé ne s'affichait qu'à la réception de l'écho
+  temps réel — si celui-ci était coupé (réseau, pare-feu), il fallait actualiser.
+  Il s'affiche maintenant **immédiatement** (réponse du serveur), et les messages
+  reçus apparaissent aussi via le rafraîchissement automatique, sans doublon. La
+  conversation ne saute plus en bas quand on lit l'historique.
+- Bouton « Enregistrer le serveur » (Paramètres) de nouveau coloré.
+
 ## [1.23.1] — 2026-09-28 — Cartes : fin du filigrane « API KEY REQUIRED »
 
 ### Corrigé
