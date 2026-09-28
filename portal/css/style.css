@@ -266,3 +266,54 @@ input:focus, select:focus { outline: none; border-color: var(--blue); box-shadow
 .fiche-row a { color: var(--blue); text-decoration: none; }
 .fiche-sep { grid-column: 1 / -1; height: 1px; background: var(--line); margin: 5px 0; }
 .fiche-status { font-weight: 800; letter-spacing: .02em; }
+
+/* ================= CARTE EN TEMPS RÉEL (livemap.js) ================= */
+#map { height: 520px; }
+.lm-live-badge { margin-left: auto; font-size: 11px; font-weight: 800; color: var(--green); letter-spacing: .03em; }
+.lm-ctl { background: #fff; color: #16223c; border-radius: 12px; box-shadow: 0 4px 16px rgba(16,24,40,.18);
+  border: 1px solid #e3e9f2; width: 250px; font-size: 12px; overflow: hidden; }
+.lm-toggle { width: 100%; display: flex; align-items: center; gap: 8px; border: none; background: #fff; cursor: pointer;
+  padding: 9px 12px; font: inherit; font-weight: 800; font-size: 12.5px; color: #16223c; }
+.lm-live { width: 8px; height: 8px; border-radius: 50%; background: #16a34a; margin-left: auto; animation: lmblink 1.4s infinite; }
+@keyframes lmblink { 50% { opacity: .25; } }
+.lm-ctl.collapsed { width: auto; }
+.lm-ctl.collapsed .lm-body { display: none; }
+.lm-body { padding: 0 12px 10px; }
+.lm-counters { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+.lm-counters div { background: #f5f7fb; border: 1px solid #e3e9f2; border-radius: 8px; text-align: center; padding: 5px 2px; }
+.lm-counters b { display: block; font-size: 16px; }
+.lm-counters span { display: block; font-size: 9px; font-weight: 700; color: #64748b; line-height: 1.15; }
+.lm-layers { display: grid; gap: 2px; margin: 8px 0; }
+.lm-layers label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.lm-layers input { width: auto; accent-color: #2563eb; }
+.lm-fit { width: 100%; border: 1px solid #e3e9f2; background: #fff; border-radius: 8px; padding: 6px; cursor: pointer;
+  font: inherit; font-weight: 700; color: #16223c; }
+.lm-alert { position: relative; width: 22px; height: 22px; }
+.lm-alert .core { position: absolute; inset: 3px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.45); }
+.lm-alert.mine .core { box-shadow: 0 0 0 3px #2563eb, 0 1px 4px rgba(0,0,0,.45); }
+.lm-alert .ring { position: absolute; inset: -6px; border-radius: 50%; border: 3px solid; opacity: .7; animation: lmpulse 1.6s ease-out infinite; }
+@keyframes lmpulse { 0% { transform: scale(.5); opacity: .9; } 100% { transform: scale(1.5); opacity: 0; } }
+.lm-label { background: #fff; color: #16223c; border: 1px solid #e3e9f2; border-radius: 999px; padding: 2px 8px 2px 4px;
+  font-size: 11px; font-weight: 700; white-space: nowrap; box-shadow: 0 1px 4px rgba(0,0,0,.25); display: inline-flex; align-items: center; gap: 4px; }
+.lm-label .av { width: 18px; height: 18px; border-radius: 50%; color: #fff; display: inline-grid; place-items: center; font-size: 9.5px; font-weight: 800; }
+.lm-agent.stale { opacity: .55; filter: grayscale(.5); }
+.lm-me { border: 2px solid #2563eb; color: #1d4ed8; }
+.lm-me .av { background: #dbeafe; font-size: 12px; }
+.lm-route-label { background: rgba(29,78,216,.95); color: #fff; border: none; border-radius: 8px; font-weight: 700; font-size: 11px; padding: 3px 7px; }
+.lm-route-label::before { display: none; }
+.lm-fiche { color: #16223c; font-size: 12.5px; }
+.lm-fiche h3 { margin: 0 0 6px; font-size: 14px; }
+.lm-fiche table { border-collapse: collapse; }
+.lm-fiche td { padding: 1.5px 0; vertical-align: top; }
+.lm-fiche td:first-child { color: #64748b; font-weight: 600; padding-right: 10px; white-space: nowrap; }
+.lm-fiche td:last-child { font-weight: 700; }
+.lm-fiche .sep td { padding-top: 5px; border-top: 1px solid #e3e9f2; }
+.lm-fiche .acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.lm-btn { font-size: 12px; font-weight: 700; border-radius: 8px; padding: 6px 10px; border: 1px solid #e3e9f2; background: #fff;
+  color: #2563eb !important; text-decoration: none; }
+.lm-btn.primary { background: #2563eb; border-color: #2563eb; color: #fff !important; }
+@media (max-width: 820px) {
+  #map { height: 420px; }
+  .lm-ctl { width: 220px; }
+  .lm-ctl.collapsed .lm-toggle span { display: none; }
+}

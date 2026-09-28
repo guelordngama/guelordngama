@@ -2,6 +2,29 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.21.0] — 2026-09-28 — Portail agents : carte en temps réel
+
+### Ajouté
+- **Carte en temps réel du portail agents**, même système que celle du poste
+  opérateur (`portal/js/livemap.js`) :
+  - alertes (pulsation tant qu'elles sont **en attente**), **citoyens**,
+    **agents disponibles** / **en intervention** (collègues), « **Moi** » avec
+    cercle de précision GPS ;
+  - **mon trajet** vers ma mission (calculé par le serveur, recalculé si je me
+    déplace d'environ 100 m) et trajets des collègues vers leurs interventions ;
+  - fiche complète dans chaque bulle (commune, avenue / rue, quartier, ville,
+    GPS, précision, heure, statut, distance jusqu'à moi), téléphone du citoyen
+    cliquable, boutons « **Accepter la mission** » et « **Google Maps** » ;
+  - panneau compteurs + couches (replié sur téléphone), « Tout afficher » ;
+    mises à jour sans fermer les bulles.
+- Serveur : `GET /api/agents/positions` (agents connectés) — positions des
+  collègues **sans données personnelles** (ni e-mail, ni téléphone).
+
+### Corrigé
+- Le portail appelait OSRM directement depuis le téléphone de l'agent : les
+  itinéraires passent désormais par le serveur SafeCity (`/api/geo/route`).
+- Versions affichées dans le site citoyen et le portail mises à jour.
+
 ## [1.20.0] — 2026-09-28 — Poste opérateur : carte en temps réel
 
 ### Ajouté

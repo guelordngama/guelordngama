@@ -251,6 +251,24 @@ def test_geo_route_endpoint():
     assert client.get("/api/geo/route?from=abc&to=1,2", headers=h).status_code == 400
 
 
+def test_agent_positions_for_portal_map():
+    """Carte du portail : positions des collègues, sans données personnelles."""
+    _, client = make_client()
+    assert client.get("/api/agents/positions").status_code == 401
+    tok = client.post("/api/auth/login", json={"email": "agent1@safecity.local",
+                                                "password": "safecity123"}).get_json()["token"]
+    h = {"Authorization": "Bearer " + tok}
+    client.post("/api/agents/me/location", json={"lat": -11.66, "lng": 27.48}, headers=h)
+    r = client.get("/api/agents/positions", headers=h)
+    assert r.status_code == 200
+    items = r.get_json()
+    assert items and all(i["role"] == "agent" for i in items)
+    me = [i for i in items if i["lat"] is not None][0]
+    assert abs(me["lat"] + 11.66) < 1e-6
+    for i in items:
+        assert "email" not in i and "phone" not in i and "permissions" not in i
+
+
 def test_citizen_track_alert_by_reference():
     _, client = make_client()
     r = client.post("/api/alerts", json={

@@ -137,6 +137,8 @@
     try { connectRealtime(); } catch (e) { console.warn("Temps réel indisponible :", e); }
     loadAlerts();
     try { startGeolocation(); } catch (e) {}
+    loadAgentPositions();
+    setInterval(loadAgentPositions, 30000);   // filet de sécurité si le temps réel coupe
 
     $("availability").addEventListener("change", async (e) => {
       try { await api("POST", "/api/agents/me/status", { availability: e.target.value }); } catch (err) {}
@@ -471,6 +473,13 @@
     // blocage des CDN externes par le pare-feu.
     L.tileLayer(API + "/tiles/{z}/{x}/{y}.png",
       { attribution: "© OpenStreetMap © CARTO", maxZoom: 20 }).addTo(state.map);
+    // Carte en temps réel (alertes, citoyens, agents, trajets, rue/quartier).
+    if (window.LiveMap) {
+      state.live = window.LiveMap(state.map, {
+        selfId: state.agent && state.agent.id,
+        onAccept: (id) => accept(id),
+      });
+    }
   }
 
   // ---- Temps réel ----
@@ -491,6 +500,10 @@
                (a.type || "Alerte").toUpperCase() + " · " + (a.neighborhood || ""));
       });
       state.socket.on("alert_updated", onAlertUpdated);
+      state.socket.on("agent_updated", (g) => {
+        if (state.live && g && g.role === "agent") state.live.upsertAgent(pickAgent(g));
+      });
+      state.socket.on("agent_deleted", (d) => { if (state.live && d) state.live.removeAgent(d.id); });
       state.socket.on("messages_read", (d) => {
         if (state.agent && d.reader_id === state.agent.id) return;  // ma propre lecture
         if (d.seen_at && d.seen_at > (state.readFrontier || "")) state.readFrontier = d.seen_at;
@@ -565,7 +578,7 @@
   }
   function removeAlert(id) {
     delete state.alerts[id];
-    if (state.markers[id]) { state.map.removeLayer(state.markers[id]); delete state.markers[id]; }
+    syncMap();
     renderList();
   }
 
@@ -714,8 +727,8 @@
       const gm = node.querySelector(".btn-gmaps");
       if (gm) gm.href = "https://www.google.com/maps/dir/?api=1&destination=" + a.lat + "," + a.lng;
       node.querySelector(".btn-locate").addEventListener("click", () => {
-        if (state.map) state.map.setView([a.lat, a.lng], 16);
-        if (state.markers[a.id]) state.markers[a.id].openPopup();
+        if (state.live) state.live.focusAlert(a.id);
+        else if (state.map) state.map.setView([a.lat, a.lng], 16);
       });
       // Bouton « Terminer l'intervention » : visible seulement si l'alerte
       // m'est assignée.
@@ -726,18 +739,10 @@
     });
   }
 
-  function drawMarker(a) {
-    if (!state.map || typeof L === "undefined") return;
-    if (state.markers[a.id]) state.map.removeLayer(state.markers[a.id]);
-    const color = URGENCY[a.urgency] || "#ef4444";
-    const icon = L.divIcon({ className: "",
-      html: '<div style="width:16px;height:16px;border-radius:50%;background:' + color +
-            ';border:3px solid #0b1220;box-shadow:0 0 0 2px ' + color + ',0 0 12px ' + color + '"></div>',
-      iconSize: [16, 16], iconAnchor: [8, 8] });
-    const m = L.marker([a.lat, a.lng], { icon }).addTo(state.map);
-    m.bindPopup("<b>" + (a.type || "").toUpperCase() + "</b><br>" +
-      (a.reporter_name || "Anonyme") + "<br>" + (a.neighborhood || ""));
-    state.markers[a.id] = m;
+  function drawMarker() { syncMap(); }
+  function syncMap() {
+    if (state.live) state.live.setAlerts(Object.values(state.alerts));
+    updateMyRoute(false);
   }
 
   async function accept(id) {
@@ -757,34 +762,52 @@
     try {
       await api("POST", "/api/alerts/" + id + "/complete");
       removeAlert(id);                    // l'alerte clôturée quitte la liste
-      if (typeof clearRoute === "function") clearRoute();
-      if (routeLine && state.map) { state.map.removeLayer(routeLine); routeLine = null; }
+      updateMyRoute(false);               // plus de mission : trajet retiré
       $("availability").value = "available";
       soundAck();
       toast("🏁 Intervention terminée", "#22c55e");
     } catch (e) { alert("Échec : " + e.message); }
   }
 
-  // ---- Itinéraire (OSRM + repli ligne droite) ----
-  let routeLine = null;
-  function showRoute(a, b) {
-    if (!state.map || typeof L === "undefined") return;
-    if (routeLine) { state.map.removeLayer(routeLine); routeLine = null; }
-    const url = "https://router.project-osrm.org/route/v1/driving/" +
-      a[1] + "," + a[0] + ";" + b[1] + "," + b[0] + "?overview=full&geometries=geojson";
-    fetch(url).then((r) => r.json()).then((d) => {
-      if (d.routes && d.routes.length) {
-        const coords = d.routes[0].geometry.coordinates.map((c) => [c[1], c[0]]);
-        routeLine = L.polyline(coords, { color: "#3d8bff", weight: 6, opacity: 0.85 }).addTo(state.map);
-        const km = (d.routes[0].distance / 1000).toFixed(2), min = Math.round(d.routes[0].duration / 60);
-        routeLine.bindPopup("🧭 " + km + " km · ~" + min + " min").openPopup();
-        state.map.fitBounds(routeLine.getBounds(), { padding: [40, 40] });
-      } else { straight(a, b); }
-    }).catch(() => straight(a, b));
-    function straight(a, b) {
-      routeLine = L.polyline([a, b], { color: "#3d8bff", weight: 4, dashArray: "8,8" }).addTo(state.map);
-      state.map.fitBounds(routeLine.getBounds(), { padding: [40, 40] });
-    }
+  // ---- Mon itinéraire vers ma mission (calculé par le serveur SafeCity) ----
+  // Le serveur interroge OSRM (avec cache) : pas d'appel externe depuis le
+  // téléphone. Recalcul seulement si je me suis déplacé d'environ 100 m.
+  let routeKey = null, routeBusy = false;
+  function myMission() {
+    const me = state.agent && state.agent.id;
+    return Object.values(state.alerts).find((a) =>
+      a.status === "assignee" && a.assigned_agent && a.assigned_agent.id === me) || null;
+  }
+  async function updateMyRoute(force) {
+    if (!state.live) return;
+    const a = myMission();
+    if (!a) { if (routeKey) { routeKey = null; state.live.setMyRoute(null, null); } return; }
+    if (!state.selfPos) return;
+    const key = a.id + ":" + state.selfPos[0].toFixed(3) + "," + state.selfPos[1].toFixed(3);
+    if ((!force && key === routeKey) || routeBusy) return;
+    routeBusy = true;
+    try {
+      const r = await api("GET", "/api/geo/route?from=" + state.selfPos[0] + "," + state.selfPos[1] +
+                                 "&to=" + a.lat + "," + a.lng);
+      routeKey = key;
+      state.live.setMyRoute(a.id, r);
+      if (force) state.live.focusAlert(a.id);
+    } catch (e) { /* réseau : on retentera au prochain déplacement */ }
+    finally { routeBusy = false; }
+  }
+  function showRoute() { updateMyRoute(true); }
+
+  // ---- Positions des collègues (carte) ----
+  function pickAgent(g) {
+    return { id: g.id, name: g.name, role: g.role, availability: g.availability, lat: g.lat,
+             lng: g.lng, last_seen: g.last_seen, current_alert_id: g.current_alert_id };
+  }
+  async function loadAgentPositions() {
+    if (!state.live) return;
+    try {
+      const list = await api("GET", "/api/agents/positions");
+      state.live.setAgents((list || []).map(pickAgent));
+    } catch (e) { /* ancien serveur ou réseau : la carte reste utilisable */ }
   }
 
   // ---- Sons de notification (Web Audio) ----
@@ -894,6 +917,7 @@
       const { latitude, longitude } = pos.coords;
       state.selfPos = [latitude, longitude];
       try { await api("POST", "/api/agents/me/location", { lat: latitude, lng: longitude }); } catch (e) {}
+      if (state.live) { state.live.setSelf(state.selfPos, pos.coords.accuracy); updateMyRoute(false); return; }
       if (!state.map || typeof L === "undefined") return;
       if (!state.self) {
         state.self = L.marker([latitude, longitude], {

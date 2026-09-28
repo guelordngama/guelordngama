@@ -52,6 +52,22 @@ def list_citizens():
     return jsonify([u.to_dict() for u in users])
 
 
+def _public_position(u):
+    """Vue minimale d'un agent pour la carte des collègues (pas d'e-mail, pas de
+    téléphone, pas de statistiques) : nom, disponibilité, position, mission."""
+    return {"id": u.id, "name": u.name, "role": u.role, "availability": u.availability,
+            "lat": u.lat, "lng": u.lng, "last_seen": u.last_seen.isoformat() if u.last_seen else None,
+            "current_alert_id": u.current_alert_id}
+
+
+@bp.get("/agents/positions")
+@require_auth(roles=["agent", "operator", "supervisor", "admin"])
+def positions():
+    """Positions des agents de terrain pour la carte en temps réel du portail."""
+    agents = User.query.filter(User.role == "agent", User.active.is_(True)).all()
+    return jsonify([_public_position(u) for u in agents])
+
+
 @bp.get("/agents/me")
 @require_auth(roles=["agent", "operator", "supervisor", "admin"])
 def me():
