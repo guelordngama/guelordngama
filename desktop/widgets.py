@@ -2,6 +2,7 @@
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
+    QApplication,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -13,6 +14,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
+    QScrollArea,
     QSizePolicy,
     QVBoxLayout,
     QWidget,
@@ -399,6 +401,22 @@ class IncidentPopup(QDialog):
         self._elapsed_timer.start(1000)
         self._tick_elapsed()
 
+        # Zone défilante pour tout ce qui suit : sur un petit écran, la fiche
+        # (photo, description, boutons) ne tenait pas entièrement et les derniers
+        # boutons (Fausse alerte, Journal, Clôturer) devenaient inaccessibles.
+        # Le bandeau du haut, lui, reste toujours visible.
+        scroll = QScrollArea()
+        scroll.setObjectName("popupScroll")
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setStyleSheet("QScrollArea#popupScroll { background: transparent; border: none; }")
+        scroll_host = QWidget()
+        scroll_host.setStyleSheet(f"background: {theme.BG};")
+        col = QVBoxLayout(scroll_host)
+        col.setContentsMargins(0, 0, 0, 0)
+        col.setSpacing(0)
+        scroll.setWidget(scroll_host)
+
         # Bandeau « position approximative » : le GPS du citoyen n'a pas été
         # obtenu → la position n'est PAS fiable, la patrouille doit rappeler.
         if alert.get("position_approx"):
@@ -409,7 +427,7 @@ class IncidentPopup(QDialog):
             warn.setStyleSheet(
                 f"background: {theme.tint('#f59e0b', 0.16)}; color: #b45309; font-weight: 800; "
                 "padding: 8px; font-size: 13px;")
-            root.addWidget(warn)
+            col.addWidget(warn)
 
         # Bandeau « signalements liés » : plusieurs citoyens ont signalé le même
         # incident → une seule intervention suffit.
@@ -423,7 +441,7 @@ class IncidentPopup(QDialog):
             banner.setStyleSheet(
                 f"background: {theme.tint(theme.ACCENT, 0.14)}; color: {theme.ACCENT}; "
                 f"font-weight: 800; padding: 8px; font-size: 13px;")
-            root.addWidget(banner)
+            col.addWidget(banner)
 
         # Traçabilité : fausse alerte déjà qualifiée / citoyen déjà signalé.
         self.false_banner = QLabel("")
@@ -432,14 +450,14 @@ class IncidentPopup(QDialog):
         self.false_banner.setStyleSheet(
             f"background: {theme.tint('#64748b', 0.16)}; color: #475569; font-weight: 800; "
             "padding: 8px; font-size: 13px;")
-        root.addWidget(self.false_banner)
+        col.addWidget(self.false_banner)
         self.reporter_banner = QLabel("")
         self.reporter_banner.setAlignment(Qt.AlignCenter)
         self.reporter_banner.setWordWrap(True)
         self.reporter_banner.setStyleSheet(
             f"background: {theme.tint('#f59e0b', 0.16)}; color: #b45309; font-weight: 700; "
             "padding: 8px; font-size: 12px;")
-        root.addWidget(self.reporter_banner)
+        col.addWidget(self.reporter_banner)
         self._refresh_trace_banners(alert)
 
         body = QVBoxLayout()
@@ -576,7 +594,22 @@ class IncidentPopup(QDialog):
         actions.addWidget(b_close, 3, 0, 1, 2)
         self.btn_false.setEnabled(not alert.get("false_alarm"))
         body.addLayout(actions)
-        root.addLayout(body)
+        col.addLayout(body)
+
+        root.addWidget(scroll, 1)
+
+        # Ne jamais dépasser la hauteur utile de l'écran (sinon les boutons du
+        # bas sortent de l'écran, sans zone défilante pour les atteindre).
+        screen = QApplication.primaryScreen()
+        max_h = max(460, screen.availableGeometry().height() - 60) if screen else 900
+        self.setMaximumHeight(max_h)
+        # Une QScrollArea ne propage pas la hauteur de son contenu à la fenêtre
+        # (son sizeHint par défaut est petit) : sans ce calcul, la fenêtre
+        # s'ouvrait trop petite, avec un défilement même là où tout tenait.
+        # On vise donc la hauteur réelle du contenu, plafonnée à l'écran.
+        target_h = (header.sizeHint().height() + self.timer_label.sizeHint().height()
+                    + scroll_host.sizeHint().height() + 24)
+        self.resize(max(self.minimumWidth(), 560), min(target_h, max_h))
 
         b_accept.clicked.connect(lambda: (self.accept_incident.emit(self.alert), self.accept()))
         b_patrol.clicked.connect(lambda: self.send_patrol.emit(self.alert))

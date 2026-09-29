@@ -8,7 +8,7 @@ Usage :
 from .config import get_config
 from .extensions import cors, db, migrate, socketio
 
-__version__ = "1.23.2"
+__version__ = "1.23.3"
 __all__ = ["create_app", "socketio", "db", "__version__"]
 
 

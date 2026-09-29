@@ -2,6 +2,16 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.23.3] — 2026-09-29 — Fiche d'incident : défilement
+
+### Corrigé
+- **Fiche d'incident** (fenêtre qui s'ouvre à la réception d'une alerte) : sur
+  un écran de portable, elle dépassait de l'écran et les derniers boutons
+  (**🚫 Fausse alerte**, **📜 Journal**, **🏁 Clôturer l'incident**) devenaient
+  inaccessibles, sans aucun moyen de les atteindre. Le contenu défile
+  désormais (le bandeau du haut reste toujours visible), et la fenêtre
+  s'ajuste à la hauteur de l'écran au lieu de la dépasser.
+
 ## [1.23.2] — 2026-09-28 — Poste opérateur : défilement et messagerie
 
 ### Corrigé
