@@ -31,6 +31,41 @@
       ? '<img src="' + escapeAttr(photo) + '" alt="" loading="lazy">'
       : escapeAttr(initials(name));
   }
+  // Réduit la photo avant envoi (voir web/js/shell.js pour le même mécanisme
+  // côté app citoyenne : évite les gros fichiers de téléphone, plus rapide).
+  function compressImage(file, maxSize, quality) {
+    return new Promise((resolve) => {
+      const fallback = () => {
+        const r = new FileReader();
+        r.onload = () => resolve(r.result);
+        r.onerror = () => resolve(null);
+        r.readAsDataURL(file);
+      };
+      try {
+        const img = new Image();
+        const reader = new FileReader();
+        reader.onload = () => {
+          img.onload = () => {
+            try {
+              let { width, height } = img;
+              if (width > maxSize || height > maxSize) {
+                if (width > height) { height = Math.round((height * maxSize) / width); width = maxSize; }
+                else { width = Math.round((width * maxSize) / height); height = maxSize; }
+              }
+              const canvas = document.createElement("canvas");
+              canvas.width = width; canvas.height = height;
+              canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+              resolve(canvas.toDataURL("image/jpeg", quality));
+            } catch (e) { fallback(); }
+          };
+          img.onerror = fallback;
+          img.src = reader.result;
+        };
+        reader.onerror = fallback;
+        reader.readAsDataURL(file);
+      } catch (e) { fallback(); }
+    });
+  }
   const ROLE_LABELS = { admin: "Administrateur", supervisor: "Superviseur",
                         operator: "Opérateur", agent: "Agent" };
   function renderProfile() {
@@ -194,24 +229,22 @@
       if (e.target.id === "profile-modal") $("profile-modal").classList.add("hidden");
     });
     $("profile-avatar-btn").addEventListener("click", () => $("avatar-input").click());
-    $("avatar-input").addEventListener("change", (e) => {
+    $("avatar-input").addEventListener("change", async (e) => {
       const file = e.target.files[0];
       e.target.value = "";
       if (!file) return;
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const btn = $("profile-avatar-btn");
-        btn.classList.add("avatar-edit-busy");
-        try {
-          state.agent = await api("POST", "/api/auth/me/avatar", { photo: reader.result });
-          renderProfile();
-        } catch (err) {
-          alert("Impossible de changer la photo : " + err.message);
-        } finally {
-          btn.classList.remove("avatar-edit-busy");
-        }
-      };
-      reader.readAsDataURL(file);
+      const durl = await compressImage(file, 480, 0.85);
+      if (!durl) { alert("Photo illisible, réessayez avec une autre image."); return; }
+      const btn = $("profile-avatar-btn");
+      btn.classList.add("avatar-edit-busy");
+      try {
+        state.agent = await api("POST", "/api/auth/me/avatar", { photo: durl });
+        renderProfile();
+      } catch (err) {
+        alert("Impossible de changer la photo : " + err.message);
+      } finally {
+        btn.classList.remove("avatar-edit-busy");
+      }
     });
     $("avatar-remove-link").addEventListener("click", async (e) => {
       e.preventDefault();

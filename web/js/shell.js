@@ -148,6 +148,54 @@
     document.body.appendChild(t);
     setTimeout(() => t.remove(), 4000);
   }
+  // Message d'erreur exploitable : le serveur renvoie { error: { message } } —
+  // on l'affiche tel quel (ex. « Type de fichier non autorisé ») au lieu d'un
+  // message générique qui ne dit pas ce qui a réellement échoué.
+  async function errorMessage(res, fallback) {
+    try {
+      const body = await res.json();
+      return (body && body.error && body.error.message) || fallback;
+    } catch (e) {
+      return fallback;
+    }
+  }
+  // Réduit la photo avant envoi (les photos de téléphone font plusieurs Mo :
+  // un avatar n'a besoin que de quelques centaines de Ko, ça envoie plus vite
+  // et évite tout refus lié à la taille). Repli sur le fichier d'origine si la
+  // compression échoue (vieux navigateur, format inhabituel…).
+  function compressImage(file, maxSize, quality) {
+    return new Promise((resolve) => {
+      const fallback = () => {
+        const r = new FileReader();
+        r.onload = () => resolve(r.result);
+        r.onerror = () => resolve(null);
+        r.readAsDataURL(file);
+      };
+      try {
+        const img = new Image();
+        const reader = new FileReader();
+        reader.onload = () => {
+          img.onload = () => {
+            try {
+              let { width, height } = img;
+              if (width > maxSize || height > maxSize) {
+                if (width > height) { height = Math.round((height * maxSize) / width); width = maxSize; }
+                else { width = Math.round((width * maxSize) / height); height = maxSize; }
+              }
+              const canvas = document.createElement("canvas");
+              canvas.width = width; canvas.height = height;
+              canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+              resolve(canvas.toDataURL("image/jpeg", quality));
+            } catch (e) { fallback(); }
+          };
+          img.onerror = fallback;
+          img.src = reader.result;
+        };
+        reader.onerror = fallback;
+        reader.readAsDataURL(file);
+      } catch (e) { fallback(); }
+    });
+  }
   async function uploadAvatar(dataUrl) {
     const a = getAuth();
     if (!a || !a.token) return;
@@ -160,14 +208,16 @@
         headers: { "Content-Type": "application/json", "Authorization": "Bearer " + a.token },
         body: JSON.stringify({ photo: dataUrl }),
       });
-      if (!res.ok) throw new Error("HTTP " + res.status);
+      if (!res.ok) {
+        throw new Error(await errorMessage(res, "Échec de l'envoi (" + res.status + ")."));
+      }
       const user = await res.json();
       a.user = user;
       localStorage.setItem("safecity_auth", JSON.stringify(a));
       refreshUser();
       shellToast(tr("settings.photoUpdated", "Photo de profil mise à jour."));
     } catch (e) {
-      shellToast(tr("settings.photoError", "Impossible de changer la photo. Réessayez."), false);
+      shellToast(e.message || tr("settings.photoError", "Impossible de changer la photo. Réessayez."), false);
     } finally {
       if (btn) btn.classList.remove("avatar-edit-busy");
     }
@@ -181,27 +231,29 @@
         method: "DELETE",
         headers: { "Authorization": "Bearer " + a.token },
       });
-      if (!res.ok) throw new Error("HTTP " + res.status);
+      if (!res.ok) {
+        throw new Error(await errorMessage(res, "Échec de la suppression (" + res.status + ")."));
+      }
       const user = await res.json();
       a.user = user;
       localStorage.setItem("safecity_auth", JSON.stringify(a));
       refreshUser();
       shellToast(tr("settings.photoRemoved", "Photo de profil retirée."));
     } catch (e) {
-      shellToast(tr("settings.photoError", "Impossible de changer la photo. Réessayez."), false);
+      shellToast(e.message || tr("settings.photoError", "Impossible de changer la photo. Réessayez."), false);
     }
   }
   if ($("profile-avatar-btn")) $("profile-avatar-btn").addEventListener("click", () => {
     const inp = $("avatar-input");
     if (inp) inp.click();
   });
-  if ($("avatar-input")) $("avatar-input").addEventListener("change", (e) => {
+  if ($("avatar-input")) $("avatar-input").addEventListener("change", async (e) => {
     const file = e.target.files[0];
     e.target.value = "";
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => uploadAvatar(reader.result);
-    reader.readAsDataURL(file);
+    const durl = await compressImage(file, 480, 0.85);
+    if (durl) uploadAvatar(durl);
+    else shellToast(tr("settings.photoError", "Impossible de changer la photo. Réessayez."), false);
   });
   if ($("avatar-remove-link")) $("avatar-remove-link").addEventListener("click", (e) => {
     e.preventDefault();

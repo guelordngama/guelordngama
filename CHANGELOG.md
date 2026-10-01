@@ -2,6 +2,18 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.24.1] — 2026-10-01 — Photo de profil : compression et messages d'erreur clairs
+
+### Corrigé
+- **« Impossible de changer la photo »** sans précision : le message d'erreur
+  affiche maintenant la **vraie raison** renvoyée par le serveur (ex. « Type de
+  fichier non autorisé »), au lieu d'un message générique — utile pour
+  diagnostiquer sans aller-retour.
+- **Photos de téléphone compressées avant envoi** (application citoyenne et
+  portail agents) : une photo de plusieurs Mo est réduite à quelques dizaines
+  de Ko (recadrée à 480 px, JPEG) avant d'être envoyée — plus rapide sur
+  réseau mobile, et aucun risque de refus lié à la taille du fichier.
+
 ## [1.24.0] — 2026-10-01 — Photo de profil
 
 ### Ajouté
