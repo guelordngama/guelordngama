@@ -57,8 +57,8 @@ from pages import (
     StatisticsPage,
 )
 from sound import AlarmPlayer
-from widgets import (AgentDialog, FalseAlarmDialog, IncidentPopup, JournalDialog, Toast,
-                     assignment_parts, incident_ref)
+from widgets import (AgentDialog, FalseAlarmDialog, IncidentPopup, JournalDialog, ProfileDialog,
+                     Toast, assignment_parts, incident_ref)
 
 # Serveur par défaut : la production de la mairie de Lubumbashi.
 # Priorité effective (résolue dans main()) : variable SAFECITY_API >
@@ -672,6 +672,7 @@ class MainWindow(QWidget):
         self.api = api
         self.operator = operator
         self.alerts = {}
+        self._citizens = {}
         self.teams = []
         self._open_popups = {}
         # Ensembles d'ids « non lus » (messages reçus / agents modifiés hors page).
@@ -884,6 +885,7 @@ class MainWindow(QWidget):
         self.page_history.request_load.connect(self._load_history)
         self.page_history.open_incident.connect(self._open_incident_any)
         self.page_history.open_journal.connect(self._show_journal)
+        self.page_citizens.row_clicked.connect(self._show_citizen_profile)
         self.page_security.request_load.connect(self._load_security)
         self.page_security.request_audit.connect(self._load_audit)
         self._history_timer = QTimer(self)
@@ -1152,17 +1154,26 @@ class MainWindow(QWidget):
 
     def _load_citizens(self):
         try:
-            rows = []
-            for u in self.api.get_citizens():
+            citizens = self.api.get_citizens()
+            self._citizens = {u["id"]: u for u in citizens}
+            rows, ids = [], []
+            for u in citizens:
                 rows.append([
                     (u["name"], None),
                     (u.get("phone") or "—", None),
                     (u.get("email") or "—", None),
                     ((u.get("created_at") or "")[:10], theme.MUTED),
                 ])
-            self.page_citizens.set_rows(rows)
+                ids.append(u["id"])
+            self.page_citizens.set_rows(rows, ids=ids)
         except Exception as e:
             QMessageBox.warning(self, "Citoyens", str(e))
+
+    def _show_citizen_profile(self, citizen_id):
+        person = self._citizens.get(citizen_id)
+        if not person:
+            return
+        ProfileDialog(person, self, api_base=API_BASE).exec()
 
     # ---- Temps réel ----
     def _start_realtime(self):
@@ -1366,7 +1377,7 @@ class MainWindow(QWidget):
 
     # ---- Gestion des agents (CRUD) ----
     def _add_agent(self):
-        dlg = AgentDialog(parent=self)
+        dlg = AgentDialog(parent=self, api_base=API_BASE)
         if dlg.exec() == QDialog.Accepted:
             try:
                 self.api.create_agent(dlg.payload())
@@ -1376,7 +1387,7 @@ class MainWindow(QWidget):
                 QMessageBox.warning(self, "Ajout d'agent", str(e))
 
     def _edit_agent(self, agent):
-        dlg = AgentDialog(agent=agent, parent=self)
+        dlg = AgentDialog(agent=agent, parent=self, api_base=API_BASE)
         if dlg.exec() == QDialog.Accepted:
             try:
                 self.api.update_agent(agent["id"], dlg.payload())

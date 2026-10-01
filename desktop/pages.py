@@ -728,10 +728,13 @@ class StatisticsPage(QWidget):
 class PeoplePage(QWidget):
     """Page tabulaire générique (agents, citoyens)."""
 
+    row_clicked = Signal(int)   # id de la personne (double-clic sur une ligne)
+
     def __init__(self, headers, empty="Aucun citoyen inscrit pour le moment.",
                  noun="citoyen"):
         super().__init__()
         self._noun = noun
+        self._ids = []
         root = QVBoxLayout(self)
         root.setContentsMargins(24, 20, 24, 24)
         root.setSpacing(10)
@@ -742,6 +745,8 @@ class PeoplePage(QWidget):
         root.addWidget(self.count_label)
 
         self.table = _table(headers)
+        self.table.setToolTip("Double-cliquez sur un citoyen pour voir sa fiche (photo de profil).")
+        self.table.cellDoubleClicked.connect(self._on_double)
         root.addWidget(self.table)
 
         # État vide explicite (sinon un tableau vide ressemble à un bug).
@@ -754,8 +759,9 @@ class PeoplePage(QWidget):
         self.empty_label.hide()
         root.addWidget(self.empty_label, 1)
 
-    def set_rows(self, rows):
+    def set_rows(self, rows, ids=None):
         rows = list(rows)
+        self._ids = list(ids or [])
         self.table.setRowCount(len(rows))
         for i, cells in enumerate(rows):
             for j, (text, color) in enumerate(cells):
@@ -767,6 +773,10 @@ class PeoplePage(QWidget):
         n = len(rows)
         suffix = "" if n == 1 else "s"
         self.count_label.setText(f"{n} {self._noun}{suffix} inscrit{suffix}")
+
+    def _on_double(self, row, _col):
+        if 0 <= row < len(self._ids):
+            self.row_clicked.emit(self._ids[row])
 
 
 class AgentsPage(QWidget):

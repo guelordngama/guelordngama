@@ -1,9 +1,10 @@
 """Authentification : inscription citoyenne et connexion (citoyens + personnels)."""
 from flask import Blueprint, current_app, g, jsonify, request
 
-from ..errors import AuthError
+from ..errors import AuthError, ValidationError
+from ..extensions import db
 from ..models import User
-from ..security import generate_token, rate_limit, require_auth, verify_password
+from ..security import generate_token, rate_limit, require_auth, save_data_url, verify_password
 from ..services import audit
 from ..services.auth import (
     change_password,
@@ -175,6 +176,57 @@ def change_password_route():
     change_password(int(g.user["sub"]), current, new)
     audit.record("password_changed")
     return jsonify({"message": "Mot de passe modifié avec succès."})
+
+
+@bp.post("/me/avatar")
+@require_auth()
+def set_avatar():
+    """Définit (ou remplace) la photo de profil du compte connecté — citoyen ou
+    personnel. L'ancien fichier, s'il existe, est supprimé (pas de fichiers
+    orphelins)."""
+    import os
+
+    data = request.get_json(silent=True) or {}
+    photo = data.get("photo")
+    if not photo:
+        raise ValidationError("Le champ « photo » est requis.")
+    filename = save_data_url(photo, "image")
+    if not filename:
+        raise ValidationError("Photo invalide.")
+    user = User.query.get(int(g.user["sub"]))
+    if not user:
+        raise AuthError("Compte introuvable.")
+    old_path = user.avatar_path
+    user.avatar_path = filename
+    db.session.commit()
+    if old_path:
+        try:
+            os.remove(os.path.join(current_app.config["UPLOAD_DIR"], old_path))
+        except OSError:
+            pass
+    audit.record("avatar_updated")
+    return jsonify(user.to_dict())
+
+
+@bp.delete("/me/avatar")
+@require_auth()
+def delete_avatar():
+    """Retire la photo de profil du compte connecté."""
+    import os
+
+    user = User.query.get(int(g.user["sub"]))
+    if not user:
+        raise AuthError("Compte introuvable.")
+    old_path = user.avatar_path
+    user.avatar_path = None
+    db.session.commit()
+    if old_path:
+        try:
+            os.remove(os.path.join(current_app.config["UPLOAD_DIR"], old_path))
+        except OSError:
+            pass
+    audit.record("avatar_removed")
+    return jsonify(user.to_dict())
 
 
 @bp.delete("/me")

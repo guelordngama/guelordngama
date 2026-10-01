@@ -66,6 +66,10 @@ class User(TimestampMixin, db.Model):
     distance_total_m = db.Column(db.Float, default=0.0)  # distance cumulée (analytics)
     current_alert_id = db.Column(db.Integer)
 
+    # Photo de profil (citoyens et personnel) : fichier local, lien signé
+    # (voir security.signed_upload_url), comme les médias d'alerte.
+    avatar_path = db.Column(db.String(255))
+
     alerts = db.relationship("Alert", backref="reporter", lazy=True,
                              foreign_keys="Alert.reporter_id")
 
@@ -83,6 +87,7 @@ class User(TimestampMixin, db.Model):
             "active": self.active,
             "phone_verified": self.phone_verified,
             "permissions": self.permissions,
+            "avatar_url": signed_upload_url(self.avatar_path),
             "created_at": _iso(self.created_at),
         }
         if with_tracking:

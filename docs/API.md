@@ -33,6 +33,15 @@ Connexion d'un opérateur. **Limité** (anti force brute).
 
 ---
 
+### `POST /api/auth/me/avatar` · `DELETE /api/auth/me/avatar` 🔒 (tout utilisateur connecté)
+Définit ou retire **sa propre** photo de profil (citoyen ou personnel) —
+jamais celle d'un tiers. **Corps (POST) :** `{ "photo": "data:image/jpeg;base64,..." }`.
+**200 :** la fiche utilisateur à jour (`avatar_url` : lien signé, ~24 h, ou
+`null`). L'ancien fichier est supprimé. `avatar_url` figure aussi dans
+`/api/agents`, `/api/citizens` et la réponse de connexion.
+
+---
+
 ### `POST /api/alerts`
 Crée une alerte (citoyen, public).
 

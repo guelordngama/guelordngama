@@ -12,6 +12,39 @@
   const state = { token: null, agent: null, alerts: {}, map: null, markers: {}, self: null, socket: null };
   const $ = (id) => document.getElementById(id);
 
+  function escapeAttr(v) {
+    return String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+  function initials(name) {
+    const letters = (name || "").replace(/[^A-Za-zÀ-ÿ ]/g, "").trim().split(/\s+/).filter(Boolean);
+    if (!letters.length) return "?";
+    return ((letters[0][0] || "") + (letters[1] ? letters[1][0] : "")).toUpperCase() || "?";
+  }
+  function avatarUrl(u) {
+    if (!u || !u.avatar_url) return null;
+    return u.avatar_url.startsWith("http") ? u.avatar_url : API + u.avatar_url;
+  }
+  function fillAvatar(el, name, photo) {
+    if (!el) return;
+    el.innerHTML = photo
+      ? '<img src="' + escapeAttr(photo) + '" alt="" loading="lazy">'
+      : escapeAttr(initials(name));
+  }
+  const ROLE_LABELS = { admin: "Administrateur", supervisor: "Superviseur",
+                        operator: "Opérateur", agent: "Agent" };
+  function renderProfile() {
+    const u = state.agent;
+    const name = (u && u.name) || "—";
+    const photo = avatarUrl(u);
+    if ($("agent-name")) $("agent-name").textContent = u ? name + " · " + (ROLE_LABELS[u.role] || u.role) : "—";
+    fillAvatar($("agent-initials"), name, photo);
+    fillAvatar($("profile-initials"), name, photo);
+    if ($("profile-name")) $("profile-name").textContent = name;
+    if ($("profile-role")) $("profile-role").textContent = u ? (ROLE_LABELS[u.role] || u.role) : "—";
+    if ($("avatar-remove-link")) $("avatar-remove-link").hidden = !photo;
+  }
+
   // Thème clair / sombre (préférence mémorisée).
   (function initTheme() {
     const KEY = "safecity_theme";
@@ -87,7 +120,7 @@
         { email: $("email").value.trim(), password: $("password").value });
       state.token = data.token;
       state.agent = data.user;
-      $("agent-name").textContent = data.user.name + " · " + data.user.role;
+      renderProfile();
       $("login").classList.add("hidden");
       $("app").classList.remove("hidden");
       startApp();
@@ -149,6 +182,45 @@
     $("history-close").addEventListener("click", () => $("history-modal").classList.add("hidden"));
     $("history-modal").addEventListener("click", (e) => {
       if (e.target.id === "history-modal") $("history-modal").classList.add("hidden");
+    });
+
+    // Mon profil (photo)
+    $("agent-avatar-btn").addEventListener("click", () => {
+      renderProfile();
+      $("profile-modal").classList.remove("hidden");
+    });
+    $("profile-close").addEventListener("click", () => $("profile-modal").classList.add("hidden"));
+    $("profile-modal").addEventListener("click", (e) => {
+      if (e.target.id === "profile-modal") $("profile-modal").classList.add("hidden");
+    });
+    $("profile-avatar-btn").addEventListener("click", () => $("avatar-input").click());
+    $("avatar-input").addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      e.target.value = "";
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const btn = $("profile-avatar-btn");
+        btn.classList.add("avatar-edit-busy");
+        try {
+          state.agent = await api("POST", "/api/auth/me/avatar", { photo: reader.result });
+          renderProfile();
+        } catch (err) {
+          alert("Impossible de changer la photo : " + err.message);
+        } finally {
+          btn.classList.remove("avatar-edit-busy");
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+    $("avatar-remove-link").addEventListener("click", async (e) => {
+      e.preventDefault();
+      try {
+        state.agent = await api("DELETE", "/api/auth/me/avatar");
+        renderProfile();
+      } catch (err) {
+        alert("Impossible de retirer la photo : " + err.message);
+      }
     });
 
     // Messagerie

@@ -2,6 +2,31 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.24.0] — 2026-10-01 — Photo de profil
+
+### Ajouté
+- **Photo de profil** pour les citoyens et le personnel (agents, opérateurs,
+  superviseurs, administrateurs) :
+  - **Application citoyenne** : dans Paramètres → Profil, cliquez sur l'avatar
+    pour choisir une photo (caméra ou galerie) ; un lien « Retirer la photo »
+    apparaît une fois une photo définie. Visible aussi dans la pastille du haut.
+  - **Portail agents** : cliquez sur votre avatar (en haut à droite) pour ouvrir
+    « Mon profil » et changer votre photo, avec le même mécanisme.
+  - **Poste opérateur** : la photo du citoyen s'affiche désormais dans une
+    fiche dédiée (double-clic sur une ligne dans **Gestion des citoyens**), et
+    la photo de l'agent s'affiche en haut de sa fiche dans **Gestion des
+    agents** (lecture seule : seul le titulaire du compte change sa photo,
+    depuis son application).
+  - Chacun ne gère que **sa propre photo** ; le poste opérateur ne peut
+    jamais en définir une pour un tiers. Lien signé à durée limitée (24 h),
+    comme les autres médias (photos/vocaux d'alerte).
+- API : `POST /api/auth/me/avatar` et `DELETE /api/auth/me/avatar` (tout
+  utilisateur connecté) ; `avatar_url` ajouté à la fiche utilisateur partout
+  où elle apparaît (`/api/agents`, `/api/citizens`, connexion, etc.).
+
+### Migration
+- `b8e2f4a6c9d3` : ajoute `avatar_path` à la table `users`.
+
 ## [1.23.3] — 2026-09-29 — Fiche d'incident : défilement
 
 ### Corrigé

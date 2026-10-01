@@ -23,6 +23,72 @@ from PySide6.QtWidgets import (
 import theme
 
 
+def _circular_pixmap(pix, size):
+    """Recadre et masque un QPixmap en cercle (pour les photos de profil).
+
+    border-radius en QSS ne découpe pas un QPixmap posé sur un QLabel : il faut
+    dessiner le découpage nous-mêmes.
+    """
+    from PySide6.QtCore import QRectF
+    from PySide6.QtGui import QPainter, QPainterPath, QPixmap
+
+    scaled = pix.scaled(size, size, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+    x = max(0, (scaled.width() - size) // 2)
+    y = max(0, (scaled.height() - size) // 2)
+    scaled = scaled.copy(x, y, size, size)
+    out = QPixmap(size, size)
+    out.fill(Qt.transparent)
+    painter = QPainter(out)
+    painter.setRenderHint(QPainter.Antialiasing)
+    path = QPainterPath()
+    path.addEllipse(QRectF(0, 0, size, size))
+    painter.setClipPath(path)
+    painter.drawPixmap(0, 0, scaled)
+    painter.end()
+    return out
+
+
+def _avatar_initials(name):
+    """Initiales pour l'avatar par défaut (pas de photo) : « Jean Kabila » -> JK."""
+    parts = [w for w in (name or "").split() if w]
+    if not parts:
+        return "?"
+    first = parts[0][0]
+    second = parts[1][0] if len(parts) > 1 else ""
+    return (first + second).upper()
+
+
+def start_avatar_load(owner, label, api_base, avatar_url, size):
+    """Charge une photo de profil en arrière-plan et la recadre en cercle sur un
+    QLabel qui affiche déjà les initiales par défaut. `owner` doit garder une
+    référence (le gestionnaire réseau) vivante le temps de la requête."""
+    if not avatar_url:
+        return
+    try:
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QPixmap
+        from PySide6.QtNetwork import QNetworkAccessManager, QNetworkRequest
+
+        url = api_base + avatar_url if avatar_url.startswith("/") else avatar_url
+        owner._avatar_nam = QNetworkAccessManager(owner)
+        reply = owner._avatar_nam.get(QNetworkRequest(QUrl(url)))
+
+        def done():
+            try:
+                pix = QPixmap()
+                pix.loadFromData(bytes(reply.readAll().data()))
+                if not pix.isNull():
+                    label.setPixmap(_circular_pixmap(pix, size))
+                    label.setText("")
+            except Exception:
+                pass
+            reply.deleteLater()
+
+        reply.finished.connect(done)
+    except Exception:
+        pass
+
+
 def _fmt_coords(lat, lng):
     """Coordonnées GPS lisibles : « 11.66470°S, 27.47940°E »."""
     if lat is None or lng is None:
@@ -863,9 +929,10 @@ class AgentDialog(QDialog):
     ROLES = [("Agent", "agent"), ("Opérateur", "operator"),
              ("Superviseur", "supervisor"), ("Administrateur", "admin")]
 
-    def __init__(self, agent=None, parent=None):
+    def __init__(self, agent=None, parent=None, api_base=""):
         super().__init__(parent)
         self.agent = agent
+        self.api_base = (api_base or "").rstrip("/")
         self.setStyleSheet(theme.QSS)
         self.setMinimumWidth(400)
         self.setWindowTitle("Modifier l'agent" if agent else "Ajouter un agent")
@@ -876,6 +943,23 @@ class AgentDialog(QDialog):
         title = QLabel("✏️ Modifier l'agent" if agent else "➕ Nouvel agent")
         title.setObjectName("pageTitle")
         root.addWidget(title)
+
+        # Photo de profil (lecture seule : seul l'agent la change, depuis son
+        # portail). Initiales par défaut, remplacées si une photo existe.
+        if agent:
+            size = 72
+            photo = QLabel(_avatar_initials(agent.get("name")))
+            photo.setFixedSize(size, size)
+            photo.setAlignment(Qt.AlignCenter)
+            photo.setStyleSheet(
+                f"background: qlineargradient(x1:0,y1:0,x2:1,y2:1, stop:0 {theme.ACCENT}, stop:1 #1b3a6b);"
+                f" color: white; border-radius: {size // 2}px; font-weight: 800; font-size: 24px;")
+            photo_row = QHBoxLayout()
+            photo_row.addStretch()
+            photo_row.addWidget(photo)
+            photo_row.addStretch()
+            root.addLayout(photo_row)
+            start_avatar_load(self, photo, self.api_base, agent.get("avatar_url"), size)
 
         form = QFormLayout()
         form.setSpacing(10)
@@ -1138,3 +1222,68 @@ class JournalDialog(QDialog):
 
         QApplication.clipboard().setText(self.text())
         self.btn_copy.setText("✓  Journal copié")
+
+
+class ProfileDialog(QDialog):
+    """Fiche d'identité d'un citoyen (lecture seule) : photo de profil, nom,
+    téléphone, e-mail, date d'inscription.
+
+    Le poste opérateur ne modifie jamais cette photo — seul le citoyen la
+    gère, depuis son application (droit à l'image / vie privée)."""
+
+    def __init__(self, person, parent=None, api_base=""):
+        super().__init__(parent)
+        self.api_base = (api_base or "").rstrip("/")
+        self.setStyleSheet(theme.QSS + f"QDialog {{ background: {theme.BG}; }}")
+        self.setMinimumWidth(360)
+        self.setWindowTitle("Profil du citoyen")
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(24, 22, 24, 20)
+        root.setSpacing(14)
+
+        size = 88
+        self.photo = QLabel(_avatar_initials(person.get("name")))
+        self.photo.setFixedSize(size, size)
+        self.photo.setAlignment(Qt.AlignCenter)
+        self.photo.setStyleSheet(
+            f"background: qlineargradient(x1:0,y1:0,x2:1,y2:1, stop:0 {theme.ACCENT}, stop:1 #1b3a6b);"
+            f" color: white; border-radius: {size // 2}px; font-weight: 800; font-size: 30px;")
+        photo_row = QHBoxLayout()
+        photo_row.addStretch()
+        photo_row.addWidget(self.photo)
+        photo_row.addStretch()
+        root.addLayout(photo_row)
+        start_avatar_load(self, self.photo, self.api_base, person.get("avatar_url"), size)
+
+        name = QLabel(person.get("name") or "Citoyen")
+        name.setAlignment(Qt.AlignCenter)
+        name.setWordWrap(True)
+        name.setStyleSheet("font-size: 18px; font-weight: 800;")
+        root.addWidget(name)
+
+        info = QGridLayout()
+        info.setVerticalSpacing(8)
+        info.setHorizontalSpacing(14)
+        rows = [
+            ("Téléphone", person.get("phone") or "—"),
+            ("Email", person.get("email") or "—"),
+            ("Inscrit le", (person.get("created_at") or "—")[:10]),
+        ]
+        for i, (label, value) in enumerate(rows):
+            kl = QLabel(label + " :")
+            kl.setStyleSheet(f"color: {theme.MUTED}; font-weight: 600;")
+            vl = QLabel(str(value))
+            vl.setWordWrap(True)
+            vl.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            vl.setStyleSheet("font-weight: 700;")
+            info.addWidget(kl, i, 0, Qt.AlignTop)
+            info.addWidget(vl, i, 1)
+        root.addLayout(info)
+
+        btns = QHBoxLayout()
+        btns.addStretch()
+        close = QPushButton("Fermer")
+        close.clicked.connect(self.accept)
+        btns.addWidget(close)
+        root.addLayout(btns)

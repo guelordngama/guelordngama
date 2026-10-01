@@ -109,15 +109,104 @@
     const b = letters[1] ? letters[1][0] : "";
     return (a + b).toUpperCase() || "👤";
   }
+  function escapeAttr(v) {
+    return String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+  function avatarUrl(u) {
+    if (!u || !u.avatar_url) return null;
+    const API = (window.SAFECITY_CONFIG && window.SAFECITY_CONFIG.API_BASE) || "";
+    return u.avatar_url.startsWith("http") ? u.avatar_url : API + u.avatar_url;
+  }
+  // Remplit un avatar (initiales OU photo) : utilisé pour la pastille du
+  // haut (petite) et la fiche profil (grande) — même logique, tailles différentes.
+  function fillAvatar(el, name, photo) {
+    if (!el) return;
+    el.innerHTML = photo
+      ? '<img src="' + escapeAttr(photo) + '" alt="" loading="lazy">'
+      : escapeAttr(initials(name) || "?");
+  }
   function refreshUser() {
     const a = getAuth();
     const name = (a && a.user && (a.user.name || a.user.phone)) || "";
-    const ini = initials(name);
-    if ($("user-initials")) $("user-initials").textContent = ini || "?";
-    if ($("profile-initials")) $("profile-initials").textContent = ini || "?";
+    const photo = avatarUrl(a && a.user);
+    fillAvatar($("user-initials"), name, photo);
+    fillAvatar($("profile-initials"), name, photo);
     if ($("profile-name")) $("profile-name").textContent = (a && a.user && a.user.name) || "Citoyen";
     if ($("profile-phone")) $("profile-phone").textContent = (a && a.user && a.user.phone) || "—";
+    if ($("avatar-remove-link")) $("avatar-remove-link").hidden = !photo;
   }
+
+  // --------------------------------------------------------------------- //
+  // Photo de profil : changer / retirer
+  // --------------------------------------------------------------------- //
+  function shellToast(msg, ok) {
+    const t = document.createElement("div");
+    t.className = "pending-badge";
+    t.style.background = ok === false ? "#dc2626" : "#22c55e";
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 4000);
+  }
+  async function uploadAvatar(dataUrl) {
+    const a = getAuth();
+    if (!a || !a.token) return;
+    const API = (window.SAFECITY_CONFIG && window.SAFECITY_CONFIG.API_BASE) || "";
+    const btn = $("profile-avatar-btn");
+    if (btn) btn.classList.add("avatar-edit-busy");
+    try {
+      const res = await fetch(API + "/api/auth/me/avatar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + a.token },
+        body: JSON.stringify({ photo: dataUrl }),
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const user = await res.json();
+      a.user = user;
+      localStorage.setItem("safecity_auth", JSON.stringify(a));
+      refreshUser();
+      shellToast(tr("settings.photoUpdated", "Photo de profil mise à jour."));
+    } catch (e) {
+      shellToast(tr("settings.photoError", "Impossible de changer la photo. Réessayez."), false);
+    } finally {
+      if (btn) btn.classList.remove("avatar-edit-busy");
+    }
+  }
+  async function removeAvatar() {
+    const a = getAuth();
+    if (!a || !a.token) return;
+    const API = (window.SAFECITY_CONFIG && window.SAFECITY_CONFIG.API_BASE) || "";
+    try {
+      const res = await fetch(API + "/api/auth/me/avatar", {
+        method: "DELETE",
+        headers: { "Authorization": "Bearer " + a.token },
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const user = await res.json();
+      a.user = user;
+      localStorage.setItem("safecity_auth", JSON.stringify(a));
+      refreshUser();
+      shellToast(tr("settings.photoRemoved", "Photo de profil retirée."));
+    } catch (e) {
+      shellToast(tr("settings.photoError", "Impossible de changer la photo. Réessayez."), false);
+    }
+  }
+  if ($("profile-avatar-btn")) $("profile-avatar-btn").addEventListener("click", () => {
+    const inp = $("avatar-input");
+    if (inp) inp.click();
+  });
+  if ($("avatar-input")) $("avatar-input").addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => uploadAvatar(reader.result);
+    reader.readAsDataURL(file);
+  });
+  if ($("avatar-remove-link")) $("avatar-remove-link").addEventListener("click", (e) => {
+    e.preventDefault();
+    removeAvatar();
+  });
 
   // --------------------------------------------------------------------- //
   // « Mes alertes » (mémorisées localement sur cet appareil)

@@ -87,7 +87,7 @@
           <span>Historique</span>
         </button>
       </nav>
-      <div class="sidebar-foot">SafeCity v1.23 · Portail agents</div>
+      <div class="sidebar-foot">SafeCity v1.24 · Portail agents</div>
     </aside>
 
     <div class="dash-main">
@@ -105,7 +105,9 @@
           </select>
           <button id="theme-toggle" class="icon-btn" type="button" title="Changer de thème" aria-label="Changer de thème">🌙</button>
           <span class="user-chip">
-            <span class="avatar" id="agent-initials">AG</span>
+            <button type="button" id="agent-avatar-btn" class="avatar" title="Mon profil / changer ma photo" aria-label="Mon profil">
+              <span id="agent-initials">?</span>
+            </button>
             <span id="agent-name">—</span>
             <button id="btn-logout" type="button" title="Quitter" aria-label="Quitter">⏻</button>
           </span>
@@ -184,6 +186,28 @@
       </div>
       <div id="history-summary" class="muted"></div>
       <div id="history-list" class="history-list"></div>
+    </div>
+  </div>
+
+  <!-- Mon profil (photo) -->
+  <div id="profile-modal" class="modal hidden">
+    <div class="modal-box" style="max-width:360px;">
+      <div class="modal-head">
+        <h3>👤 Mon profil</h3>
+        <button id="profile-close" class="icon-btn">✕</button>
+      </div>
+      <div class="profile-avatar-wrap">
+        <button type="button" id="profile-avatar-btn" class="avatar-edit" title="Changer ma photo de profil">
+          <span class="avatar-lg" id="profile-initials">?</span>
+          <span class="avatar-edit-badge" aria-hidden="true">📷</span>
+        </button>
+        <input type="file" id="avatar-input" accept="image/*" hidden>
+      </div>
+      <div class="profile-name-row">
+        <h3 id="profile-name">—</h3>
+        <p id="profile-role">—</p>
+      </div>
+      <a href="#" id="avatar-remove-link" class="avatar-remove-link" hidden>Retirer la photo</a>
     </div>
   </div>
 

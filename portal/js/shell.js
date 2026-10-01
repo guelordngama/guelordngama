@@ -23,18 +23,9 @@
     card.classList.remove("flash"); void card.offsetWidth; card.classList.add("flash");
   });
 
-  // Initiales de l'agent dans la fiche (app.js écrit « Nom · rôle »).
-  function initials(txt) {
-    const name = (txt || "").split("·")[0].replace(/[^A-Za-zÀ-ÿ ]/g, "").trim();
-    const p = name.split(/\s+/).filter(Boolean);
-    if (!p.length) return "AG";
-    return ((p[0][0] || "") + (p[1] ? p[1][0] : "")).toUpperCase();
-  }
-  const nameEl = $("agent-name");
-  if (nameEl) {
-    new MutationObserver(() => { $("agent-initials").textContent = initials(nameEl.textContent); })
-      .observe(nameEl, { childList: true, characterData: true, subtree: true });
-  }
+  // Initiales/photo de l'agent (#agent-initials) : rendues directement par
+  // app.js (renderProfile), qui sait aussi afficher la photo de profil —
+  // plus besoin d'observer #agent-name ici (ça écrasait la photo par du texte).
 
   // La carte Leaflet doit recalculer sa taille quand l'app s'affiche / se redimensionne.
   function fixMap() {

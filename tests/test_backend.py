@@ -1049,6 +1049,68 @@ def test_change_password_flow():
         "current_password": "x", "new_password": "yyyyyy"}).status_code == 401
 
 
+_TEST_PNG = ("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwC"
+             "AAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC")
+
+
+def test_profile_avatar_citizen_and_staff():
+    """Photo de profil : citoyen et personnel peuvent définir/retirer la leur ;
+    l'ancien fichier est supprimé (pas de fichiers orphelins) ; visible dans
+    les listes agents/citoyens (poste opérateur)."""
+    import os
+
+    app, client = make_client()
+    # Citoyen (inscription directe, activée, jeton renvoyé immédiatement).
+    reg = client.post("/api/auth/register", json={
+        "name": "Awa", "phone": "+243899000111", "password": "secret1", "consent": True})
+    assert reg.status_code == 201, reg.get_json()
+    ctok = reg.get_json()["token"]
+    hc = {"Authorization": "Bearer " + ctok}
+
+    # Sans authentification → 401.
+    assert client.post("/api/auth/me/avatar", json={"photo": _TEST_PNG}).status_code == 401
+    # Champ manquant → 400.
+    assert client.post("/api/auth/me/avatar", json={}, headers=hc).status_code == 400
+
+    r = client.post("/api/auth/me/avatar", json={"photo": _TEST_PNG}, headers=hc)
+    assert r.status_code == 200, r.get_json()
+    d = r.get_json()
+    assert d["avatar_url"] and d["avatar_url"].startswith("/uploads/")
+    old_filename = d["avatar_url"].split("/uploads/")[1].split("?")[0]
+    old_path = os.path.join(app.config["UPLOAD_DIR"], old_filename)
+    assert os.path.exists(old_path)
+
+    # Remplacement : l'ancien fichier disparaît, un nouveau lien est renvoyé.
+    r2 = client.post("/api/auth/me/avatar", json={"photo": _TEST_PNG}, headers=hc)
+    assert r2.status_code == 200
+    assert not os.path.exists(old_path)
+
+    # Lien signé valable (comme les photos d'alerte).
+    assert client.get(r2.get_json()["avatar_url"]).status_code == 200
+
+    # Suppression.
+    r3 = client.delete("/api/auth/me/avatar", headers=hc)
+    assert r3.status_code == 200 and r3.get_json()["avatar_url"] is None
+
+    # Personnel (opérateur) : même mécanisme, visible dans /api/agents.
+    stok = client.post("/api/auth/login", json={
+        "email": "operateur@safecity.local", "password": "safecity123"}).get_json()["token"]
+    hs = {"Authorization": "Bearer " + stok}
+    rs = client.post("/api/auth/me/avatar", json={"photo": _TEST_PNG}, headers=hs)
+    assert rs.status_code == 200 and rs.get_json()["avatar_url"]
+
+    agents = client.get("/api/agents?role=agent", headers=hs).get_json()
+    assert agents and "avatar_url" in agents[0]   # champ présent (None si pas de photo)
+
+    citizens = client.get("/api/citizens", headers=hs).get_json()
+    awa = next(c for c in citizens if c["name"] == "Awa")
+    assert awa["avatar_url"] is None   # supprimée plus haut
+
+    # Type non autorisé refusé.
+    bad = "data:text/plain;base64," + __import__("base64").b64encode(b"x").decode()
+    assert client.post("/api/auth/me/avatar", json={"photo": bad}, headers=hc).status_code == 400
+
+
 def test_audit_log_records_and_is_admin_only():
     _, client = make_client()
     # Génère des événements audités.

@@ -201,7 +201,7 @@
           <span data-i18n="nav.settings">Paramètres</span>
         </button>
       </nav>
-      <div class="sidebar-foot">SafeCity v1.23 · Mairie de Lubumbashi</div>
+      <div class="sidebar-foot">SafeCity v1.24 · Mairie de Lubumbashi</div>
     </aside>
 
     <!-- Zone principale -->
@@ -431,7 +431,7 @@
               <div class="founder">
                 <span class="avatar">GN</span>
                 <div><b>Guelord Ngama</b> · <small>Fondateur &amp; concepteur</small><br>
-                  <small>Version 1.23 · safecity-lubumbashi.com</small></div>
+                  <small>Version 1.24 · safecity-lubumbashi.com</small></div>
               </div>
             </div>
           </div>
@@ -446,8 +446,18 @@
               <div class="card">
                 <h3 id="profile-card-title" data-i18n="settings.profile">Profil</h3>
                 <div class="profile-head">
-                  <span class="avatar-lg" id="profile-initials">?</span>
-                  <div><h3 id="profile-name">—</h3><p id="profile-phone">—</p></div>
+                  <button type="button" id="profile-avatar-btn" class="avatar-edit" data-i18n-title="settings.changePhoto" title="Changer la photo de profil">
+                    <span class="avatar-lg" id="profile-initials">?</span>
+                    <span class="avatar-edit-badge" aria-hidden="true">📷</span>
+                  </button>
+                  <input type="file" id="avatar-input" accept="image/*" hidden>
+                  <div>
+                    <h3 id="profile-name">—</h3>
+                    <p id="profile-phone">—</p>
+                    <div class="profile-head-actions">
+                      <a href="#" id="avatar-remove-link" class="avatar-remove-link" data-i18n="settings.removePhoto" hidden>Retirer la photo</a>
+                    </div>
+                  </div>
                 </div>
               </div>
               <div class="card">

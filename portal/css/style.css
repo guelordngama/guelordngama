@@ -114,11 +114,28 @@ input:focus, select:focus { outline: none; border-color: var(--blue); box-shadow
 .user-chip { display: inline-flex; align-items: center; gap: 10px; background: var(--bg); border: 1px solid var(--line);
   padding: 5px 6px 5px 6px; border-radius: 999px; }
 .user-chip .avatar { width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg, var(--green), #0f766e);
-  color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 12.5px; }
+  color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 12.5px; position: relative; overflow: hidden; }
+.user-chip .avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+#agent-avatar-btn.avatar { border: none; padding: 0; flex: none; cursor: pointer; }
 .user-chip #agent-name { font-weight: 700; font-size: 13px; white-space: nowrap; max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
-.user-chip button { background: transparent; border: none; border-left: 1px solid var(--line); color: var(--muted);
+.user-chip button:not(.avatar) { background: transparent; border: none; border-left: 1px solid var(--line); color: var(--muted);
   cursor: pointer; padding: 4px 8px; font-size: 15px; }
-.user-chip button:hover { color: var(--red); }
+.user-chip button:not(.avatar):hover { color: var(--red); }
+
+/* Profil agent (photo) : même zone cliquable que l'app citoyenne. */
+.profile-avatar-wrap { display: flex; justify-content: center; margin: 4px 0 14px; }
+.avatar-edit { position: relative; width: 84px; height: 84px; padding: 0; border: none; background: none; cursor: pointer; border-radius: 50%; }
+.avatar-edit:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.avatar-edit .avatar-lg { width: 84px; height: 84px; border-radius: 50%; background: linear-gradient(135deg, var(--green), #0f766e);
+  color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 30px; position: relative; overflow: hidden; }
+.avatar-edit .avatar-lg img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.avatar-edit-badge { position: absolute; right: -2px; bottom: -2px; width: 26px; height: 26px; border-radius: 50%; background: var(--blue); color: #fff; display: grid; place-items: center; font-size: 13px; border: 2px solid var(--card); }
+.avatar-edit-busy { opacity: .55; pointer-events: none; }
+.profile-name-row { text-align: center; margin-bottom: 4px; }
+.profile-name-row h3 { margin: 0 0 2px; font-size: 17px; }
+.profile-name-row p { margin: 0; color: var(--muted); font-size: 13px; }
+.avatar-remove-link { display: block; text-align: center; font-size: 12.5px; color: var(--muted); text-decoration: underline; cursor: pointer; margin-top: 8px; }
+.avatar-remove-link:hover { color: var(--red); }
 
 .content { padding: 22px 26px 60px; }
 .grid-agent { display: grid; grid-template-columns: minmax(340px, 420px) 1fr; gap: 18px; align-items: start; }

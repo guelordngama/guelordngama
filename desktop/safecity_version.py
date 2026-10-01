@@ -2,4 +2,4 @@
 
 À garder alignée sur le fichier VERSION à la racine du dépôt.
 """
-__version__ = "1.23.3"
+__version__ = "1.24.0"
