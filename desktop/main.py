@@ -853,6 +853,7 @@ class MainWindow(QWidget):
         self.page_live.request_close.connect(self._close)
         self.page_live.request_false_alarm.connect(self._mark_false_alarm)
         self.page_live.request_journal.connect(self._show_journal)
+        self.page_live.request_arrived.connect(self._mark_arrived)
         self.page_live.request_focus.connect(self._focus_on_map)
         self.page_live.open_incident.connect(self._open_incident_by_id)
         self.page_live.search.connect(self._search_alerts)
@@ -1680,6 +1681,7 @@ class MainWindow(QWidget):
         popup.close_incident.connect(lambda a: self._close(a["id"]))
         popup.false_alarm.connect(lambda a: self._mark_false_alarm(a["id"]))
         popup.show_journal.connect(lambda a: self._show_journal(a["id"]))
+        popup.mark_arrived.connect(lambda a: self._mark_arrived(a["id"]))
         popup.finished.connect(lambda _=0, aid=alert["id"]: self._open_popups.pop(aid, None))
         self._open_popups[alert["id"]] = popup
         popup.show()
@@ -1828,6 +1830,15 @@ class MainWindow(QWidget):
             a = self.api.get_alert(alert_id)
             self.alerts[alert_id] = a
         return a
+
+    def _mark_arrived(self, alert_id):
+        """Signale l'arrivée de l'agent sur les lieux (étape « Sur place »)."""
+        try:
+            updated = self.api.mark_arrived(alert_id)
+            self._on_alert_updated(updated)
+            Toast(self, "📍 Agent arrivé sur place", "#8b5cf6").show_for(2500)
+        except Exception as e:
+            QMessageBox.warning(self, "Progression", _api_error_message(e))
 
     def _mark_false_alarm(self, alert_id):
         """Classe une alerte en fausse alerte (motif obligatoire, tracé) ; si elle

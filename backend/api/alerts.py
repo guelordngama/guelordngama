@@ -121,6 +121,17 @@ def accept(alert_id):
     return jsonify(payload)
 
 
+@bp.post("/<int:alert_id>/arrived")
+@require_auth(roles=["agent", "operator", "supervisor", "admin"])
+def arrived(alert_id):
+    """L'agent (ou le centre, en son nom) signale son arrivée sur les lieux —
+    étape « Sur place » de la progression de l'alerte."""
+    payload = alerts_service.mark_arrived(alert_id, g.user)
+    stats_service.invalidate_cache()
+    audit.record("agent_arrived", detail=_ref(payload), alert_id=alert_id)
+    return jsonify(payload)
+
+
 @bp.post("/<int:alert_id>/complete")
 @require_auth(roles=["agent", "operator", "supervisor", "admin"])
 def complete(alert_id):

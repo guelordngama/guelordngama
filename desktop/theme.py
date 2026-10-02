@@ -52,6 +52,30 @@ STATUS_LABELS = {
     "cloturee": "Traité",
 }
 
+# Progression détaillée (en plus du statut ci-dessus, inchangé) : Reçue ->
+# Assignée -> Agent en route -> Sur place -> Résolue.
+STAGE_COLORS = {
+    "received": "#64748b",
+    "assigned": "#3b82f6",
+    "en_route": "#f97316",
+    "on_site": "#8b5cf6",
+    "resolved": "#22c55e",
+}
+STAGE_ICONS = {
+    "received": "📨",
+    "assigned": "👮",
+    "en_route": "🚓",
+    "on_site": "📍",
+    "resolved": "✅",
+}
+STAGE_LABELS = {
+    "received": "Reçue",
+    "assigned": "Assignée",
+    "en_route": "Agent en route",
+    "on_site": "Sur place",
+    "resolved": "Résolue",
+}
+
 
 def tint(color, alpha):
     """Couleur translucide pour les QSS : « rgba(r,g,b,a) ».

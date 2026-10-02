@@ -448,6 +448,7 @@ class LiveAlertsPage(QWidget):
     open_incident = Signal(int)
     request_false_alarm = Signal(int)
     request_journal = Signal(int)
+    request_arrived = Signal(int)
     search = Signal(dict)
     reset_search = Signal()
 
@@ -492,7 +493,10 @@ class LiveAlertsPage(QWidget):
         b_journal = QPushButton("📜 Journal")
         b_journal.setObjectName("ghost")
         b_journal.setToolTip("Journal de l'intervention : qui a fait quoi, et quand")
-        for b in (b_view, b_map, b_assign, b_agent, b_close, b_false, b_journal):
+        b_arrived = QPushButton("📍 Arrivé sur place")
+        b_arrived.setObjectName("success")
+        b_arrived.setToolTip("Signale l'arrivée de l'agent sur les lieux (étape « Sur place »)")
+        for b in (b_view, b_map, b_assign, b_agent, b_arrived, b_close, b_false, b_journal):
             actions.addWidget(b)
         actions.addStretch()
         root.addLayout(actions)
@@ -504,6 +508,7 @@ class LiveAlertsPage(QWidget):
         b_close.clicked.connect(lambda: self._emit(self.request_close))
         b_false.clicked.connect(lambda: self._emit(self.request_false_alarm))
         b_journal.clicked.connect(lambda: self._emit(self.request_journal))
+        b_arrived.clicked.connect(lambda: self._emit(self.request_arrived))
 
     def set_alerts(self, alerts, searching=False):
         _fill_alert_table(self.table, alerts, unread_ids=self._unread, cols=self._cols)
@@ -2015,6 +2020,7 @@ AUDIT_ACTION_LABELS = {
     "team_assigned": "Patrouille envoyée",
     "agent_assigned": "Agent affecté",
     "intervention_accepted": "Intervention acceptée",
+    "agent_arrived": "Agent arrivé sur place",
     "intervention_completed": "Intervention terminée",
     "alert_closed": "Incident clôturé",
     "false_alarm_marked": "Fausse alerte signalée",

@@ -182,6 +182,12 @@ class Alert(TimestampMixin, db.Model):
     reporter_id = db.Column(db.Integer, db.ForeignKey("users.id"))
     closed_at = db.Column(db.DateTime)
 
+    # Progression détaillée de l'intervention (en plus de `status`, inchangé,
+    # qui continue de piloter toute la logique existante) : reçue -> assignée
+    # -> agent en route -> sur place -> résolue. Purement additif / affichage.
+    stage = db.Column(db.String(20), default="received", nullable=False)
+    arrived_at = db.Column(db.DateTime)   # agent arrivé sur les lieux
+
     # Fausse alerte : qualifiée par un opérateur, MOTIF OBLIGATOIRE (traçabilité),
     # annulable uniquement par un superviseur / administrateur.
     false_alarm = db.Column(db.Boolean, default=False, nullable=False, index=True)
@@ -199,30 +205,43 @@ class Alert(TimestampMixin, db.Model):
         "Alert", backref=db.backref("primary", remote_side=[id]),
         foreign_keys=[duplicate_of_id])
 
-    # Libellés citoyens des étapes de suivi.
-    _TRACK_STEPS = (
-        ("received", "Alerte reçue"),
-        ("assigned", "Prise en charge"),
-        ("resolved", "Résolue"),
-    )
+    # Progression détaillée (étapes visibles : citoyen ET opérateur) : Nouvelle
+    # et Reçue sont toujours acquises dès que l'alerte existe ; le reste suit
+    # `stage`, strictement croissant (réaffecter une alerte la fait repartir à
+    # « assignée »). `status`, inchangé, continue de piloter toute la logique.
+    STAGE_ORDER = ("received", "assigned", "en_route", "on_site", "resolved")
+    STAGE_LABELS = {
+        "new": "Nouvelle",
+        "received": "Reçue",
+        "assigned": "Assignée",
+        "en_route": "Agent en route",
+        "on_site": "Sur place",
+        "resolved": "Résolue",
+    }
+
+    def progress_steps(self):
+        """Les 6 étapes (clé, libellé, faite ?, horodatage) — utilisées par le
+        suivi citoyen ET la fiche d'incident du poste opérateur/portail."""
+        stage = self.stage if self.stage in self.STAGE_ORDER else "received"
+        idx = self.STAGE_ORDER.index(stage)
+        created_at = _iso(self.created_at)
+        L = self.STAGE_LABELS
+        return [
+            {"key": "new", "label": L["new"], "done": True, "at": created_at},
+            {"key": "received", "label": L["received"], "done": True, "at": created_at},
+            {"key": "assigned", "label": L["assigned"], "done": idx >= 1,
+             "at": _iso(self.accepted_at) if idx >= 1 else None},
+            {"key": "en_route", "label": L["en_route"], "done": idx >= 2,
+             "at": _iso(self.accepted_at) if idx >= 2 else None},
+            {"key": "on_site", "label": L["on_site"], "done": idx >= 3, "at": _iso(self.arrived_at)},
+            {"key": "resolved", "label": L["resolved"], "done": idx >= 4, "at": _iso(self.closed_at)},
+        ]
 
     def public_status(self):
         """Vue publique et minimale pour le suivi citoyen (aucune donnée
         sensible : ni nom/téléphone du déclarant, ni description, ni GPS exact —
         seulement l'avancement du traitement)."""
-        received_at = _iso(self.created_at)
-        assigned_at = _iso(self.accepted_at)
-        resolved_at = _iso(self.closed_at)
-        done = {
-            "received": True,
-            "assigned": self.status in ("assignee", "cloturee"),
-            "resolved": self.status == "cloturee",
-        }
-        at = {"received": received_at, "assigned": assigned_at, "resolved": resolved_at}
-        steps = [
-            {"key": k, "label": label, "done": done[k], "at": at[k]}
-            for k, label in self._TRACK_STEPS
-        ]
+        steps = self.progress_steps()
         # Prénom seul de l'agent (confiance sans exposer l'identité complète).
         agent_first = None
         if self.assigned_agent and self.assigned_agent.name:
@@ -232,9 +251,10 @@ class Alert(TimestampMixin, db.Model):
             "type": self.type,
             "neighborhood": self.neighborhood,
             "status": self.status,
-            "created_at": received_at,
-            "accepted_at": assigned_at,
-            "closed_at": resolved_at,
+            "stage": self.stage,
+            "created_at": _iso(self.created_at),
+            "accepted_at": _iso(self.accepted_at),
+            "closed_at": _iso(self.closed_at),
             "agent_first_name": agent_first,
             "eta_moto_min": self.eta_moto_min,
             # Fausse alerte : le citoyen voit que le dossier est classé sans suite
@@ -276,6 +296,10 @@ class Alert(TimestampMixin, db.Model):
             "ai_score": round(self.ai_score or 0.0, 3),
             "ai_category": self.ai_category,
             "status": self.status,
+            "stage": self.stage,
+            "stage_label": self.STAGE_LABELS.get(self.stage, self.stage),
+            "arrived_at": _iso(self.arrived_at),
+            "progress_steps": self.progress_steps(),
             "assigned_team": self.assigned_team.to_dict() if self.assigned_team else None,
             "assigned_agent": (
                 # Position et statut de l'agent affecté (affichage « Agent X →

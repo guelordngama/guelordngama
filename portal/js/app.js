@@ -656,9 +656,16 @@
   }
 
   async function loadAlerts() {
+    // « active » (pas encore prises en charge) ET « assignee » (déjà en
+    // cours) : sinon une mission assignée avant la connexion de l'agent
+    // n'apparaissait qu'après le prochain événement temps réel.
     try {
-      const list = await api("GET", "/api/alerts?status=active&page=1&page_size=50");
-      (list.items || list).forEach((a) => addAlert(a, false));
+      const [a, b] = await Promise.all([
+        api("GET", "/api/alerts?status=active&page=1&page_size=50"),
+        api("GET", "/api/alerts?status=assignee&page=1&page_size=50"),
+      ]);
+      (a.items || a).forEach((al) => addAlert(al, false));
+      (b.items || b).forEach((al) => addAlert(al, false));
     } catch (e) { console.warn(e); }
   }
 
@@ -701,6 +708,11 @@
     violence: "Violence", agression: "Agression", autre: "Autre" };
   const STATUS_FICHE = { active: ["EN ATTENTE", "#ef4444"], assignee: ["EN COURS", "#f97316"],
     cloturee: ["TRAITÉ", "#16a34a"] };
+  const STAGE_FICHE = {
+    received: ["📨 Reçue", "#64748b"], assigned: ["👮 Assignée", "#3b82f6"],
+    en_route: ["🚓 Agent en route", "#f97316"], on_site: ["📍 Sur place", "#8b5cf6"],
+    resolved: ["✅ Résolue", "#16a34a"],
+  };
   // « Avenue Kasai » -> ["Avenue", "Kasai"] ; inconnu -> ["Avenue / Rue", …]
   function streetParts(street) {
     const s = (street || "").trim(), low = s.toLowerCase();
@@ -811,6 +823,10 @@
         ficheRow("Heure", escapeHtml(a.time || "—") +
           (a.distance_m != null ? " · 📏 " + Math.round(a.distance_m) + " m" : "")) +
         ficheRow("Statut", '<span class="fiche-status" style="color:' + st[1] + "\">" + st[0] + "</span>") +
+        ficheRow("Progression", (() => {
+          const sg = STAGE_FICHE[a.stage] || STAGE_FICHE.received;
+          return '<span class="fiche-status" style="color:' + sg[1] + '">' + sg[0] + "</span>";
+        })()) +
         (a.assigned_agent ? ficheRow("Agent", "👮 " + escapeHtml(a.assigned_agent.name) + " → Intervention #" +
           escapeHtml(a.incident_number || a.reference || a.id)) : "") +
         "</div>" + descLine;
@@ -845,6 +861,12 @@
       const bComplete = node.querySelector(".btn-complete");
       bComplete.hidden = !accepted;
       bComplete.addEventListener("click", () => complete(a.id));
+      // Bouton « Arrivé sur place » : visible une fois la mission acceptée, tant
+      // que l'étape « Sur place » n'est pas déjà atteinte.
+      const bArrived = node.querySelector(".btn-arrived");
+      const onSiteOrLater = a.stage === "on_site" || a.stage === "resolved";
+      bArrived.hidden = !accepted || onSiteOrLater;
+      bArrived.addEventListener("click", () => arrived(a.id));
       list.appendChild(node);
     });
   }
@@ -864,6 +886,14 @@
       toast("✅ Intervention acceptée", "#22c55e");
       // Trace l'itinéraire le plus rapide depuis ma position vers l'incident.
       if (state.selfPos) showRoute(state.selfPos, [updated.lat, updated.lng]);
+    } catch (e) { alert("Échec : " + e.message); }
+  }
+
+  async function arrived(id) {
+    try {
+      const updated = await api("POST", "/api/alerts/" + id + "/arrived");
+      addAlert(updated, false);
+      toast("📍 Arrivée signalée", "#8b5cf6");
     } catch (e) { alert("Échec : " + e.message); }
   }
 

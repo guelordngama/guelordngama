@@ -238,6 +238,10 @@ class ApiClient:
         return self._request("POST", f"/api/alerts/{alert_id}/assign-agent",
                             {"agent_id": agent_id}, auth=True)
 
+    def mark_arrived(self, alert_id):
+        """Signale l'arrivée de l'agent sur les lieux (étape « Sur place »)."""
+        return self._request("POST", f"/api/alerts/{alert_id}/arrived", {}, auth=True)
+
     # ------------------------------------------------------------------ #
     # Sécurité & traçabilité
     # ------------------------------------------------------------------ #

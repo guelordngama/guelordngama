@@ -1030,8 +1030,11 @@
   // ---------------------------------------------------------------------- //
   // ---- Suivi d'alerte (référence + chronologie d'avancement) ----
   const TRACK_LABELS = {
-    received: "Alerte reçue",
-    assigned: "Prise en charge",
+    new: "Nouvelle",
+    received: "Reçue",
+    assigned: "Assignée",
+    en_route: "Agent en route",
+    on_site: "Sur place",
     resolved: "Résolue",
   };
 

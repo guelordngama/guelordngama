@@ -216,6 +216,7 @@ def create_alert(data):
         city=None if position_approx else default_city(lat, lng),
         reporter_id=data.get("reporter_id"),
         duplicate_of_id=primary.id if primary else None,
+        stage="received",
     )
     if primary is None:
         _commit_with_incident_number(alert)   # incident principal : numéro « SC-AAAA-NNNN »
@@ -337,6 +338,7 @@ def assign_team(alert_id, team_id):
 
     alert.assigned_team_id = team.id
     alert.status = "assignee"
+    alert.stage = "assigned"
     dist, eta_moto, eta_walk = compute_intervention(
         team.patrol_lat, team.patrol_lng, alert.lat, alert.lng
     )
@@ -353,6 +355,7 @@ def assign_team(alert_id, team_id):
 def close_alert(alert_id):
     alert = get_alert(alert_id)
     alert.status = "cloturee"
+    alert.stage = "resolved"
     alert.closed_at = datetime.utcnow()
     if alert.assigned_team:
         alert.assigned_team.status = "available"
@@ -389,6 +392,7 @@ def assign_agent(alert_id, agent_id):
 
     alert.assigned_agent_id = agent.id
     alert.status = "assignee"
+    alert.stage = "assigned"
     if not alert.accepted_at:
         alert.accepted_at = datetime.utcnow()
     if agent.lat is not None and agent.lng is not None:
@@ -417,6 +421,7 @@ def accept_intervention(alert_id, agent):
     alert.assigned_agent_id = agent_obj.id
     if alert.status == "active":
         alert.status = "assignee"
+    alert.stage = "en_route"
     if not alert.accepted_at:
         alert.accepted_at = datetime.utcnow()
     # Distance depuis la position connue de l'agent (si disponible).
@@ -427,6 +432,26 @@ def accept_intervention(alert_id, agent):
     agent_obj.current_alert_id = alert.id
     db.session.commit()
     log.info("Alerte #%s prise en charge par l'agent '%s'", alert.id, agent_obj.name)
+
+    payload = alert.to_dict()
+    _emit("alert_updated", payload)
+    return payload
+
+
+def mark_arrived(alert_id, agent):
+    """L'agent (ou le centre, en son nom) signale son arrivée sur les lieux —
+    étape « Sur place » de la progression (n'affecte pas `status`)."""
+    from ..errors import ForbiddenError
+
+    alert = get_alert(alert_id)
+    agent_id = agent["uid"] if isinstance(agent, dict) else agent
+    role = agent.get("role") if isinstance(agent, dict) else None
+    if role == "agent" and alert.assigned_agent_id != agent_id:
+        raise ForbiddenError("Cette intervention ne vous est pas assignée.")
+    alert.arrived_at = datetime.utcnow()
+    alert.stage = "on_site"
+    db.session.commit()
+    log.info("Alerte #%s : agent arrivé sur place", alert.id)
 
     payload = alert.to_dict()
     _emit("alert_updated", payload)
@@ -460,6 +485,7 @@ def mark_false_alarm(alert_id, reason, by_name):
     if alert.status != "cloturee":
         alert.status = "cloturee"
         alert.closed_at = datetime.utcnow()
+    alert.stage = "resolved"
     _free_resources(alert)
     db.session.commit()
     log.info("Alerte #%s classée fausse alerte : %s", alert.id, reason)
@@ -512,6 +538,7 @@ JOURNAL_LABELS = {
     "team_assigned": "Patrouille envoyée",
     "agent_assigned": "Agent affecté",
     "intervention_accepted": "Intervention acceptée par l'agent",
+    "agent_arrived": "Agent arrivé sur place",
     "intervention_completed": "Intervention terminée par l'agent",
     "alert_closed": "Incident clôturé",
     "false_alarm_marked": "Classée « fausse alerte »",

@@ -2,6 +2,35 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.25.0] — 2026-10-02 — Progression détaillée de l'alerte
+
+### Ajouté
+- **Progression en 6 étapes**, en plus du statut existant (inchangé) :
+  **Nouvelle → Reçue → Assignée → Agent en route → Sur place → Résolue**.
+  Visible :
+  - **Suivi citoyen** (page de suivi par référence) : chronologie à 6 étapes
+    au lieu de 3.
+  - **Poste opérateur** : ligne « Progression » dans la fiche d'incident
+    (couleur dédiée), bouton **📍 Agent arrivé sur place** dans la fiche et
+    dans les alertes en direct.
+  - **Portail agents** : ligne « Progression » dans la fiche de mission,
+    bouton **📍 Arrivé sur place** une fois la mission assignée.
+  - Action tracée dans le journal de l'intervention et l'audit
+    (`agent_arrived`).
+- API : `POST /api/alerts/<id>/arrived` (agent assigné, ou opérateur/
+  superviseur/admin en son nom — ex. confirmation radio). Chaque alerte
+  renvoie désormais `stage`, `stage_label`, `arrived_at` et `progress_steps`.
+
+### Corrigé
+- **Portail agents** : une mission déjà assignée à l'agent **avant** sa
+  connexion n'apparaissait qu'au prochain événement temps réel — elle
+  s'affiche maintenant dès la connexion.
+
+### Migration
+- `c1d3e5f7a9b2` : ajoute `stage` et `arrived_at` aux alertes ; reconstitue
+  une progression cohérente pour les alertes déjà en cours ou clôturées.
+  N'affecte pas `status`, qui continue de piloter toute la logique existante.
+
 ## [1.24.1] — 2026-10-01 — Photo de profil : compression et messages d'erreur clairs
 
 ### Corrigé

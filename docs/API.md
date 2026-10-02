@@ -145,6 +145,13 @@ Un agent envoie sa position GPS / sa disponibilité (available|busy|offline).
 ### `POST /api/alerts/<id>/accept` 🔒
 Un agent prend en charge une intervention (statut `assignee`, distance recalculée).
 
+### `POST /api/alerts/<id>/arrived` 🔒 (agent assigné, ou opérateur/superviseur/admin)
+Signale l'arrivée sur les lieux — étape **Sur place** de la progression
+(n'affecte pas `status`). **200 :** l'alerte à jour (`stage: "on_site"`,
+`arrived_at`). Chaque alerte porte désormais `stage` (`received|assigned|
+en_route|on_site|resolved`), `stage_label` et `progress_steps` (6 étapes,
+même forme que `steps` du suivi citoyen).
+
 ### `GET /api/analytics?period=week|month|year` 🔒
 Performance par agent : interventions, taux de résolution, temps de réponse,
 distance parcourue.

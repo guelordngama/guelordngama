@@ -212,6 +212,17 @@ def precision_text(alert):
     return f"{round(acc)} m" if acc is not None else "Non communiquée"
 
 
+def progress_text(alert):
+    """Étape de la progression (en plus du Statut) : Reçue -> Assignée ->
+    Agent en route -> Sur place -> Résolue."""
+    if alert.get("false_alarm"):
+        return "🚫 Classée fausse alerte"
+    stage = alert.get("stage") or "received"
+    icon = theme.STAGE_ICONS.get(stage, "")
+    label = theme.STAGE_LABELS.get(stage, stage)
+    return f"{icon} {label}".strip()
+
+
 def alert_fiche(alert):
     """Lignes de la fiche : liste de (clé, libellé, valeur)."""
     pending = _geocoding_pending(alert)
@@ -230,6 +241,7 @@ def alert_fiche(alert):
         ("precision", "Précision", precision_text(alert)),
         ("time", "Heure", alert.get("time") or "—"),
         ("status", "Statut", status),
+        ("progress", "Progression", progress_text(alert)),
     ] + list(zip(("agent", "agent_pos", "agent_status"),
                  ("Agent", "Position agent", "Statut agent"), assignment_parts(alert)))
 
@@ -417,6 +429,7 @@ class IncidentPopup(QDialog):
     close_incident = Signal(dict)
     false_alarm = Signal(dict)
     show_journal = Signal(dict)
+    mark_arrived = Signal(dict)
 
     def __init__(self, alert, parent=None, api_base=""):
         super().__init__(parent)
@@ -552,7 +565,7 @@ class IncidentPopup(QDialog):
             vl.setTextInteractionFlags(Qt.TextSelectableByMouse)
             vl.setStyleSheet(self._value_style(key, alert))
             info.addWidget(kl, i, 0, Qt.AlignTop)
-            info.addWidget(vl, i, 1, Qt.AlignLeft if key == "status" else Qt.Alignment())
+            info.addWidget(vl, i, 1, Qt.AlignLeft if key in ("status", "progress") else Qt.Alignment())
             self._fiche_keys[key] = kl
             self._fiche_values[key] = vl
         content.addLayout(info, 1)
@@ -645,6 +658,9 @@ class IncidentPopup(QDialog):
         b_map.setObjectName("ghost")
         b_close = QPushButton("🏁 Clôturer l'incident")
         b_close.setObjectName("danger")
+        self.btn_arrived = QPushButton("📍 Agent arrivé sur place")
+        self.btn_arrived.setObjectName("success")
+        self.btn_arrived.setToolTip("Signale l'arrivée de l'agent sur les lieux (étape « Sur place »)")
         self.btn_false = QPushButton("🚫 Fausse alerte")
         self.btn_false.setObjectName("ghost")
         self.btn_false.setToolTip("Classer en fausse alerte (motif obligatoire, action tracée)")
@@ -655,10 +671,12 @@ class IncidentPopup(QDialog):
         actions.addWidget(b_agent, 0, 1)
         actions.addWidget(b_call, 1, 0)
         actions.addWidget(b_map, 1, 1)
-        actions.addWidget(self.btn_false, 2, 0)
-        actions.addWidget(b_journal, 2, 1)
-        actions.addWidget(b_close, 3, 0, 1, 2)
+        actions.addWidget(self.btn_arrived, 2, 0, 1, 2)
+        actions.addWidget(self.btn_false, 3, 0)
+        actions.addWidget(b_journal, 3, 1)
+        actions.addWidget(b_close, 4, 0, 1, 2)
         self.btn_false.setEnabled(not alert.get("false_alarm"))
+        self._refresh_arrived_button(alert)
         body.addLayout(actions)
         col.addLayout(body)
 
@@ -685,6 +703,21 @@ class IncidentPopup(QDialog):
         b_close.clicked.connect(lambda: (self.close_incident.emit(self.alert), self.accept()))
         self.btn_false.clicked.connect(lambda: self.false_alarm.emit(self.alert))
         b_journal.clicked.connect(lambda: self.show_journal.emit(self.alert))
+        self.btn_arrived.clicked.connect(lambda: self.mark_arrived.emit(self.alert))
+
+    def _refresh_arrived_button(self, alert):
+        """Visible seulement quand un agent est affecté et pas encore sur place
+        (une fois l'incident clôturé ou classé fausse alerte, l'étape n'a plus
+        lieu d'être proposée)."""
+        stage = alert.get("stage") or "received"
+        has_agent = bool(alert.get("assigned_agent"))
+        closed = alert.get("status") == "cloturee" or bool(alert.get("false_alarm"))
+        self.btn_arrived.setVisible(has_agent and not closed)
+        self.btn_arrived.setEnabled(stage in ("assigned", "en_route"))
+        if stage == "on_site":
+            self.btn_arrived.setText("📍 Arrivé sur place ✓")
+        else:
+            self.btn_arrived.setText("📍 Agent arrivé sur place")
 
     def _refresh_trace_banners(self, alert):
         if alert.get("false_alarm"):
@@ -782,6 +815,11 @@ class IncidentPopup(QDialog):
             color = fiche_status(alert)[1] or theme.TEXT
             return (f"font-weight: 800; color: {color}; background: {theme.tint(color, 0.12)};"
                     " border-radius: 8px; padding: 2px 8px;")
+        if key == "progress":
+            color = ("#64748b" if alert.get("false_alarm")
+                    else theme.STAGE_COLORS.get(alert.get("stage") or "received", theme.TEXT))
+            return (f"font-weight: 800; color: {color}; background: {theme.tint(color, 0.12)};"
+                    " border-radius: 8px; padding: 2px 8px;")
         if key in ("commune", "street", "quartier") and _geocoding_pending(alert):
             return f"font-weight: 600; color: {theme.MUTED}; font-style: italic;"
         if key == "precision" and (alert.get("position_approx")):
@@ -802,6 +840,7 @@ class IncidentPopup(QDialog):
         self.title_label.setText(self._title_text(alert))
         self._refresh_trace_banners(alert)
         self.btn_false.setEnabled(not alert.get("false_alarm"))
+        self._refresh_arrived_button(alert)
         for key, label, value in alert_fiche(alert):
             vl = self._fiche_values.get(key)
             if vl is None:

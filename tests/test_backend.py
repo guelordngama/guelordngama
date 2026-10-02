@@ -486,8 +486,12 @@ def test_citizen_track_alert_by_reference():
     assert t.status_code == 200
     d = t.get_json()
     assert d["status"] == "active"
-    assert [s["key"] for s in d["steps"]] == ["received", "assigned", "resolved"]
-    assert d["steps"][0]["done"] is True and d["steps"][1]["done"] is False
+    assert d["stage"] == "received"
+    assert [s["key"] for s in d["steps"]] == [
+        "new", "received", "assigned", "en_route", "on_site", "resolved"]
+    # Nouvelle/Reçue acquises dès la création ; le reste suit la progression réelle.
+    assert d["steps"][0]["done"] is True and d["steps"][1]["done"] is True
+    assert all(s["done"] is False for s in d["steps"][2:])
     for leaked in ("reporter_phone", "reporter_name", "description", "lat", "lng"):
         assert leaked not in d, f"donnée sensible exposée : {leaked}"
 
@@ -645,6 +649,64 @@ def test_agent_accept_and_tracking():
     assert r.status_code == 200
     assert r.get_json()["assigned_agent"]["name"] == "Agent Kalala"
     assert r.get_json()["status"] == "assignee"
+
+
+def test_progress_stages_full_cycle():
+    """Progression Nouvelle → Reçue → Assignée → Agent en route → Sur place →
+    Résolue : chaque étape passe à `done` au bon moment, sans toucher `status`
+    (qui continue de piloter le reste de l'application)."""
+    _, client = make_client()
+    a = client.post("/api/alerts", json={"type": "incendie", "lat": -11.66, "lng": 27.48}).get_json()
+    aid, ref = a["id"], a["reference"]
+    assert a["stage"] == "received"
+
+    op = client.post("/api/auth/login", json={
+        "email": "operateur@safecity.local", "password": "safecity123"}).get_json()["token"]
+    ho = {"Authorization": "Bearer " + op}
+    ag = client.post("/api/auth/login", json={
+        "email": "agent1@safecity.local", "password": "safecity123"}).get_json()["token"]
+    ha = {"Authorization": "Bearer " + ag}
+
+    def steps_by_key(ref):
+        return {s["key"]: s["done"] for s in client.get("/api/alerts/track/" + ref).get_json()["steps"]}
+
+    agent = client.get("/api/agents?role=agent", headers=ho).get_json()[0]
+    r = client.post(f"/api/alerts/{aid}/assign-agent", json={"agent_id": agent["id"]}, headers=ho)
+    assert r.get_json()["stage"] == "assigned"
+    st = steps_by_key(ref)
+    assert st["assigned"] is True and st["en_route"] is False
+
+    # Un agent d'un autre compte ne peut pas signaler l'arrivée à sa place.
+    other = client.post("/api/auth/login", json={
+        "email": "agent2@safecity.local", "password": "safecity123"}).get_json()["token"]
+    ho2 = {"Authorization": "Bearer " + other}
+    assert client.post(f"/api/alerts/{aid}/arrived", headers=ho2).status_code == 403
+
+    r = client.post(f"/api/alerts/{aid}/accept", headers=ha)
+    assert r.get_json()["stage"] == "en_route"
+    assert steps_by_key(ref)["en_route"] is True and steps_by_key(ref)["on_site"] is False
+
+    r = client.post(f"/api/alerts/{aid}/arrived", headers=ha)
+    assert r.status_code == 200 and r.get_json()["stage"] == "on_site"
+    assert r.get_json()["arrived_at"]
+    assert steps_by_key(ref)["on_site"] is True and steps_by_key(ref)["resolved"] is False
+
+    r = client.post(f"/api/alerts/{aid}/complete", headers=ha)
+    assert r.get_json()["stage"] == "resolved" and r.get_json()["status"] == "cloturee"
+    final = steps_by_key(ref)
+    assert all(final.values())
+
+    # Le centre peut aussi signaler l'arrivée pour le compte d'un agent (radio).
+    b = client.post("/api/alerts", json={"type": "vol", "lat": -11.66, "lng": 27.48}).get_json()
+    client.post(f"/api/alerts/{b['id']}/assign-agent", json={"agent_id": agent["id"]}, headers=ho)
+    r2 = client.post(f"/api/alerts/{b['id']}/arrived", headers=ho)
+    assert r2.status_code == 200 and r2.get_json()["stage"] == "on_site"
+
+    # Journalisé (visible au superviseur).
+    hs = {"Authorization": "Bearer " + client.post('/api/auth/login', json={
+        'email': 'superviseur@safecity.local', 'password': 'safecity123'}).get_json()['token']}
+    journal = client.get(f"/api/alerts/{aid}/journal", headers=hs).get_json()
+    assert "agent_arrived" in [e["action"] for e in journal]
 
 
 def test_operator_assign_agent():
