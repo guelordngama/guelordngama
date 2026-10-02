@@ -2,6 +2,16 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.25.1] — 2026-10-02 — Fiche d'incident : la date en plus de l'heure
+
+### Corrigé
+- La fiche d'incident (poste opérateur) et la fiche de mission (portail
+  agents) n'affichaient que l'heure (ex. « 13:48 »), jamais la date : en
+  rouvrant un ancien incident depuis l'Historique, impossible de savoir de
+  quel jour il s'agissait. Elles affichent maintenant la date dès que
+  l'incident ne date pas d'aujourd'hui (ex. « 27/09 13:48 »), comme le fait
+  déjà le tableau Historique.
+
 ## [1.25.0] — 2026-10-02 — Progression détaillée de l'alerte
 
 ### Ajouté

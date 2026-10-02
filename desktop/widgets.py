@@ -203,6 +203,22 @@ def _geocoding_pending(alert, window_s=45):
     return (datetime.utcnow() - created).total_seconds() < window_s
 
 
+def when_text(alert):
+    """« 13:48 » si l'incident date d'aujourd'hui, sinon « 27/09 13:48 »
+    (heure de Lubumbashi) — évite toute ambiguïté en rouvrant un ancien
+    incident depuis l'historique."""
+    from datetime import datetime
+
+    loc = alert.get("created_local")   # « AAAA-MM-JJ HH:MM » (heure locale)
+    if not loc or " " not in loc:
+        return alert.get("time") or "—"
+    day, hm = loc.split(" ", 1)
+    if day == datetime.now().strftime("%Y-%m-%d"):
+        return hm or alert.get("time") or "—"
+    y, m, d = day.split("-")
+    return f"{d}/{m} {hm}"
+
+
 def precision_text(alert):
     if alert.get("position_approx"):
         return "⚠️ Position approximative (GPS non obtenu)"
@@ -239,7 +255,7 @@ def alert_fiche(alert):
         ("city", "Ville", alert.get("city") or "—"),
         ("gps", "GPS", gps_signed(alert.get("lat"), alert.get("lng"))),
         ("precision", "Précision", precision_text(alert)),
-        ("time", "Heure", alert.get("time") or "—"),
+        ("time", "Heure", when_text(alert)),
         ("status", "Statut", status),
         ("progress", "Progression", progress_text(alert)),
     ] + list(zip(("agent", "agent_pos", "agent_status"),
@@ -462,7 +478,7 @@ class IncidentPopup(QDialog):
         htext.addWidget(sub)
         hl.addLayout(htext)
         hl.addStretch()
-        recv = QLabel(f"Reçue à\n{alert.get('time') or '—'}")
+        recv = QLabel(f"Reçue à\n{when_text(alert)}")
         recv.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         recv.setStyleSheet("color: rgba(255,255,255,0.95); font-weight: 800; font-size: 15px;")
         hl.addWidget(recv)

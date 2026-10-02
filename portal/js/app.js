@@ -727,6 +727,19 @@
     if (lat == null || lng == null) return "—";
     return Number(lat).toFixed(6) + ", " + Number(lng).toFixed(6);
   }
+  // « 13:48 » si l'incident date d'aujourd'hui, sinon « 27/09 13:48 » — évite
+  // toute ambiguïté pour une mission restée ouverte depuis un autre jour.
+  function whenText(a) {
+    const loc = a.created_local;
+    if (!loc || loc.indexOf(" ") === -1) return a.time || "—";
+    const [day, hm] = loc.split(" ");
+    const n = new Date();
+    const today = n.getFullYear() + "-" + String(n.getMonth() + 1).padStart(2, "0")
+      + "-" + String(n.getDate()).padStart(2, "0");
+    if (day === today) return hm || a.time || "—";
+    const [, m, d] = day.split("-");
+    return d + "/" + m + " " + hm;
+  }
   function precisionText(a) {
     if (a.position_approx) return "⚠️ Approximative (GPS non obtenu)";
     if (a.position_manual) return "Placée à la main sur la carte";
@@ -820,7 +833,7 @@
         ficheRow("GPS", '<span class="alert-coords" title="Cliquer pour copier la position">' +
           gpsSigned(a.lat, a.lng) + "</span>") +
         ficheRow("Précision", escapeHtml(precisionText(a))) +
-        ficheRow("Heure", escapeHtml(a.time || "—") +
+        ficheRow("Heure", escapeHtml(whenText(a)) +
           (a.distance_m != null ? " · 📏 " + Math.round(a.distance_m) + " m" : "")) +
         ficheRow("Statut", '<span class="fiche-status" style="color:' + st[1] + "\">" + st[0] + "</span>") +
         ficheRow("Progression", (() => {
