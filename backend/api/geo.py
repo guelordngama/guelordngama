@@ -8,11 +8,15 @@ Le téléphone du citoyen ne peut pas joindre OpenStreetMap directement (pare-fe
 de la mairie) : c'est le serveur qui interroge le service, avec cache et
 limitation de débit. Aucun lieu n'est inventé : champ inconnu = null.
 """
+import logging
+
 from flask import Blueprint, current_app, jsonify, request
 
 from ..geo import default_city, reverse_geocode_details, route as compute_route
 from ..security import rate_limit, require_auth
 from ..validation import validate_coordinates
+
+log = logging.getLogger("safecity")
 
 bp = Blueprint("geo", __name__, url_prefix="/api/geo")
 
@@ -24,6 +28,8 @@ def reverse():
     empty = {"street": None, "neighborhood": None, "commune": None,
              "city": default_city(lat, lng)}
     if not current_app.config.get("GEOCODING_ENABLED", True):
+        log.warning("Géocodage inverse désactivé (SAFECITY_GEOCODING) : "
+                   "requête (%.5f, %.5f) renvoyée sans adresse.", lat, lng)
         return jsonify(dict(empty, available=False))
     details = reverse_geocode_details(lat, lng)
     if not details:

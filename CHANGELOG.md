@@ -2,6 +2,16 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.25.2] — 2026-10-02 — Géocodage inverse : journal de la vraie cause en cas d'échec
+
+### Corrigé
+- Quand le géocodage inverse (rue/quartier/commune) échoue, **rien n'était
+  journalisé côté serveur** : impossible de savoir si le réseau sortant était
+  bloqué, le service désactivé, ou autre chose, sans aller-retour. Le serveur
+  consigne désormais la vraie raison (type d'erreur + message) à chaque échec
+  de géocodage inverse ou de calcul d'itinéraire. Ne change rien pour le
+  citoyen : toujours « — » plutôt qu'un lieu inventé.
+
 ## [1.25.1] — 2026-10-02 — Fiche d'incident : la date en plus de l'heure
 
 ### Corrigé

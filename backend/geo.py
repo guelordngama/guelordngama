@@ -2,11 +2,14 @@
 et résolution approximative du quartier / adresse à partir du GPS.
 """
 import json
+import logging
 import math
 import threading
 import time
 import urllib.parse
 import urllib.request
+
+log = logging.getLogger("safecity")
 
 # Vitesses moyennes utilisées pour l'estimation du temps d'intervention.
 MOTO_SPEED_KMH = 25.0   # moto en zone urbaine
@@ -171,7 +174,12 @@ def reverse_geocode_details(lat, lng, timeout=6):
         d["address"] = ", ".join(p for p in parts if p) or data.get("display_name") \
             or coords_label(lat, lng)
         result = d
-    except Exception:  # pragma: no cover - dépend du réseau du serveur
+    except Exception as e:  # pragma: no cover - dépend du réseau du serveur
+        # Jamais invoqué pour masquer l'échec : ce journal est ce qui permet de
+        # diagnostiquer (réseau sortant bloqué, service désactivé, timeout…)
+        # quand le géocodage reste indisponible sans raison visible côté client.
+        log.warning("Géocodage inverse indisponible pour (%.5f, %.5f) : %s: %s",
+                   lat, lng, type(e).__name__, e)
         return None     # pas mis en cache : on retentera à la prochaine alerte
     with _GEO_LOCK:
         if len(_GEO_CACHE) > 5000:      # borne mémoire
@@ -231,7 +239,9 @@ def route(a_lat, a_lng, b_lat, b_lng, timeout=6):
                   "coordinates": [[c[1], c[0]] for c in r["geometry"]["coordinates"]],
                   "distance_m": round(r.get("distance") or 0),
                   "duration_s": round(r.get("duration") or 0)}
-    except Exception:  # pragma: no cover - dépend du réseau du serveur
+    except Exception as e:  # pragma: no cover - dépend du réseau du serveur
+        log.warning("Itinéraire OSRM indisponible (%s -> %s) : %s: %s",
+                   (a_lat, a_lng), (b_lat, b_lng), type(e).__name__, e)
         return _direct_route(a_lat, a_lng, b_lat, b_lng)   # non mis en cache
     with _GEO_LOCK:
         if len(_ROUTE_CACHE) > 2000:
