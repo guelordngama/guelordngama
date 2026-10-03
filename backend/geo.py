@@ -98,6 +98,21 @@ def _known_commune(value):
     return None
 
 
+# Certains champs Nominatim (« suburb », « residential »…) contiennent parfois
+# le nom d'une avenue/rue au lieu d'un vrai quartier — une particularité des
+# données OpenStreetMap, plus fréquente là où le découpage administratif est
+# peu détaillé (cas de plusieurs zones de Lubumbashi). On écarte ces valeurs
+# plutôt que de les afficher dans le mauvais champ (jamais de quartier inventé
+# : si tout est écarté, le quartier reste simplement vide).
+_STREET_PREFIXES = ("avenue ", "av. ", "av ", "rue ", "boulevard ", "bd ",
+                    "route ", "chaussée ", "chaussee ", "place ")
+
+
+def _looks_like_street(value):
+    v = (value or "").strip().lower()
+    return any(v.startswith(p) for p in _STREET_PREFIXES)
+
+
 def default_city(lat, lng):
     """« Lubumbashi » si le point est dans l'agglomération, sinon None."""
     try:
@@ -112,6 +127,12 @@ def parse_osm_address(addr, lat=None, lng=None):
 
     Renvoie un dict : street (avenue/rue), neighborhood (quartier), commune,
     city (ville). Les champs inconnus valent None — jamais inventés.
+
+    Nominatim ne range pas toujours la même information dans le même champ
+    (surtout en RDC, où le découpage administratif est inégalement détaillé
+    dans OpenStreetMap) : on inspecte donc plusieurs champs candidats pour
+    chaque niveau, et on écarte toute valeur qui ressemble à une avenue/rue
+    plutôt que de la mettre dans le mauvais champ.
     """
     addr = addr or {}
     street = (addr.get("road") or addr.get("pedestrian") or addr.get("footway")
@@ -120,29 +141,47 @@ def parse_osm_address(addr, lat=None, lng=None):
         street = f"{street} n° {addr['house_number']}"
 
     # Commune : d'abord une commune officielle de Lubumbashi trouvée dans
-    # n'importe quel champ, sinon les champs administratifs usuels.
+    # n'importe quel champ, sinon les champs administratifs usuels — jamais
+    # une valeur qui ressemble à une avenue/rue.
     commune = None
     for key in ("city_district", "municipality", "borough", "suburb", "district",
                 "county", "quarter", "neighbourhood"):
-        commune = _known_commune(addr.get(key))
+        v = addr.get(key)
+        if v and _looks_like_street(v):
+            continue
+        commune = _known_commune(v)
         if commune:
             break
     if not commune:
-        commune = _norm(addr.get("city_district") or addr.get("municipality")
-                        or addr.get("borough")) or None
+        for key in ("city_district", "municipality", "borough"):
+            v = _norm(addr.get(key))
+            if v and not _looks_like_street(v):
+                commune = v
+                break
 
-    # Quartier : le niveau le plus fin, différent de la commune.
+    # Quartier : le niveau le plus fin, différent de la commune, jamais une
+    # avenue/rue (certains champs — « suburb », « residential »… — contiennent
+    # parfois un nom de rue selon les données disponibles à cet endroit : on
+    # passe alors au champ candidat suivant plutôt que de l'afficher à tort).
     neighborhood = None
     for key in ("neighbourhood", "quarter", "suburb", "residential", "hamlet",
                 "city_block", "village"):
         v = _norm(addr.get(key))
-        if v and (not commune or v.lower() != commune.lower()):
-            neighborhood = v
-            break
+        if not v or _looks_like_street(v):
+            continue
+        if commune and v.lower() == commune.lower():
+            continue
+        neighborhood = v
+        break
 
-    city = addr.get("city") or addr.get("town") or None
-    if not city and lat is not None and lng is not None:
-        city = default_city(lat, lng)
+    # Ville : dans l'agglomération de Lubumbashi, la position GPS est plus
+    # fiable que le champ « city » de Nominatim (qui retombe parfois sur une
+    # province voisine, ex. « Lualaba », faute de limite communale précise
+    # dans OpenStreetMap à cet endroit). Ailleurs, on fait confiance au
+    # service — déterminé dynamiquement, jamais « Lubumbashi » imposé partout.
+    geo_city = default_city(lat, lng) if lat is not None and lng is not None else None
+    city = geo_city or addr.get("city") or addr.get("town") or None
+
     return {"street": street, "neighborhood": neighborhood,
             "commune": commune, "city": city}
 
@@ -169,6 +208,11 @@ def reverse_geocode_details(lat, lng, timeout=6):
         _throttle()
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             data = json.load(resp)
+        # Journal de debug temporaire (niveau DEBUG seulement, donc invisible
+        # en production par défaut) : la réponse brute de Nominatim, pour
+        # vérifier quels champs sont réellement renvoyés à un endroit donné.
+        log.debug("Géocodage inverse (%.5f, %.5f) — réponse Nominatim address=%s",
+                 lat, lng, data.get("address"))
         d = parse_osm_address(data.get("address", {}), lat, lng)
         parts = [d["street"], d["neighborhood"], d["commune"], d["city"]]
         d["address"] = ", ".join(p for p in parts if p) or data.get("display_name") \

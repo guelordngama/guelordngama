@@ -280,6 +280,40 @@ def test_alert_location_details_and_accuracy():
     assert d["city"] == "Lubumbashi"
 
 
+def test_parse_osm_address_lubumbashi_field_mapping():
+    """Cas réel signalé : un champ Nominatim contient une avenue/rue au lieu
+    d'un vrai quartier (« suburb » : « Avenue Kapanga »), et le champ « city »
+    retombe sur la province voisine (« Lualaba ») faute de limite communale
+    précise dans OpenStreetMap à cet endroit. Le quartier ne doit jamais être
+    une avenue/rue, et la ville doit rester Lubumbashi dans l'agglomération."""
+    from backend.geo import parse_osm_address
+
+    addr = {
+        "road": "Avenue de la Digue",
+        "suburb": "Avenue Kapanga",       # piège : ressemble à une avenue
+        "residential": "Luapula",          # le vrai quartier, plus loin dans l'ordre
+        "city_district": "Kenya",
+        "city": "Lualaba",                 # piège : une province, pas la ville
+        "country": "République démocratique du Congo",
+    }
+    d = parse_osm_address(addr, lat=-11.705024, lng=27.485672)
+    assert d["street"] == "Avenue de la Digue"
+    assert d["commune"] == "Kenya"
+    assert d["neighborhood"] == "Luapula"          # jamais « Avenue Kapanga »
+    assert d["city"] == "Lubumbashi"               # jamais « Lualaba »
+
+    # Hors de l'agglomération de Lubumbashi : la ville reste dynamique, prise
+    # telle quelle chez le service (jamais Lubumbashi imposée ailleurs).
+    far = parse_osm_address({"city": "Kolwezi", "suburb": "Manika"}, lat=-10.72, lng=25.47)
+    assert far["city"] == "Kolwezi" and far["neighborhood"] == "Manika"
+
+    # Si tout est écarté (rien d'exploitable), le quartier reste vide —
+    # jamais un quartier inventé.
+    only_streets = parse_osm_address({"suburb": "Avenue X", "residential": "Rue Y"},
+                                     lat=-11.66, lng=27.48)
+    assert only_streets["neighborhood"] is None
+
+
 def test_geo_reverse_endpoint():
     """Adresse d'une position pour l'app citoyenne (service OSM simulé)."""
     import backend.api.geo as geo_api

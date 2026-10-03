@@ -2,6 +2,30 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.25.3] — 2026-10-03 — Géocodage inverse : correction du mauvais classement des champs
+
+### Corrigé
+- **Quartier affichant une avenue** (ex. « avenue kapanga ») et **Ville
+  affichant une province** (ex. « Lualaba » au lieu de « Lubumbashi ») : selon
+  l'endroit, le service de cartes (Nominatim) range parfois une avenue/rue
+  dans un champ normalement réservé au quartier, ou omet la ville précise.
+  Corrigé par un classement plus robuste des champs :
+  - toute valeur qui ressemble à une avenue/rue (« Avenue … », « Rue … »…)
+    est désormais écartée des champs Commune et Quartier, au profit du champ
+    candidat suivant — jamais affichée au mauvais endroit ;
+  - dans l'agglomération de Lubumbashi, la position GPS (déjà fiable, ±5 à
+    ±8 m) détermine la ville plutôt qu'un champ Nominatim parfois erroné à cet
+    endroit ; **ailleurs, la ville reste celle renvoyée par le service**,
+    déterminée dynamiquement — jamais « Lubumbashi » imposée à tout le monde.
+  - si aucun champ n'est exploitable, le quartier reste vide : toujours aucun
+    lieu inventé.
+- Journal de débogage temporaire (niveau DEBUG, invisible en production par
+  défaut) : la réponse brute du service de géocodage, pour vérifier les
+  champs réellement renvoyés à un endroit donné (`SAFECITY_LOG_LEVEL=DEBUG`).
+
+Le GPS lui-même (précision, acquisition, carte) n'est pas concerné — seul le
+classement des champs d'adresse a changé.
+
 ## [1.25.2] — 2026-10-02 — Géocodage inverse : journal de la vraie cause en cas d'échec
 
 ### Corrigé
