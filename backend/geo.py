@@ -214,6 +214,14 @@ def reverse_geocode_details(lat, lng, timeout=6):
         log.debug("Géocodage inverse (%.5f, %.5f) — réponse Nominatim address=%s",
                  lat, lng, data.get("address"))
         d = parse_osm_address(data.get("address", {}), lat, lng)
+        if d["neighborhood"] is None:
+            # Visible par défaut (niveau WARNING) : contrairement au debug
+            # ci-dessus, ce cas précis (quartier resté vide malgré une réponse
+            # exploitable) vaut la peine d'être vu sans changer de réglage —
+            # ça permet de vérifier si la donnée existe ailleurs dans la
+            # réponse, ou si le service n'a simplement pas cette précision.
+            log.warning("Quartier indéterminé pour (%.5f, %.5f) — champs d'adresse bruts : %s",
+                       lat, lng, data.get("address"))
         parts = [d["street"], d["neighborhood"], d["commune"], d["city"]]
         d["address"] = ", ".join(p for p in parts if p) or data.get("display_name") \
             or coords_label(lat, lng)

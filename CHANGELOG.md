@@ -2,6 +2,15 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.25.4] — 2026-10-03 — Journal visible quand le quartier reste indéterminé
+
+### Ajouté
+- Quand le quartier reste vide malgré une réponse exploitable du service de
+  géocodage, le serveur journalise désormais les champs bruts reçus, visibles
+  **par défaut** (pas besoin de changer de réglage) — pour vérifier si la
+  donnée existe ailleurs dans la réponse ou si le service n'a simplement pas
+  cette précision à cet endroit.
+
 ## [1.25.3] — 2026-10-03 — Géocodage inverse : correction du mauvais classement des champs
 
 ### Corrigé
