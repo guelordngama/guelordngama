@@ -159,6 +159,16 @@
       return fallback;
     }
   }
+  // Jeton expiré (session de plusieurs heures) : un toast d'erreur seul
+  // laisse l'utilisateur bloqué sur un tableau de bord qui a l'air connecté
+  // mais où plus aucune action protégée ne fonctionnera. On déconnecte et on
+  // revient à l'écran de connexion avec un message clair, plutôt que de le
+  // laisser deviner qu'il doit se reconnecter.
+  function handleExpiredSession() {
+    localStorage.removeItem("safecity_auth");
+    try { sessionStorage.setItem("safecity_session_expired", "1"); } catch (e) {}
+    location.reload();
+  }
   // Réduit la photo avant envoi (les photos de téléphone font plusieurs Mo :
   // un avatar n'a besoin que de quelques centaines de Ko, ça envoie plus vite
   // et évite tout refus lié à la taille). Repli sur le fichier d'origine si la
@@ -208,6 +218,7 @@
         headers: { "Content-Type": "application/json", "Authorization": "Bearer " + a.token },
         body: JSON.stringify({ photo: dataUrl }),
       });
+      if (res.status === 401) return handleExpiredSession();
       if (!res.ok) {
         throw new Error(await errorMessage(res, "Échec de l'envoi (" + res.status + ")."));
       }
@@ -231,6 +242,7 @@
         method: "DELETE",
         headers: { "Authorization": "Bearer " + a.token },
       });
+      if (res.status === 401) return handleExpiredSession();
       if (!res.ok) {
         throw new Error(await errorMessage(res, "Échec de la suppression (" + res.status + ")."));
       }

@@ -2,6 +2,20 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.25.5] — 2026-10-03 — Site citoyen : session expirée gérée proprement
+
+### Corrigé
+- **« Impossible de changer la photo »** : le message réel était « Jeton
+  expiré » (la session se termine au bout de 12 h, réglage
+  `SAFECITY_JWT_EXPIRES_HOURS`) — un cas normal, mais le citoyen restait
+  ensuite bloqué sur un tableau de bord qui semblait toujours connecté, sans
+  savoir qu'il fallait se reconnecter : **toute** action protégée aurait
+  continué d'échouer silencieusement (pas seulement la photo).
+  - Changer ou retirer la photo avec un jeton expiré **déconnecte désormais
+    automatiquement** et ramène à l'écran de connexion avec le message
+    « Votre session a expiré. Reconnectez-vous. », au lieu d'un simple toast
+    d'erreur sur une session morte.
+
 ## [1.25.4] — 2026-10-03 — Journal visible quand le quartier reste indéterminé
 
 ### Ajouté

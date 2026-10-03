@@ -1271,5 +1271,15 @@
     acquireGPS(); // pré-acquisition de la position
   } else {
     show("auth"); // première visite : inviter à créer un compte / se connecter
+    // Session expirée (ex. photo de profil refusée après plusieurs heures) :
+    // shell.js a déjà déconnecté et rechargé la page ; on explique pourquoi
+    // l'utilisateur se retrouve sur l'écran de connexion.
+    try {
+      if (sessionStorage.getItem("safecity_session_expired")) {
+        sessionStorage.removeItem("safecity_session_expired");
+        showForm("form-login");
+        authError("Votre session a expiré. Reconnectez-vous.");
+      }
+    } catch (e) {}
   }
 })();
