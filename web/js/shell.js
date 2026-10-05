@@ -169,49 +169,12 @@
     try { sessionStorage.setItem("safecity_session_expired", "1"); } catch (e) {}
     location.reload();
   }
-  // Réduit la photo avant envoi (les photos de téléphone font plusieurs Mo :
-  // un avatar n'a besoin que de quelques centaines de Ko, ça envoie plus vite
-  // et évite tout refus lié à la taille). Repli sur le fichier d'origine si la
-  // compression échoue (vieux navigateur, format inhabituel…).
-  function compressImage(file, maxSize, quality) {
-    return new Promise((resolve) => {
-      const fallback = () => {
-        const r = new FileReader();
-        r.onload = () => resolve(r.result);
-        r.onerror = () => resolve(null);
-        r.readAsDataURL(file);
-      };
-      try {
-        const img = new Image();
-        const reader = new FileReader();
-        reader.onload = () => {
-          img.onload = () => {
-            try {
-              let { width, height } = img;
-              if (width > maxSize || height > maxSize) {
-                if (width > height) { height = Math.round((height * maxSize) / width); width = maxSize; }
-                else { width = Math.round((width * maxSize) / height); height = maxSize; }
-              }
-              const canvas = document.createElement("canvas");
-              canvas.width = width; canvas.height = height;
-              canvas.getContext("2d").drawImage(img, 0, 0, width, height);
-              resolve(canvas.toDataURL("image/jpeg", quality));
-            } catch (e) { fallback(); }
-          };
-          img.onerror = fallback;
-          img.src = reader.result;
-        };
-        reader.onerror = fallback;
-        reader.readAsDataURL(file);
-      } catch (e) { fallback(); }
-    });
-  }
   async function uploadAvatar(dataUrl) {
     const a = getAuth();
     if (!a || !a.token) return;
     const API = (window.SAFECITY_CONFIG && window.SAFECITY_CONFIG.API_BASE) || "";
-    const btn = $("profile-avatar-btn");
-    if (btn) btn.classList.add("avatar-edit-busy");
+    const wrap = $("profile-avatar-wrap");
+    if (wrap) wrap.classList.add("avatar-edit-busy");
     try {
       const res = await fetch(API + "/api/auth/me/avatar", {
         method: "POST",
@@ -230,7 +193,7 @@
     } catch (e) {
       shellToast(e.message || tr("settings.photoError", "Impossible de changer la photo. Réessayez."), false);
     } finally {
-      if (btn) btn.classList.remove("avatar-edit-busy");
+      if (wrap) wrap.classList.remove("avatar-edit-busy");
     }
   }
   async function removeAvatar() {
@@ -255,21 +218,240 @@
       shellToast(e.message || tr("settings.photoError", "Impossible de changer la photo. Réessayez."), false);
     }
   }
+  // Badge « appareil photo » : toujours ouvrir le sélecteur de fichier (changer).
   if ($("profile-avatar-btn")) $("profile-avatar-btn").addEventListener("click", () => {
     const inp = $("avatar-input");
     if (inp) inp.click();
+  });
+  // La photo elle-même : si une photo est déjà définie, l'agrandir (façon
+  // WhatsApp) ; sinon, comme il n'y a rien à voir, ouvrir directement le
+  // sélecteur de fichier (première photo).
+  if ($("profile-initials")) $("profile-initials").addEventListener("click", () => {
+    const a = getAuth();
+    const url = avatarUrl(a && a.user);
+    if (url) openLightbox(url);
+    else { const inp = $("avatar-input"); if (inp) inp.click(); }
   });
   if ($("avatar-input")) $("avatar-input").addEventListener("change", async (e) => {
     const file = e.target.files[0];
     e.target.value = "";
     if (!file) return;
-    const durl = await compressImage(file, 480, 0.85);
-    if (durl) uploadAvatar(durl);
-    else shellToast(tr("settings.photoError", "Impossible de changer la photo. Réessayez."), false);
+    const url = URL.createObjectURL(file);
+    const cropped = await openCropper(url);
+    URL.revokeObjectURL(url);
+    if (cropped) uploadAvatar(cropped);
   });
   if ($("avatar-remove-link")) $("avatar-remove-link").addEventListener("click", (e) => {
     e.preventDefault();
     removeAvatar();
+  });
+
+  // --------------------------------------------------------------------- //
+  // Rognage de la photo avant envoi : cadre circulaire, glisser pour
+  // déplacer, pincer / molette / curseur pour zoomer. Le résultat exporté
+  // est un carré (déjà affiché en rond partout via object-fit: cover).
+  // --------------------------------------------------------------------- //
+  const CROP_OUTPUT = 480;     // même taille que l'ancienne compression
+  const CROP_VIEWPORT = 260;   // doit correspondre à la taille CSS du cadre
+  const CROP_MAX_ZOOM = 3;     // facteur au-delà du cadrage « couvrant »
+  let cropState = null;        // { natW, natH, baseScale, scale, x, y }
+  let cropResolve = null;
+
+  function clampBox(st, boxW, boxH) {
+    const dispW = st.natW * st.scale, dispH = st.natH * st.scale;
+    const minX = Math.min(0, boxW - dispW), minY = Math.min(0, boxH - dispH);
+    st.x = Math.max(minX, Math.min(0, st.x));
+    st.y = Math.max(minY, Math.min(0, st.y));
+  }
+  function renderCrop() {
+    const img = $("crop-img");
+    if (!img || !cropState) return;
+    img.style.width = (cropState.natW * cropState.scale) + "px";
+    img.style.height = (cropState.natH * cropState.scale) + "px";
+    img.style.transform = "translate(" + cropState.x + "px," + cropState.y + "px)";
+  }
+  function zoomCropTo(newScale, anchorX, anchorY) {
+    const st = cropState;
+    newScale = Math.max(st.baseScale, Math.min(st.baseScale * CROP_MAX_ZOOM, newScale));
+    const imgX = (anchorX - st.x) / st.scale, imgY = (anchorY - st.y) / st.scale;
+    st.x = anchorX - imgX * newScale;
+    st.y = anchorY - imgY * newScale;
+    st.scale = newScale;
+    clampBox(st, CROP_VIEWPORT, CROP_VIEWPORT);
+    renderCrop();
+    const slider = $("crop-zoom");
+    if (slider) slider.value = String(Math.round((st.scale / st.baseScale) * 100));
+  }
+  function openCropper(url) {
+    return new Promise((resolve) => {
+      const modal = $("crop-modal");
+      const img = $("crop-img");
+      if (!modal || !img) return resolve(null);
+      img.onload = () => {
+        const natW = img.naturalWidth, natH = img.naturalHeight;
+        const baseScale = Math.max(CROP_VIEWPORT / natW, CROP_VIEWPORT / natH);
+        cropState = {
+          natW, natH, baseScale, scale: baseScale,
+          x: (CROP_VIEWPORT - natW * baseScale) / 2,
+          y: (CROP_VIEWPORT - natH * baseScale) / 2,
+        };
+        if ($("crop-zoom")) $("crop-zoom").value = "100";
+        renderCrop();
+        modal.hidden = false;
+        cropResolve = resolve;
+      };
+      img.src = url;
+    });
+  }
+  function closeCropper(result) {
+    const modal = $("crop-modal");
+    if (modal) modal.hidden = true;
+    cropState = null;
+    if (cropResolve) { const r = cropResolve; cropResolve = null; r(result); }
+  }
+  function confirmCrop() {
+    const img = $("crop-img"), st = cropState;
+    if (!img || !st) return closeCropper(null);
+    const sx = -st.x / st.scale, sy = -st.y / st.scale, sSize = CROP_VIEWPORT / st.scale;
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width = CROP_OUTPUT; canvas.height = CROP_OUTPUT;
+      canvas.getContext("2d").drawImage(img, sx, sy, sSize, sSize, 0, 0, CROP_OUTPUT, CROP_OUTPUT);
+      closeCropper(canvas.toDataURL("image/jpeg", 0.85));
+    } catch (e) { closeCropper(null); }
+  }
+  // Un seul doigt/souris : déplace. Deux doigts : pince pour zoomer (molette
+  // sur ordinateur). Même mécanique que la visionneuse ci-dessous.
+  function wirePanZoom(el, getState, onPan, onZoom) {
+    const pointers = new Map();
+    let lastDist = null;
+    const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+    const mid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+    el.addEventListener("pointerdown", (e) => {
+      el.setPointerCapture(e.pointerId);
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      lastDist = null;
+    });
+    el.addEventListener("pointermove", (e) => {
+      if (!getState() || !pointers.has(e.pointerId)) return;
+      const prev = pointers.get(e.pointerId);
+      const cur = { x: e.clientX, y: e.clientY };
+      pointers.set(e.pointerId, cur);
+      if (pointers.size === 1) {
+        onPan(cur.x - prev.x, cur.y - prev.y);
+      } else if (pointers.size >= 2) {
+        const pts = Array.from(pointers.values());
+        const d = dist(pts[0], pts[1]);
+        const m = mid(pts[0], pts[1]);
+        const rect = el.getBoundingClientRect();
+        if (lastDist != null) onZoom(d / lastDist, m.x - rect.left, m.y - rect.top);
+        lastDist = d;
+      }
+    });
+    const release = (e) => {
+      pointers.delete(e.pointerId);
+      if (pointers.size < 2) lastDist = null;
+    };
+    el.addEventListener("pointerup", release);
+    el.addEventListener("pointercancel", release);
+    el.addEventListener("wheel", (e) => {
+      if (!getState()) return;
+      e.preventDefault();
+      const rect = el.getBoundingClientRect();
+      onZoom(e.deltaY < 0 ? 1.08 : 1 / 1.08, e.clientX - rect.left, e.clientY - rect.top);
+    }, { passive: false });
+  }
+  if ($("crop-viewport")) {
+    wirePanZoom($("crop-viewport"),
+      () => cropState,
+      (dx, dy) => { cropState.x += dx; cropState.y += dy; clampBox(cropState, CROP_VIEWPORT, CROP_VIEWPORT); renderCrop(); },
+      (factor, x, y) => zoomCropTo(cropState.scale * factor, x, y));
+  }
+  if ($("crop-zoom")) $("crop-zoom").addEventListener("input", (e) => {
+    if (!cropState) return;
+    const pct = parseInt(e.target.value, 10) || 100;
+    zoomCropTo(cropState.baseScale * (pct / 100), CROP_VIEWPORT / 2, CROP_VIEWPORT / 2);
+  });
+  if ($("crop-confirm")) $("crop-confirm").addEventListener("click", confirmCrop);
+  if ($("crop-cancel")) $("crop-cancel").addEventListener("click", () => closeCropper(null));
+  if ($("crop-cancel-x")) $("crop-cancel-x").addEventListener("click", () => closeCropper(null));
+
+  // --------------------------------------------------------------------- //
+  // Visionneuse plein écran de la photo de profil (façon WhatsApp) : toute
+  // la photo visible au départ, pince/molette pour zoomer, glisser pour
+  // déplacer une fois zoomé, double-clic/double-tap pour basculer vite.
+  // --------------------------------------------------------------------- //
+  let viewState = null; // { natW, natH, fitScale, scale, x, y, vw, vh }
+
+  function renderView() {
+    const img = $("avatar-view-img");
+    if (!img || !viewState) return;
+    img.style.width = (viewState.natW * viewState.scale) + "px";
+    img.style.height = (viewState.natH * viewState.scale) + "px";
+    img.style.transform = "translate(" + viewState.x + "px," + viewState.y + "px)";
+  }
+  function clampView() {
+    const st = viewState;
+    const dispW = st.natW * st.scale, dispH = st.natH * st.scale;
+    st.x = dispW <= st.vw ? (st.vw - dispW) / 2 : Math.max(st.vw - dispW, Math.min(0, st.x));
+    st.y = dispH <= st.vh ? (st.vh - dispH) / 2 : Math.max(st.vh - dispH, Math.min(0, st.y));
+  }
+  function zoomViewTo(newScale, anchorX, anchorY) {
+    const st = viewState;
+    newScale = Math.max(st.fitScale, Math.min(st.fitScale * 4, newScale));
+    const imgX = (anchorX - st.x) / st.scale, imgY = (anchorY - st.y) / st.scale;
+    st.x = anchorX - imgX * newScale;
+    st.y = anchorY - imgY * newScale;
+    st.scale = newScale;
+    clampView();
+    renderView();
+  }
+  function openLightbox(url) {
+    const modal = $("avatar-view-modal"), img = $("avatar-view-img"), stage = $("avatar-view-stage");
+    if (!modal || !img || !stage) return;
+    // Rendre la modale visible AVANT de mesurer la scène : tant qu'elle est
+    // `hidden`, sa taille est 0×0 (display: none), ce qui donnerait une photo
+    // invisible (échelle calculée à partir d'une zone de taille nulle).
+    modal.hidden = false;
+    img.onload = () => {
+      const rect = stage.getBoundingClientRect();
+      const natW = img.naturalWidth, natH = img.naturalHeight;
+      const fitScale = Math.min(rect.width / natW, rect.height / natH);
+      viewState = {
+        natW, natH, fitScale, scale: fitScale, vw: rect.width, vh: rect.height,
+        x: (rect.width - natW * fitScale) / 2,
+        y: (rect.height - natH * fitScale) / 2,
+      };
+      renderView();
+    };
+    img.src = url;
+  }
+  function closeLightbox() {
+    const modal = $("avatar-view-modal");
+    if (modal) modal.hidden = true;
+    viewState = null;
+  }
+  if ($("avatar-view-stage")) {
+    const stage = $("avatar-view-stage");
+    wirePanZoom(stage,
+      () => viewState,
+      (dx, dy) => { viewState.x += dx; viewState.y += dy; clampView(); renderView(); },
+      (factor, x, y) => zoomViewTo(viewState.scale * factor, x, y));
+    stage.addEventListener("dblclick", (e) => {
+      if (!viewState) return;
+      const rect = stage.getBoundingClientRect();
+      const target = viewState.scale > viewState.fitScale * 1.2 ? viewState.fitScale : viewState.fitScale * 2.5;
+      zoomViewTo(target, e.clientX - rect.left, e.clientY - rect.top);
+    });
+  }
+  if ($("avatar-view-close")) $("avatar-view-close").addEventListener("click", closeLightbox);
+  if ($("avatar-view-modal")) $("avatar-view-modal").addEventListener("click", (e) => {
+    if (e.target.id === "avatar-view-modal") closeLightbox();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    if ($("avatar-view-modal") && !$("avatar-view-modal").hidden) closeLightbox();
+    else if ($("crop-modal") && !$("crop-modal").hidden) closeCropper(null);
   });
 
   // --------------------------------------------------------------------- //

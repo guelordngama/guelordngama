@@ -446,10 +446,10 @@
               <div class="card">
                 <h3 id="profile-card-title" data-i18n="settings.profile">Profil</h3>
                 <div class="profile-head">
-                  <button type="button" id="profile-avatar-btn" class="avatar-edit" data-i18n-title="settings.changePhoto" title="Changer la photo de profil">
-                    <span class="avatar-lg" id="profile-initials">?</span>
-                    <span class="avatar-edit-badge" aria-hidden="true">📷</span>
-                  </button>
+                  <div class="avatar-edit" id="profile-avatar-wrap">
+                    <button type="button" id="profile-initials" class="avatar-lg" data-i18n-title="settings.viewPhoto" title="Voir la photo de profil" aria-label="Voir la photo de profil">?</button>
+                    <button type="button" id="profile-avatar-btn" class="avatar-edit-badge" data-i18n-title="settings.changePhoto" title="Changer la photo de profil" aria-label="Changer la photo de profil">📷</button>
+                  </div>
                   <input type="file" id="avatar-input" accept="image/*" hidden>
                   <div>
                     <h3 id="profile-name">—</h3>
@@ -555,6 +555,33 @@
           sont alors effacées ; les incidents déjà signalés sont anonymisés.</p>
         <p>⚠️ En cas d'urgence vitale, contactez toujours en priorité les services de secours officiels.</p>
       </div>
+    </div>
+  </div>
+
+  <!-- Modale : rogner la photo de profil avant envoi -->
+  <div id="crop-modal" class="modal-backdrop" hidden>
+    <div class="modal crop-modal">
+      <div class="modal-head">
+        <h3 data-i18n="cropper.title">Ajuster la photo</h3>
+        <button id="crop-cancel-x" class="modal-close" type="button" aria-label="Fermer">✕</button>
+      </div>
+      <div class="crop-viewport" id="crop-viewport">
+        <img id="crop-img" alt="" draggable="false">
+      </div>
+      <input type="range" id="crop-zoom" class="crop-zoom" min="100" max="300" value="100" aria-label="Zoom">
+      <p class="crop-hint" data-i18n="cropper.hint">Glissez pour déplacer, utilisez le curseur pour zoomer.</p>
+      <div class="crop-actions">
+        <button type="button" id="crop-cancel" class="btn-secondary" data-i18n="cropper.cancel">Annuler</button>
+        <button type="button" id="crop-confirm" class="btn-primary" data-i18n="cropper.confirm">Valider</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Visionneuse plein écran de la photo de profil (façon WhatsApp) -->
+  <div id="avatar-view-modal" class="avatar-view-modal" hidden>
+    <button type="button" id="avatar-view-close" class="avatar-view-close" aria-label="Fermer">✕</button>
+    <div class="avatar-view-stage" id="avatar-view-stage">
+      <img id="avatar-view-img" alt="" draggable="false">
     </div>
   </div>
 

@@ -2,6 +2,26 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.25.7] — 2026-10-05 — Rognage de la photo + visionneuse plein écran
+
+### Ajouté
+- **Rognage de la photo avant envoi** (application citoyenne) : après avoir
+  choisi une photo, une fenêtre d'ajustement s'ouvre — cadre circulaire,
+  glisser pour déplacer, pincer (ou curseur/molette) pour zoomer — avant
+  confirmation et envoi. Fonctionne aussi bien au doigt qu'à la souris.
+- **Visionneuse plein écran façon WhatsApp** : toucher sa photo de profil
+  (dans Paramètres) l'affiche en grand sur fond sombre, avec zoom (pincer /
+  molette / double-clic) et déplacement une fois zoomée. Le badge 📷 reste le
+  bouton dédié pour **changer** la photo ; toucher la photo elle-même
+  l'agrandit (ou ouvre directement le sélecteur si aucune photo n'est encore
+  définie).
+
+### Corrigé (trouvé en testant la visionneuse avant livraison)
+- La visionneuse mesurait la zone d'affichage **avant** de rendre la fenêtre
+  visible, ce qui aurait donné une taille de zone nulle et donc une photo
+  invisible à l'ouverture. Corrigé : la fenêtre est rendue visible avant la
+  mesure.
+
 ## [1.25.6] — 2026-10-05 — Photo de profil bien cadrée + Lingala
 
 ### Corrigé

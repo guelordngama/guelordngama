@@ -450,20 +450,39 @@ input.invalid { border-color: rgba(239,68,68,.6); }
    PROFIL / À PROPOS / PARAMÈTRES
    =================================================================== */
 .profile-head { display: flex; align-items: center; gap: 16px; margin-bottom: 6px; }
-.profile-head .avatar-lg { width: 62px; height: 62px; border-radius: 50%; background: linear-gradient(135deg, var(--blue), var(--brand-2)); color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 24px; position: relative; overflow: hidden; }
+.profile-head .avatar-lg { width: 62px; height: 62px; border-radius: 50%; background: linear-gradient(135deg, var(--blue), var(--brand-2)); color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 24px; position: relative; overflow: hidden; padding: 0; border: none; cursor: pointer; }
+.profile-head .avatar-lg:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 .profile-head h3 { margin: 0; font-size: 18px; }
 .profile-head p { margin: 3px 0 0; color: var(--muted); font-size: 13px; }
 
-/* Avatar cliquable (photo de profil) : la zone d'avatar devient un bouton avec
-   un badge « appareil photo », et l'image (si définie) recouvre les initiales. */
-.avatar-edit { position: relative; width: 62px; height: 62px; padding: 0; border: none; background: none; cursor: pointer; border-radius: 50%; flex: none; }
-.avatar-edit:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+/* Avatar cliquable (photo de profil) : la photo (bouton « voir en grand » une
+   fois définie) porte un badge « appareil photo » séparé (changer la photo). */
+.avatar-edit { position: relative; width: 62px; height: 62px; flex: none; }
 .avatar-edit .avatar-lg img { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; border: 2px solid var(--card); }
-.avatar-edit-badge { position: absolute; right: -2px; bottom: -2px; width: 24px; height: 24px; border-radius: 50%; background: var(--blue); color: #fff; display: grid; place-items: center; font-size: 12px; border: 2px solid var(--card); }
+.avatar-edit-badge { position: absolute; right: -2px; bottom: -2px; width: 24px; height: 24px; padding: 0; border-radius: 50%; background: var(--blue); color: #fff; display: grid; place-items: center; font-size: 12px; border: 2px solid var(--card); cursor: pointer; }
+.avatar-edit-badge:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 .avatar-edit-busy { opacity: .55; pointer-events: none; }
 .profile-head-actions { display: flex; flex-direction: column; gap: 4px; }
 .avatar-remove-link { font-size: 12px; color: var(--muted); text-decoration: underline; cursor: pointer; width: fit-content; }
 .avatar-remove-link:hover { color: var(--red-d); }
+
+/* Modale de rognage (cercle de visée + glisser pour déplacer, curseur pour
+   zoomer) : le résultat exporté est un carré (affiché en rond partout via
+   object-fit déjà en place), même mécanisme que les avatars existants. */
+.crop-modal { max-width: 360px; }
+.crop-viewport { position: relative; width: 260px; height: 260px; margin: 4px auto 10px; border-radius: 50%; overflow: hidden; background: #0003; touch-action: none; cursor: grab; }
+.crop-viewport:active { cursor: grabbing; }
+.crop-viewport img { position: absolute; left: 0; top: 0; transform-origin: 0 0; user-select: none; -webkit-user-drag: none; }
+.crop-zoom { width: 100%; accent-color: var(--blue); }
+.crop-hint { font-size: 12px; color: var(--muted); text-align: center; margin: 8px 0 0; }
+.crop-actions { display: flex; gap: 10px; margin-top: 16px; }
+.crop-actions button { flex: 1; }
+
+/* Visionneuse plein écran de la photo de profil (façon WhatsApp). */
+.avatar-view-modal { position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,.92); display: flex; align-items: center; justify-content: center; }
+.avatar-view-close { position: absolute; top: 16px; right: 16px; width: 40px; height: 40px; border-radius: 50%; border: none; background: rgba(255,255,255,.12); color: #fff; font-size: 18px; cursor: pointer; z-index: 1; }
+.avatar-view-stage { position: relative; width: 100%; height: 100%; overflow: hidden; touch-action: none; }
+.avatar-view-stage img { position: absolute; left: 0; top: 0; max-width: none; user-select: none; -webkit-user-drag: none; }
 .info-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
 .info-row:last-child { border-bottom: none; }
 .info-row span { color: var(--muted); }
