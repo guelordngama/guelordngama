@@ -9,8 +9,8 @@
   // Icônes de repère Leaflet servies localement (pas de CDN).
   if (typeof L !== "undefined") L.Icon.Default.imagePath = "vendor/leaflet/images/";
 
-  // E-mail requis à l'inscription ? (vrai si aucun SMS n'est configuré côté
-  // serveur : le code de vérification ne peut alors être envoyé que par e-mail).
+  // E-mail requis à l'inscription (confirmé par le serveur) : second
+  // identifiant de connexion, utile si le citoyen perd son téléphone.
   let emailRequired = false;
   (function fetchMeta() {
     fetch(API + "/api/meta").then((r) => r.json()).then((m) => {
@@ -19,10 +19,13 @@
       const label = document.getElementById("reg-email-label");
       const hint = document.getElementById("reg-email-hint");
       const input = document.getElementById("reg-email");
-      if (label) label.innerHTML = "✉️ E-mail <strong>(requis)</strong>";
       if (input) input.setAttribute("required", "required");
-      if (hint) hint.textContent =
-        "Votre code de vérification vous sera envoyé à cette adresse.";
+      // On change la clé data-i18n (pas juste le texte affiché) : un
+      // changement de langue ultérieur (apply()) doit continuer à afficher
+      // la bonne variante « requis », pas revenir au libellé « optionnel ».
+      if (label) label.setAttribute("data-i18n", "auth.emailRequiredLabel");
+      if (hint) hint.setAttribute("data-i18n", "auth.emailRequiredHint");
+      if (window.SafeCityI18n) window.SafeCityI18n.apply();
     }).catch(() => {});
   })();
 
@@ -301,7 +304,7 @@
     if (!name) { fieldErr("err-name", "Votre nom est requis."); bad = true; } else fieldErr("err-name", "");
     if (!validPhone(phone)) { fieldErr("err-phone", "Numéro invalide (au moins 8 chiffres)."); bad = true; } else fieldErr("err-phone", "");
     if (emailRequired && !email) {
-      fieldErr("err-email", "Un e-mail est requis pour recevoir votre code de vérification."); bad = true;
+      fieldErr("err-email", "Un e-mail est requis pour pouvoir vous reconnecter si vous perdez votre téléphone."); bad = true;
     } else if (email && !email.includes("@")) {
       fieldErr("err-email", "Adresse e-mail invalide."); bad = true;
     } else fieldErr("err-email", "");

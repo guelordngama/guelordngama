@@ -2,6 +2,29 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.25.9] — 2026-10-05 — E-mail obligatoire à l'inscription citoyenne
+
+### Changé
+- **L'e-mail est désormais obligatoire** à l'inscription (application
+  citoyenne), en plus du numéro de téléphone : un citoyen qui mémorise son
+  mot de passe et au moins l'un des deux (téléphone **ou** e-mail) peut
+  toujours se reconnecter depuis un nouvel appareil, même en cas de
+  téléphone perdu — vérifié de bout en bout (inscription, effacement complet
+  des données locales pour simuler un nouvel appareil, reconnexion par
+  téléphone, puis par e-mail : les deux fonctionnent).
+- Le champ « E-mail » du formulaire d'inscription passe en « (requis) » avec
+  une explication claire (« Pour vous reconnecter même si vous perdez votre
+  téléphone »), traduite dans les 3 langues (Français/Kiswahili/Lingala).
+
+### Corrigé (trouvé en vérifiant le changement ci-dessus)
+- Le libellé et l'indication du champ e-mail, quand basculés en « requis »,
+  s'affichaient **toujours en français** quel que soit la langue choisie
+  (Kiswahili/Lingala) : le code contournait le système de traduction au lieu
+  de l'utiliser. N'était pas visible avant car ce cas (e-mail requis) ne se
+  produisait jamais en pratique. Corrigé : le changement de langue affiche
+  maintenant la bonne variante dans les 3 langues, y compris après un
+  changement de langue ultérieur.
+
 ## [1.25.8] — 2026-10-05 — Confirmation avant déconnexion
 
 ### Ajouté

@@ -940,10 +940,17 @@ def test_report_pdf():
 # --------------------------------------------------------------------------- #
 # Inscription / connexion des citoyens
 # --------------------------------------------------------------------------- #
-def _register_and_verify_citizen(app, client, name, phone, password):
-    """Inscrit un citoyen : le compte est activé immédiatement (sans code)."""
+def _register_and_verify_citizen(app, client, name, phone, password, email=None):
+    """Inscrit un citoyen : le compte est activé immédiatement (sans code).
+
+    L'e-mail est requis à l'inscription (second identifiant de connexion si
+    le téléphone est perdu) : un e-mail dérivé du numéro est généré si non
+    fourni, pour rester unique entre les appels des différents tests.
+    """
+    email = email or ("citoyen" + phone.lstrip("+") + "@example.com")
     r = client.post("/api/auth/register", json={
-        "name": name, "phone": phone, "password": password, "consent": True})
+        "name": name, "phone": phone, "password": password, "consent": True,
+        "email": email})
     assert r.status_code == 201, r.get_json()
     body = r.get_json()
     assert body.get("token") and body["user"]["phone_verified"] is True
@@ -955,7 +962,7 @@ def test_register_activates_and_login_directly():
     # L'inscription active le compte et connecte directement (jeton renvoyé).
     r = client.post("/api/auth/register", json={
         "name": "Citoyen Test", "phone": "+243 810 000 111", "password": "secret1",
-        "consent": True})
+        "consent": True, "email": "citoyen.test@example.com"})
     assert r.status_code == 201
     assert r.get_json().get("token")
     assert r.get_json()["user"]["phone_verified"] is True
@@ -968,14 +975,13 @@ def test_register_activates_and_login_directly():
 
 def test_register_duplicate_phone_conflict():
     app, client = make_client()
-    app.config["SMS_HTTP_URL"] = "http://sms.local/send"  # SMS configuré → e-mail non requis
-    from backend.services import notifications
-    notifications.send_sms = lambda to, text: None
     client.post("/api/auth/register", json={
-        "name": "A", "phone": "+243810000111", "password": "secret1", "consent": True})
+        "name": "A", "phone": "+243810000111", "password": "secret1", "consent": True,
+        "email": "a@example.com"})
     # Même numéro sans « + » : doit être rejeté (409) avec le champ 'phone'.
     dup = client.post("/api/auth/register", json={
-        "name": "B", "phone": "243810000111", "password": "secret2", "consent": True})
+        "name": "B", "phone": "243810000111", "password": "secret2", "consent": True,
+        "email": "b@example.com"})
     assert dup.status_code == 409
     err = dup.get_json()["error"]
     assert err["code"] == "conflict"
@@ -1158,7 +1164,8 @@ def test_profile_avatar_citizen_and_staff():
     app, client = make_client()
     # Citoyen (inscription directe, activée, jeton renvoyé immédiatement).
     reg = client.post("/api/auth/register", json={
-        "name": "Awa", "phone": "+243899000111", "password": "secret1", "consent": True})
+        "name": "Awa", "phone": "+243899000111", "password": "secret1", "consent": True,
+        "email": "awa@example.com"})
     assert reg.status_code == 201, reg.get_json()
     ctok = reg.get_json()["token"]
     hc = {"Authorization": "Bearer " + ctok}
@@ -1241,18 +1248,26 @@ def test_forgot_password_without_smtp_returns_503():
     assert r.get_json()["error"]["code"] == "email_not_configured"
 
 
-def test_register_email_optional_direct_activation():
-    """L'inscription est directe (sans code) : l'e-mail est optionnel et le
-    compte est actif immédiatement."""
+def test_register_email_required_direct_activation():
+    """L'inscription est directe (sans code) mais l'e-mail est désormais
+    obligatoire (second identifiant de connexion si le téléphone est perdu) ;
+    le compte est actif immédiatement une fois l'e-mail fourni."""
     _, client = make_client()
-    r = client.post("/api/auth/register", json={
+    # Sans e-mail → refusé.
+    missing = client.post("/api/auth/register", json={
         "name": "Sans Mail", "phone": "+243830000111", "password": "secret1",
         "consent": True})
+    assert missing.status_code == 400
+    assert missing.get_json()["error"]["code"] == "validation_error"
+
+    r = client.post("/api/auth/register", json={
+        "name": "Avec Mail", "phone": "+243830000111", "password": "secret1",
+        "consent": True, "email": "avec.mail@example.com"})
     assert r.status_code == 201, r.get_json()
     assert r.get_json()["user"]["phone_verified"] is True
     assert r.get_json().get("token")
-    # /api/meta : plus d'e-mail obligatoire.
-    assert client.get("/api/meta").get_json()["email_required"] is False
+    # /api/meta : l'e-mail est bien signalé comme obligatoire.
+    assert client.get("/api/meta").get_json()["email_required"] is True
 
 
 def test_sms_gateway_detection_and_twilio_removed():

@@ -19,9 +19,10 @@ def health():
 @bp.get("/meta")
 def meta():
     """Métadonnées utiles au front (types de danger, statuts)."""
-    # L'inscription est directe (sans code) : l'e-mail reste optionnel.
+    # E-mail requis à l'inscription : second identifiant de connexion si le
+    # citoyen perd son téléphone (le numéro seul ne suffit plus alors).
     return jsonify({
         "danger_types": DANGER_TYPES,
         "statuses": ALERT_STATUSES,
-        "email_required": False,
+        "email_required": True,
     })

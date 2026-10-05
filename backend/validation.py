@@ -125,7 +125,8 @@ def validate_register_payload(data):
     """Valide l'inscription d'un citoyen.
 
     Champs : name (requis), phone (requis, unique vérifié côté service),
-    password (requis, ≥ 6), email (optionnel).
+    password (requis, ≥ 6), email (requis + valide — second identifiant de
+    connexion si le téléphone est perdu).
     """
     data = require_dict(data)
 
@@ -149,8 +150,8 @@ def validate_register_payload(data):
             "Vous devez accepter la politique de confidentialité pour créer un compte.")
 
     email = clean_text(data.get("email"), 160).lower() or None
-    if email and "@" not in email:
-        raise ValidationError("Email invalide.")
+    if not email or "@" not in email:
+        raise ValidationError("Un e-mail valide est requis.")
 
     return {"name": name, "phone": phone, "password": password, "email": email}
 
