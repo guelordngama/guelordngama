@@ -450,7 +450,7 @@ input.invalid { border-color: rgba(239,68,68,.6); }
    PROFIL / À PROPOS / PARAMÈTRES
    =================================================================== */
 .profile-head { display: flex; align-items: center; gap: 16px; margin-bottom: 6px; }
-.profile-head .avatar-lg { width: 62px; height: 62px; border-radius: 50%; background: linear-gradient(135deg, var(--blue), var(--brand-2)); color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 24px; }
+.profile-head .avatar-lg { width: 62px; height: 62px; border-radius: 50%; background: linear-gradient(135deg, var(--blue), var(--brand-2)); color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 24px; position: relative; overflow: hidden; }
 .profile-head h3 { margin: 0; font-size: 18px; }
 .profile-head p { margin: 3px 0 0; color: var(--muted); font-size: 13px; }
 
@@ -458,7 +458,7 @@ input.invalid { border-color: rgba(239,68,68,.6); }
    un badge « appareil photo », et l'image (si définie) recouvre les initiales. */
 .avatar-edit { position: relative; width: 62px; height: 62px; padding: 0; border: none; background: none; cursor: pointer; border-radius: 50%; flex: none; }
 .avatar-edit:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
-.avatar-edit .avatar-lg-img { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; border: 2px solid var(--card); }
+.avatar-edit .avatar-lg img { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; border: 2px solid var(--card); }
 .avatar-edit-badge { position: absolute; right: -2px; bottom: -2px; width: 24px; height: 24px; border-radius: 50%; background: var(--blue); color: #fff; display: grid; place-items: center; font-size: 12px; border: 2px solid var(--card); }
 .avatar-edit-busy { opacity: .55; pointer-events: none; }
 .profile-head-actions { display: flex; flex-direction: column; gap: 4px; }

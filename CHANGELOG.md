@@ -2,6 +2,23 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.25.6] — 2026-10-05 — Photo de profil bien cadrée + Lingala
+
+### Corrigé
+- **Photo de profil qui s'affichait géante** (page Paramètres de l'application
+  citoyenne), recouvrant le reste de l'écran au lieu de rester dans le cercle
+  prévu : la règle CSS censée la cadrer visait une classe que le code ne
+  posait jamais sur l'image — corrigé. Le lien **« Retirer la photo »**, déjà
+  présent mais caché sous la photo géante, redevient donc visible et
+  utilisable (aucun ajout nécessaire : la fonctionnalité existait déjà depuis
+  la 1.24.0).
+
+### Ajouté
+- **Lingala** comme troisième langue de l'application citoyenne, en plus du
+  Français et du Kiswahili : bouton de langue (en-tête) qui fait désormais
+  défiler **FR → SW → LN → FR**, et sélecteur à 3 langues dans Paramètres.
+  Traduction complète (165 textes de l'interface).
+
 ## [1.25.5] — 2026-10-03 — Site citoyen : session expirée gérée proprement
 
 ### Corrigé

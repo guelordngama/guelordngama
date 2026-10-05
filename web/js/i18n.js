@@ -1,5 +1,5 @@
-// Internationalisation de l'application citoyenne SafeCity (Français / Swahili).
-// Lubumbashi étant largement swahiliphone, l'appli propose une bascule FR/SW.
+// Internationalisation de l'application citoyenne SafeCity
+// (Français / Kiswahili / Lingala).
 // Les éléments HTML portent data-i18n (texte), data-i18n-ph (placeholder) ou
 // data-i18n-title (title + aria-label). Le code dynamique utilise window.t(clé).
 (function () {
@@ -352,17 +352,192 @@
       "typename.violence": "Vurugu",
       "typename.autre": "Nyingine",
     },
+    ln: {
+      "app.tagline": "Likebisi ya likama ya mwana-mboka",
+      "gps.unsupported": "Navigatɛrɛ oyo esungaka te mpo na kolakisa esika (GPS).",
+      "gps.notObtained": "Esika ya GPS ezwami te",
+      "gps.errorHelp": "Fungola mosala ya kolakisa esika na nsima",
+      "gps.retry": "meka lisusu",
+      "gps.orTapMap": "to simba karte mpo na kotia esika na yo. Soki te, likebisi ekokende na esika oyo eyebani pene-pene.",
+      "gps.searching": "Koluka signal ya GPS…",
+      "gps.waiting": "Esika ezwami nanu te",
+      "gps.refining": "GPS ezali kosala · bosikisiki ezali kobongisama…",
+      "gps.active": "GPS ezali kosala",
+      "gps.manual": "Esika etiami na maboko",
+      "gps.manualShort": "Etiami na maboko",
+      "gps.precision": "Bosikisiki",
+      "gps.q.excellent": "Malamu mingi",
+      "gps.q.good": "Malamu",
+      "gps.q.medium": "Ya kati-kati",
+      "gps.q.weak": "Ya pamba",
+      "gps.weakHint": "Bosikisiki ya pamba : bima na libanda mpe fungola mosala ya kolakisa esika ya sikisiki.",
+      "gps.improve": "Bongisa",
+      "geo.searching": "Koluka…",
+      "loc.commune": "Komine",
+      "loc.street": "Balabala",
+      "loc.quartier": "Kartye",
+      "loc.city": "Engumba",
+      "loc.communeOf": "komine",
+      "nav.home": "Ndako",
+      "nav.myAlerts": "Balikebisi na ngai",
+      "nav.track": "Landela likebisi",
+      "nav.about": "Na ntina na",
+      "nav.settings": "Bobongisi",
+      "alert.sosHint": "Finá soki likama ezali",
+      "alert.priorityTitle": "Bokengi na yo, liboso na biso",
+      "alert.prioritySub": "Yebisa likama na ekangi moko.",
+      "home.myPosition": "Esika na ngai sikoyo",
+      "home.lastAlert": "Likebisi ya suka",
+      "home.noAlert": "Likebisi moko te etindami kino sikoyo.",
+      "home.seeDetail": "Tala makambo mosusu",
+      "details.sub": "Komisa lolenge ya likama, na nsima tinda likebisi na yo epai ya sentre.",
+      "details.addMedia": "📎 Bakisa fɔtɔ / video",
+      "details.myPosition": "📍 Esika na ngai",
+      "confirm.tracking": "Bolandi ya lisungi",
+      "mine.sub": "Balikebisi oyo otindaki kobanda na aparɛyi oyo.",
+      "mine.empty": "Otindi naino likebisi te kobanda na aparɛyi oyo.",
+      "settings.profile": "Profil",
+      "settings.changePhoto": "Bongola fɔtɔ ya profil",
+      "settings.removePhoto": "Longola fɔtɔ",
+      "settings.photoUpdated": "Fɔtɔ ya profil ebongisami.",
+      "settings.photoRemoved": "Fɔtɔ ya profil elongolami.",
+      "settings.photoError": "Ekoki te kobongola fɔtɔ. Meka lisusu.",
+      "settings.general": "Jenerale",
+      "settings.language": "Monoko",
+      "settings.languageSub": "Monoko ya application",
+      "settings.theme": "Langi",
+      "settings.themeSub": "Pembe to moindo",
+      "settings.notifications": "Basango",
+      "settings.sound": "Lokito ya makebisi",
+      "settings.push": "Basango ya push",
+      "settings.email": "Basango ya imeyili",
+      "settings.security": "Bokengi na bobombami",
+      "settings.view": "Tala",
+      "settings.logout": "Bima",
+      "settings.delete": "Limwisa",
+      "header.logout": "Bima",
+      "lang.name": "Lingala",
+
+      "auth.login": "Kɔta",
+      "auth.register": "Fungola kɔnti",
+      "auth.intro": "Boyei bolamu na SafeCity. Fungola kɔnti mpo na koyebisa likama, to kɔta soki ozali na kɔnti.",
+      "auth.identifier": "📱 Telefone to imeyili",
+      "auth.identifier.ph": "+243 … to yo@ndakisa.com",
+      "auth.password": "🔒 Password",
+      "auth.password.ph": "Password na yo",
+      "auth.forgot": "Obosani password?",
+      "auth.noAccount": "Ozali na kɔnti te?",
+      "auth.createOne": "Fungola moko",
+      "auth.name": "👤 Nkombo mobimba",
+      "auth.name.ph": "Nkombo na libota",
+      "auth.phone": "📱 Namba ya telefone",
+      "auth.email": "✉️ Imeyili (ya mposa te)",
+      "auth.email.ph": "yo@ndakisa.com",
+      "auth.emailHint": "Esungaka mpo na kozwa lisusu password na yo soki obosani.",
+      "auth.newPassword": "🔒 Password (ata minima mikapo 6)",
+      "auth.newPassword.ph": "Pona password",
+      "auth.confirmPassword": "🔒 Kokitanisa password",
+      "auth.confirmPassword.ph": "Koma lisusu password",
+      "auth.consent": "Natangaki mpe nandimi",
+      "auth.privacyPolicy": "mobeko ya bobombami",
+      "auth.consentEnd": "(kozwa nkombo, telefone, esika mpe makebisi).",
+      "auth.createMyAccount": "Fungola kɔnti na ngai",
+      "auth.already": "Osilaki kokɔma na kɔnti?",
+      "auth.doLogin": "Kɔta",
+      "auth.forgotIntro": "🔑 Koma namba ya telefone ya kɔnti na yo. Namba ya kobongola password ekotindama na SMS.",
+      "auth.sendCode": "Tinda kode",
+      "auth.backToLogin": "← Zonga na kokɔta",
+
+      "alert.intro": "Soki likama ezali, finá bouton. Esika na yo (GPS) ekotindama mbala moko epai ya sentre ya bokengi.",
+      "alert.button": "SOS",
+      "alert.gps": "Kozwa esika…",
+      "alert.legalHint": "⚖️ Salela bouton oyo kaka soki likama ya solo ezali. Likebisi ya lokuta epesaka etumbu na mobeko.",
+      "alert.privacy": "Bobombami",
+      "alert.deleteAccount": "Limwisa kɔnti na ngai",
+
+      "details.title": "Makambo ya likama",
+      "details.dangerType": "⚠️ Lolenge ya likama",
+      "type.vol": "🕵️ Moyibi",
+      "type.braquage": "🔫 Bibende",
+      "type.incendie": "🔥 Mɔtɔ",
+      "type.accident": "🚗 Likama ya motuka",
+      "type.violence": "👊 Bitumba",
+      "type.autre": "❓ Mosusu",
+      "details.yourName": "👤 Nkombo na yo (ya mposa te)",
+      "details.yourName.ph": "Nkombo / nkombo ya libota",
+      "details.yourPhone": "📞 Telefone (ya mposa te)",
+      "details.description": "📝 Ndimbola (ya mposa te)",
+      "details.description.ph": "Limbola na mokuse ndenge likambo ezali…",
+      "details.photo": "📷 Fɔtɔ",
+      "details.voice": "🎤 Mongongo",
+      "details.video": "🎬 Video",
+      "details.neighborhood": "Kartye",
+      "details.position": "Esika",
+      "details.pickHint": "Simba karte mpo na kolakisa esika na yo ya sikisiki (esungaka soki GPS esali te).",
+      "details.manualSet": "Esika etiami na maboko",
+      "details.useGps": "📍 Salela esika na ngai ya GPS",
+      "details.warningTitle": "Likebisi :",
+      "details.warning": " mosala oyo ezali kaka mpo na makambo ya solo. Likebisi nyonso ya lokuta to ya mabe esalaka mosala ya bato ya lisungi na pamba, ebimisaka bomoi na likama mpe ezali likambo oyo etungisamaka na mobeko. Na kotinda likebisi oyo, ozali kondima ete basango opesi ezali ya solo.",
+      "details.cancel": "Boya",
+      "details.send": "Tinda likebisi 🚀",
+
+      "confirm.title": "Likebisi etindami",
+      "confirm.sub": "Sentre ya bokengi eyambi likebisi na yo.",
+      "confirm.refLabel": "Namba na yo ya bolandi",
+      "confirm.refHint": "Koma yango mpo na kolanda likebisi na yo, ata soki okangi página.",
+      "confirm.type": "Lolenge",
+      "confirm.urgency": "Lombangu (IA)",
+      "confirm.neighborhood": "Kartye",
+      "confirm.distance": "Ntaka ya ekipi",
+      "confirm.eta": "Ntango ya kokani (moto)",
+      "confirm.coords": "📍 Esika ya sikisiki",
+      "confirm.coordsApprox": "📍 Esika ya kokani",
+      "confirm.approxWarn": "⚠️ Esika ya kokani : GPS ezwami te. Fungola mosala ya kolakisa esika mpe tinda lisusu likebisi, to yebisa esika na yo epai ya sentre.",
+      "confirm.coordsCopied": "Esika ekopami",
+      "confirm.new": "Likebisi ya sika",
+      "confirm.trackLater": "🔎 Landela likebisi na namba",
+      "confirm.assigned": "🚓 Likebisi na yo ezwami mpo na kosala.",
+      "confirm.assignedAgent": "🚓 Agent ({name}) aponami mpo na likebisi na yo.",
+      "confirm.resolved": "✅ Likebisi na yo esalemi mpe ekangami. Melesi.",
+
+      "track.title": "Landela likebisi",
+      "track.sub": "Koma namba oyo ozwaki na ntango ya likebisi na yo (ndakisa SC-K7P2Q9).",
+      "track.see": "Tala ezaleli",
+      "track.error": "Namba emonani te. Tala soki okomaki malamu.",
+      "track.ref": "Namba",
+      "track.type": "Lolenge",
+      "track.neighborhood": "Kartye",
+      "track.agent": "Agent",
+      "track.back": "← Zonga",
+
+      "step.new": "Ya sika",
+      "step.received": "Eyambami",
+      "step.assigned": "Epesami",
+      "step.en_route": "Agent azali na nzela",
+      "step.on_site": "Akomi na esika",
+      "step.resolved": "Esilisami",
+      "step.falseAlarm": "Ekangami na pamba (likebisi ya lokuta)",
+      "confirm.falseAlarm": "ℹ️ Likebisi oyo ekangami na pamba (likebisi ya lokuta) sima na bolukiluki.",
+
+      "typename.vol": "Moyibi",
+      "typename.braquage": "Bibende",
+      "typename.incendie": "Mɔtɔ",
+      "typename.accident": "Likama ya motuka",
+      "typename.violence": "Bitumba",
+      "typename.autre": "Mosusu",
+    },
   };
 
   // La langue démarre TOUJOURS en Français : elle n'est pas mémorisée entre les
-  // ouvertures/rechargements (choix produit). Le bouton SW/FR permet de basculer
-  // pendant la visite, mais chaque nouvelle ouverture repart en Français.
+  // ouvertures/rechargements (choix produit). Le bouton du haut fait défiler
+  // FR → SW → LN → FR ; chaque nouvelle ouverture repart en Français.
+  var LANGS = ["fr", "sw", "ln"];
   var _lang = "fr";
   function current() {
-    return _lang === "sw" ? "sw" : "fr";
+    return LANGS.indexOf(_lang) !== -1 ? _lang : "fr";
   }
   function setLang(l) {
-    _lang = l === "sw" ? "sw" : "fr";
+    _lang = LANGS.indexOf(l) !== -1 ? l : "fr";
     apply();
   }
   // Traduit une clé ; {name} etc. remplacés par vars. Repli : FR puis la clé.
@@ -393,9 +568,13 @@
       var v = t(el.getAttribute("data-i18n-title"));
       if (v != null) { el.setAttribute("title", v); el.setAttribute("aria-label", v); }
     });
-    // Bascule visuelle du bouton de langue.
+    // Bascule visuelle du bouton de langue : affiche le code de la PROCHAINE
+    // langue (celle sur laquelle on passera au prochain clic).
     var btn = document.getElementById("lang-toggle");
-    if (btn) btn.textContent = lang === "sw" ? "FR" : "SW";
+    if (btn) {
+      var next = LANGS[(LANGS.indexOf(lang) + 1) % LANGS.length];
+      btn.textContent = next.toUpperCase();
+    }
   }
 
   window.SafeCityI18n = { t: t, apply: apply, setLang: setLang, current: current };
@@ -405,7 +584,8 @@
     var btn = document.getElementById("lang-toggle");
     if (btn) {
       btn.addEventListener("click", function () {
-        setLang(current() === "sw" ? "fr" : "sw");
+        var i = LANGS.indexOf(current());
+        setLang(LANGS[(i + 1) % LANGS.length]);
       });
     }
   });
