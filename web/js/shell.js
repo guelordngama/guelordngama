@@ -9,6 +9,29 @@
   const $ = (id) => document.getElementById(id);
   const tr = (k, fb) => (window.t ? window.t(k) : null) || fb;
 
+  // --------------------------------------------------------------------- //
+  // Modale générique de confirmation (Oui / Non) — ex. déconnexion.
+  // --------------------------------------------------------------------- //
+  function confirmDialog(message) {
+    return new Promise((resolve) => {
+      const modal = $("confirm-modal"), yesBtn = $("confirm-modal-yes"), noBtn = $("confirm-modal-no");
+      if (!modal || !yesBtn || !noBtn) return resolve(window.confirm(message)); // repli
+      $("confirm-modal-text").textContent = message;
+      modal.hidden = false;
+      const cleanup = (result) => {
+        modal.hidden = true;
+        yesBtn.removeEventListener("click", onYes);
+        noBtn.removeEventListener("click", onNo);
+        resolve(result);
+      };
+      const onYes = () => cleanup(true);
+      const onNo = () => cleanup(false);
+      yesBtn.addEventListener("click", onYes);
+      noBtn.addEventListener("click", onNo);
+    });
+  }
+  window.SafeCityShell = { confirmDialog: confirmDialog };
+
   // view (barre latérale) -> id de section + titre/sous-titre
   const VIEWS = {
     alert:    { id: "screen-alert",    title: () => tr("nav.home", "Accueil"),       sub: () => tr("app.tagline", "Alerte d'urgence citoyenne") },

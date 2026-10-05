@@ -2,6 +2,15 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.25.8] — 2026-10-05 — Confirmation avant déconnexion
+
+### Ajouté
+- **Confirmation « Voulez-vous vous déconnecter ? » (Oui / Non)** avant toute
+  déconnexion du compte citoyen — qu'elle soit déclenchée depuis l'icône ⏻ de
+  l'en-tête ou depuis Paramètres → Se déconnecter. Une déconnexion accidentelle
+  (clic involontaire) n'efface plus la session sans confirmation. Traduit
+  dans les 3 langues (Français/Kiswahili/Lingala).
+
 ## [1.25.7] — 2026-10-05 — Rognage de la photo + visionneuse plein écran
 
 ### Ajouté

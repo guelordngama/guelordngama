@@ -448,7 +448,10 @@
     acquireGPS();
   }
 
-  $("btn-logout").addEventListener("click", () => {
+  $("btn-logout").addEventListener("click", async () => {
+    const confirmFn = (window.SafeCityShell && window.SafeCityShell.confirmDialog) || window.confirm;
+    const ok = await confirmFn(window.t ? window.t("auth.confirmLogout") : "Voulez-vous vous déconnecter ?");
+    if (!ok) return;
     clearAuth();
     refreshUserChip();
     $("login-password").value = "";

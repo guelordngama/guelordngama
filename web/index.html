@@ -585,6 +585,17 @@
     </div>
   </div>
 
+  <!-- Modale générique de confirmation (Oui / Non) — ex. déconnexion -->
+  <div id="confirm-modal" class="modal-backdrop" hidden>
+    <div class="modal confirm-modal">
+      <p id="confirm-modal-text"></p>
+      <div class="crop-actions">
+        <button type="button" id="confirm-modal-no" class="btn-secondary" data-i18n="common.no">Non</button>
+        <button type="button" id="confirm-modal-yes" class="btn-primary" data-i18n="common.yes">Oui</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Leaflet et Socket.IO servis LOCALEMENT (le pare-feu bloque les CDN). -->
   <script src="vendor/leaflet/leaflet.js"></script>
   <script src="vendor/socket.io.min.js"></script>

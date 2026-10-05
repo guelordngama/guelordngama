@@ -73,6 +73,9 @@
       "settings.logout": "Se déconnecter",
       "settings.delete": "Supprimer",
       "header.logout": "Déconnexion",
+      "auth.confirmLogout": "Voulez-vous vous déconnecter ?",
+      "common.yes": "Oui",
+      "common.no": "Non",
       "lang.name": "Français",
 
       "auth.login": "Se connecter",
@@ -252,6 +255,9 @@
       "settings.logout": "Toka",
       "settings.delete": "Futa",
       "header.logout": "Toka",
+      "auth.confirmLogout": "Je, unataka kutoka?",
+      "common.yes": "Ndiyo",
+      "common.no": "Hapana",
       "lang.name": "Kiswahili",
 
       "auth.login": "Ingia",
@@ -431,6 +437,9 @@
       "settings.logout": "Bima",
       "settings.delete": "Limwisa",
       "header.logout": "Bima",
+      "auth.confirmLogout": "Olingi kobima?",
+      "common.yes": "Iyo",
+      "common.no": "Te",
       "lang.name": "Lingala",
 
       "auth.login": "Kɔta",
