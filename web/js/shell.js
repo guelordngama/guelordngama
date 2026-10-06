@@ -241,13 +241,26 @@
       shellToast(e.message || tr("settings.photoError", "Impossible de changer la photo. Réessayez."), false);
     }
   }
-  // Choix de la source de la photo (caméra ou galerie) : deux entrées de
-  // fichier distinctes, l'une avec `capture` pour ouvrir directement
+  // Choix de la source (caméra ou galerie), réutilisable pour la photo de
+  // profil, la photo et la vidéo d'incident : deux entrées de fichier
+  // distinctes par appel, l'une avec `capture` pour ouvrir directement
   // l'appareil photo sur mobile (fiable partout, contrairement à compter sur
   // le sélecteur natif du navigateur pour proposer les deux options de lui-même).
-  function openPhotoSourceModal() {
+  let _photoSourceOnCamera = null, _photoSourceOnGallery = null;
+  function choosePhotoSource(opts) {
     const modal = $("photo-source-modal");
-    if (modal) modal.hidden = false;
+    if (!modal) { if (opts.onGallery) opts.onGallery(); return; } // repli
+    const titleEl = $("photo-source-title"), camEl = $("photo-source-camera"), galEl = $("photo-source-gallery");
+    // On change la clé data-i18n (pas juste le texte affiché) : un changement
+    // de langue pendant que la modale est ouverte doit continuer à afficher
+    // le bon contexte (photo / vidéo / profil), pas revenir à un autre libellé.
+    if (titleEl) titleEl.setAttribute("data-i18n", opts.titleKey);
+    if (camEl) camEl.setAttribute("data-i18n", opts.cameraKey);
+    if (galEl) galEl.setAttribute("data-i18n", opts.galleryKey || "cropper.chooseGallery");
+    if (window.SafeCityI18n) window.SafeCityI18n.apply();
+    _photoSourceOnCamera = opts.onCamera || null;
+    _photoSourceOnGallery = opts.onGallery || null;
+    modal.hidden = false;
   }
   function closePhotoSourceModal() {
     const modal = $("photo-source-modal");
@@ -255,18 +268,26 @@
   }
   if ($("photo-source-camera")) $("photo-source-camera").addEventListener("click", () => {
     closePhotoSourceModal();
-    const inp = $("avatar-input-camera"); if (inp) inp.click();
+    if (_photoSourceOnCamera) _photoSourceOnCamera();
   });
   if ($("photo-source-gallery")) $("photo-source-gallery").addEventListener("click", () => {
     closePhotoSourceModal();
-    const inp = $("avatar-input"); if (inp) inp.click();
+    if (_photoSourceOnGallery) _photoSourceOnGallery();
   });
   if ($("photo-source-cancel")) $("photo-source-cancel").addEventListener("click", closePhotoSourceModal);
   if ($("photo-source-modal")) $("photo-source-modal").addEventListener("click", (e) => {
     if (e.target.id === "photo-source-modal") closePhotoSourceModal();
   });
+  window.SafeCityShell.choosePhotoSource = choosePhotoSource;
+  function openAvatarPhotoSource() {
+    choosePhotoSource({
+      titleKey: "cropper.sourceTitle", cameraKey: "cropper.takePhoto", galleryKey: "cropper.chooseGallery",
+      onCamera: () => { const inp = $("avatar-input-camera"); if (inp) inp.click(); },
+      onGallery: () => { const inp = $("avatar-input"); if (inp) inp.click(); },
+    });
+  }
   // Badge « appareil photo » : toujours proposer le choix (changer).
-  if ($("profile-avatar-btn")) $("profile-avatar-btn").addEventListener("click", openPhotoSourceModal);
+  if ($("profile-avatar-btn")) $("profile-avatar-btn").addEventListener("click", openAvatarPhotoSource);
   // La photo elle-même : si une photo est déjà définie, l'agrandir (façon
   // WhatsApp) ; sinon, comme il n'y a rien à voir, proposer directement le
   // choix caméra/galerie (première photo).
@@ -274,7 +295,7 @@
     const a = getAuth();
     const url = avatarUrl(a && a.user);
     if (url) openLightbox(url);
-    else openPhotoSourceModal();
+    else openAvatarPhotoSource();
   });
   async function handleAvatarFileChosen(e) {
     const file = e.target.files[0];

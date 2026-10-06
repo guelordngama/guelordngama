@@ -2,6 +2,28 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.25.11] — 2026-10-06 — Photo/vidéo d'incident : même choix caméra / galerie
+
+### Ajouté
+- Le choix explicite **« Prendre une photo » / « Choisir depuis la galerie »**
+  (introduit en 1.25.10 pour la photo de profil) s'applique maintenant aussi
+  aux boutons **📷 Photo** et **🎬 Vidéo** de la fiche d'incident (détails de
+  l'alerte) — texte adapté au contexte (« … ajouter votre photo » / « … votre
+  vidéo », « Prendre une photo » / « Filmer une vidéo »), traduit dans les
+  3 langues. Avant, un seul sélecteur avec `capture="environment"` dépendait
+  entièrement du navigateur pour proposer (ou non) la galerie.
+
+### Modifié (interne)
+- Le mécanisme de choix caméra/galerie est désormais **générique et
+  réutilisable** (`window.SafeCityShell.choosePhotoSource`), partagé entre la
+  photo de profil, la photo d'incident et la vidéo d'incident, au lieu d'être
+  codé en dur pour la seule photo de profil.
+
+Vérifié de bout en bout (Playwright) : boutons Photo et Vidéo de la fiche
+d'incident affichent chacun le bon texte contextuel ; galerie et caméra
+fonctionnent pour les deux ; la photo de profil (non régressée) fonctionne
+toujours de bout en bout après la généralisation du mécanisme.
+
 ## [1.25.10] — 2026-10-06 — Photo de profil : choix caméra / galerie
 
 ### Ajouté

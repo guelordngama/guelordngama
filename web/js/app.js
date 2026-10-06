@@ -789,10 +789,13 @@
   });
 
   // ---------------------------------------------------------------------- //
-  // Photo
+  // Photo (choix explicite caméra / galerie avant d'ouvrir le sélecteur —
+  // plus fiable que de compter sur le sélecteur natif du téléphone pour
+  // proposer les deux options de lui-même).
   // ---------------------------------------------------------------------- //
-  $("photo-input").addEventListener("change", (e) => {
+  function onPhotoFileChosen(e) {
     const file = e.target.files[0];
+    e.target.value = "";
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
@@ -800,6 +803,19 @@
       renderPreview();
     };
     reader.readAsDataURL(file);
+  }
+  $("photo-input").addEventListener("change", onPhotoFileChosen);
+  $("photo-input-camera").addEventListener("change", onPhotoFileChosen);
+  $("btn-photo-attach").addEventListener("click", () => {
+    if (window.SafeCityShell && window.SafeCityShell.choosePhotoSource) {
+      window.SafeCityShell.choosePhotoSource({
+        titleKey: "cropper.sourceTitle", cameraKey: "cropper.takePhoto", galleryKey: "cropper.chooseGallery",
+        onCamera: () => $("photo-input-camera").click(),
+        onGallery: () => $("photo-input").click(),
+      });
+    } else {
+      $("photo-input").click(); // repli si shell.js indisponible
+    }
   });
 
   // ---------------------------------------------------------------------- //
@@ -843,17 +859,17 @@
   });
 
   // ---------------------------------------------------------------------- //
-  // Vidéo (fichier ou capture caméra)
+  // Vidéo (choix explicite caméra / galerie, même mécanisme que la photo)
   // ---------------------------------------------------------------------- //
   // Limite côté client : la vidéo est encodée en base64 (~+33 %) dans la requête
   // JSON, qui est plafonnée à 32 Mo côté serveur. On refuse au-delas de ~18 Mo.
   const MAX_VIDEO_MB = 18;
-  $("video-input").addEventListener("change", (e) => {
+  function onVideoFileChosen(e) {
     const file = e.target.files[0];
+    e.target.value = "";
     if (!file) return;
     if (file.size > MAX_VIDEO_MB * 1024 * 1024) {
       toast("⚠️ Vidéo trop lourde (max " + MAX_VIDEO_MB + " Mo). Filmez plus court.");
-      e.target.value = "";
       return;
     }
     const reader = new FileReader();
@@ -862,6 +878,19 @@
       renderPreview();
     };
     reader.readAsDataURL(file);
+  }
+  $("video-input").addEventListener("change", onVideoFileChosen);
+  $("video-input-camera").addEventListener("change", onVideoFileChosen);
+  $("btn-video-attach").addEventListener("click", () => {
+    if (window.SafeCityShell && window.SafeCityShell.choosePhotoSource) {
+      window.SafeCityShell.choosePhotoSource({
+        titleKey: "cropper.sourceTitleVideo", cameraKey: "cropper.recordVideo", galleryKey: "cropper.chooseGallery",
+        onCamera: () => $("video-input-camera").click(),
+        onGallery: () => $("video-input").click(),
+      });
+    } else {
+      $("video-input").click(); // repli si shell.js indisponible
+    }
   });
 
   function renderPreview() {

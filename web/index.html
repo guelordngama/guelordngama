@@ -284,12 +284,14 @@
 
               <label class="field-label" data-i18n="details.addMedia">📎 Ajouter une photo / vidéo</label>
               <div class="attach-row">
-                <label class="attach-btn"><span data-i18n="details.photo">📷 Photo</span>
-                  <input id="photo-input" type="file" accept="image/*" capture="environment" hidden /></label>
-                <label class="attach-btn"><span data-i18n="details.video">🎬 Vidéo</span>
-                  <input id="video-input" type="file" accept="video/*" capture="environment" hidden /></label>
+                <button type="button" id="btn-photo-attach" class="attach-btn" data-i18n="details.photo">📷 Photo</button>
+                <button type="button" id="btn-video-attach" class="attach-btn" data-i18n="details.video">🎬 Vidéo</button>
                 <button id="btn-record" class="attach-btn" type="button" data-i18n="details.voice">🎤 Audio</button>
               </div>
+              <input id="photo-input" type="file" accept="image/*" hidden>
+              <input id="photo-input-camera" type="file" accept="image/*" capture="environment" hidden>
+              <input id="video-input" type="file" accept="video/*" hidden>
+              <input id="video-input-camera" type="file" accept="video/*" capture="environment" hidden>
               <div id="attach-preview" class="attach-preview"></div>
             </div>
 
@@ -597,10 +599,11 @@
     </div>
   </div>
 
-  <!-- Modale de choix : prendre une photo ou l'importer depuis la galerie -->
+  <!-- Modale de choix : prendre une photo/vidéo ou l'importer depuis la galerie
+       (réutilisée pour la photo de profil, la photo et la vidéo d'incident). -->
   <div id="photo-source-modal" class="modal-backdrop" hidden>
     <div class="modal confirm-modal">
-      <p data-i18n="cropper.sourceTitle">Comment voulez-vous ajouter votre photo ?</p>
+      <p id="photo-source-title" data-i18n="cropper.sourceTitle">Comment voulez-vous ajouter votre photo ?</p>
       <div class="crop-actions sheet-actions">
         <button type="button" id="photo-source-camera" class="btn-primary" data-i18n="cropper.takePhoto">📷 Prendre une photo</button>
         <button type="button" id="photo-source-gallery" class="btn-secondary" data-i18n="cropper.chooseGallery">🖼️ Choisir depuis la galerie</button>
