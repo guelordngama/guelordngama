@@ -2,6 +2,20 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.25.12] — 2026-10-06 — Retirer une photo/vidéo/audio déjà importée (avant l'envoi)
+
+### Ajouté
+- **Bouton « Retirer »** pour chaque pièce jointe déjà sélectionnée dans la
+  fiche d'incident, avant l'envoi de l'alerte : badge ✕ sur la miniature
+  photo, lien « 🗑️ Retirer » sous l'audio et sous la vidéo. Permet de
+  changer d'avis ou de corriger un mauvais choix sans rouvrir le sélecteur
+  caméra/galerie ni annuler toute la fiche. Chaque pièce jointe se retire
+  indépendamment des autres.
+
+Vérifié de bout en bout (Playwright) : photo et vidéo importées puis
+retirées indépendamment l'une de l'autre, la zone d'aperçu redevient vide
+une fois tout retiré.
+
 ## [1.25.11] — 2026-10-06 — Photo/vidéo d'incident : même choix caméra / galerie
 
 ### Ajouté

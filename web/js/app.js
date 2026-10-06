@@ -893,27 +893,60 @@
     }
   });
 
+  // Bouton « Retirer » générique pour une pièce jointe déjà sélectionnée
+  // (avant l'envoi) : petit badge ✕ superposé pour la photo (miniature),
+  // lien texte pour l'audio/la vidéo (ne gêne pas les contrôles de lecture).
+  function removeLabel() { return window.t ? window.t("details.remove") : "Retirer"; }
+  function makeRemoveBadge(onRemove) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "attach-remove-badge";
+    btn.setAttribute("aria-label", removeLabel());
+    btn.textContent = "✕";
+    btn.addEventListener("click", onRemove);
+    return btn;
+  }
+  function makeRemoveLink(onRemove) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "media-remove-link";
+    btn.textContent = "🗑️ " + removeLabel();
+    btn.addEventListener("click", onRemove);
+    return btn;
+  }
   function renderPreview() {
     const box = $("attach-preview");
     box.innerHTML = "";
     if (state.photo) {
+      const wrap = document.createElement("div");
+      wrap.className = "attach-item attach-item-photo";
       const img = document.createElement("img");
       img.src = state.photo;
-      box.appendChild(img);
+      wrap.appendChild(img);
+      wrap.appendChild(makeRemoveBadge(() => { state.photo = null; renderPreview(); }));
+      box.appendChild(wrap);
     }
     if (state.audio) {
+      const wrap = document.createElement("div");
+      wrap.className = "attach-item attach-item-media";
       const audio = document.createElement("audio");
       audio.controls = true;
       audio.src = state.audio;
-      box.appendChild(audio);
+      wrap.appendChild(audio);
+      wrap.appendChild(makeRemoveLink(() => { state.audio = null; renderPreview(); }));
+      box.appendChild(wrap);
     }
     if (state.video) {
+      const wrap = document.createElement("div");
+      wrap.className = "attach-item attach-item-media";
       const video = document.createElement("video");
       video.controls = true;
       video.src = state.video;
       video.style.maxWidth = "100%";
       video.style.borderRadius = "10px";
-      box.appendChild(video);
+      wrap.appendChild(video);
+      wrap.appendChild(makeRemoveLink(() => { state.video = null; renderPreview(); }));
+      box.appendChild(wrap);
     }
   }
 

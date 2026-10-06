@@ -145,6 +145,7 @@
       "details.useGps": "📍 Utiliser ma position GPS",
       "details.warningTitle": "Avertissement :",
       "details.warning": " ce service est réservé aux situations réelles. Tout signalement volontairement faux ou abusif mobilise inutilement les secours, met des vies en danger et constitue une infraction punie par la loi. En envoyant cette alerte, vous confirmez que les informations fournies sont exactes.",
+      "details.remove": "Retirer",
       "details.cancel": "Annuler",
       "details.send": "Envoyer l'alerte 🚀",
 
@@ -334,6 +335,7 @@
       "details.useGps": "📍 Tumia mahali pangu pa GPS",
       "details.warningTitle": "Onyo:",
       "details.warning": " huduma hii ni kwa hali halisi tu. Taarifa ya uongo au ya udanganyifu inawasumbua waokoaji bure, inahatarisha maisha na ni kosa linaloadhibiwa na sheria. Kwa kutuma tahadhari hii, unathibitisha kuwa taarifa ulizotoa ni sahihi.",
+      "details.remove": "Ondoa",
       "details.cancel": "Ghairi",
       "details.send": "Tuma tahadhari 🚀",
 
@@ -523,6 +525,7 @@
       "details.useGps": "📍 Salela esika na ngai ya GPS",
       "details.warningTitle": "Likebisi :",
       "details.warning": " mosala oyo ezali kaka mpo na makambo ya solo. Likebisi nyonso ya lokuta to ya mabe esalaka mosala ya bato ya lisungi na pamba, ebimisaka bomoi na likama mpe ezali likambo oyo etungisamaka na mobeko. Na kotinda likebisi oyo, ozali kondima ete basango opesi ezali ya solo.",
+      "details.remove": "Longola",
       "details.cancel": "Boya",
       "details.send": "Tinda likebisi 🚀",
 
