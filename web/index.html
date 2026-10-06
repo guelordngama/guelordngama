@@ -451,6 +451,7 @@
                     <button type="button" id="profile-avatar-btn" class="avatar-edit-badge" data-i18n-title="settings.changePhoto" title="Changer la photo de profil" aria-label="Changer la photo de profil">📷</button>
                   </div>
                   <input type="file" id="avatar-input" accept="image/*" hidden>
+                  <input type="file" id="avatar-input-camera" accept="image/*" capture="user" hidden>
                   <div>
                     <h3 id="profile-name">—</h3>
                     <p id="profile-phone">—</p>
@@ -592,6 +593,18 @@
       <div class="crop-actions">
         <button type="button" id="confirm-modal-no" class="btn-secondary" data-i18n="common.no">Non</button>
         <button type="button" id="confirm-modal-yes" class="btn-primary" data-i18n="common.yes">Oui</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modale de choix : prendre une photo ou l'importer depuis la galerie -->
+  <div id="photo-source-modal" class="modal-backdrop" hidden>
+    <div class="modal confirm-modal">
+      <p data-i18n="cropper.sourceTitle">Comment voulez-vous ajouter votre photo ?</p>
+      <div class="crop-actions sheet-actions">
+        <button type="button" id="photo-source-camera" class="btn-primary" data-i18n="cropper.takePhoto">📷 Prendre une photo</button>
+        <button type="button" id="photo-source-gallery" class="btn-secondary" data-i18n="cropper.chooseGallery">🖼️ Choisir depuis la galerie</button>
+        <button type="button" id="photo-source-cancel" class="btn-ghost" data-i18n="cropper.cancel">Annuler</button>
       </div>
     </div>
   </div>

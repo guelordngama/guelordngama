@@ -2,6 +2,16 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.25.10] — 2026-10-06 — Photo de profil : choix caméra / galerie
+
+### Ajouté
+- **Choix explicite « Prendre une photo » / « Choisir depuis la galerie »**
+  avant d'importer la photo de profil (application citoyenne), au lieu de
+  dépendre du sélecteur natif du téléphone (dont le comportement varie selon
+  le navigateur). Le choix « Prendre une photo » ouvre directement l'appareil
+  photo (caméra avant) sur mobile. Les deux chemins mènent ensuite au même
+  rognage circulaire déjà en place. Traduit dans les 3 langues.
+
 ## [1.25.9] — 2026-10-05 — E-mail obligatoire à l'inscription citoyenne
 
 ### Changé

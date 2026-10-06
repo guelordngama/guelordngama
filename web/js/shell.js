@@ -241,21 +241,42 @@
       shellToast(e.message || tr("settings.photoError", "Impossible de changer la photo. Réessayez."), false);
     }
   }
-  // Badge « appareil photo » : toujours ouvrir le sélecteur de fichier (changer).
-  if ($("profile-avatar-btn")) $("profile-avatar-btn").addEventListener("click", () => {
-    const inp = $("avatar-input");
-    if (inp) inp.click();
+  // Choix de la source de la photo (caméra ou galerie) : deux entrées de
+  // fichier distinctes, l'une avec `capture` pour ouvrir directement
+  // l'appareil photo sur mobile (fiable partout, contrairement à compter sur
+  // le sélecteur natif du navigateur pour proposer les deux options de lui-même).
+  function openPhotoSourceModal() {
+    const modal = $("photo-source-modal");
+    if (modal) modal.hidden = false;
+  }
+  function closePhotoSourceModal() {
+    const modal = $("photo-source-modal");
+    if (modal) modal.hidden = true;
+  }
+  if ($("photo-source-camera")) $("photo-source-camera").addEventListener("click", () => {
+    closePhotoSourceModal();
+    const inp = $("avatar-input-camera"); if (inp) inp.click();
   });
+  if ($("photo-source-gallery")) $("photo-source-gallery").addEventListener("click", () => {
+    closePhotoSourceModal();
+    const inp = $("avatar-input"); if (inp) inp.click();
+  });
+  if ($("photo-source-cancel")) $("photo-source-cancel").addEventListener("click", closePhotoSourceModal);
+  if ($("photo-source-modal")) $("photo-source-modal").addEventListener("click", (e) => {
+    if (e.target.id === "photo-source-modal") closePhotoSourceModal();
+  });
+  // Badge « appareil photo » : toujours proposer le choix (changer).
+  if ($("profile-avatar-btn")) $("profile-avatar-btn").addEventListener("click", openPhotoSourceModal);
   // La photo elle-même : si une photo est déjà définie, l'agrandir (façon
-  // WhatsApp) ; sinon, comme il n'y a rien à voir, ouvrir directement le
-  // sélecteur de fichier (première photo).
+  // WhatsApp) ; sinon, comme il n'y a rien à voir, proposer directement le
+  // choix caméra/galerie (première photo).
   if ($("profile-initials")) $("profile-initials").addEventListener("click", () => {
     const a = getAuth();
     const url = avatarUrl(a && a.user);
     if (url) openLightbox(url);
-    else { const inp = $("avatar-input"); if (inp) inp.click(); }
+    else openPhotoSourceModal();
   });
-  if ($("avatar-input")) $("avatar-input").addEventListener("change", async (e) => {
+  async function handleAvatarFileChosen(e) {
     const file = e.target.files[0];
     e.target.value = "";
     if (!file) return;
@@ -263,7 +284,9 @@
     const cropped = await openCropper(url);
     URL.revokeObjectURL(url);
     if (cropped) uploadAvatar(cropped);
-  });
+  }
+  if ($("avatar-input")) $("avatar-input").addEventListener("change", handleAvatarFileChosen);
+  if ($("avatar-input-camera")) $("avatar-input-camera").addEventListener("change", handleAvatarFileChosen);
   if ($("avatar-remove-link")) $("avatar-remove-link").addEventListener("click", (e) => {
     e.preventDefault();
     removeAvatar();
@@ -475,6 +498,7 @@
     if (e.key !== "Escape") return;
     if ($("avatar-view-modal") && !$("avatar-view-modal").hidden) closeLightbox();
     else if ($("crop-modal") && !$("crop-modal").hidden) closeCropper(null);
+    else if ($("photo-source-modal") && !$("photo-source-modal").hidden) closePhotoSourceModal();
   });
 
   // --------------------------------------------------------------------- //
