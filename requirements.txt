@@ -41,7 +41,7 @@ numpy>=1.26.4
 
 # --- Déploiement ---
 waitress>=3.0.0          # serveur WSGI (Windows / PyInstaller)
-# eventlet>=0.36.1       # pour de vraies websockets (SAFECITY_ASYNC_MODE=eventlet)
+eventlet>=0.36.1       # pour de vraies websockets (SAFECITY_ASYNC_MODE=eventlet)
 gunicorn>=22.0.0       # serveur WSGI (Linux/Docker)
 # pyinstaller>=6.10.0    # exécutable Windows du poste opérateur
 
