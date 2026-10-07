@@ -678,11 +678,15 @@ def test_agent_accept_and_tracking():
     h = {"Authorization": "Bearer " + token}
     # position
     assert client.post("/api/agents/me/location", json={"lat": -4.31, "lng": 15.31}, headers=h).status_code == 200
-    # accept
+    # un agent ne peut pas s'auto-affecter une alerte non affectée par l'opérateur
+    assert client.post("/api/alerts/1/accept", headers=h).status_code == 403
+    # l'opérateur affecte l'agent, qui peut ensuite confirmer qu'il s'y rend
+    _assign(client, 1, "agent1@safecity.local")
     r = client.post("/api/alerts/1/accept", headers=h)
     assert r.status_code == 200
     assert r.get_json()["assigned_agent"]["name"] == "Agent Kalala"
     assert r.get_json()["status"] == "assignee"
+    assert r.get_json()["stage"] == "en_route"
 
 
 def test_progress_stages_full_cycle():
@@ -776,6 +780,7 @@ def test_agent_interventions_history():
     agent = client.get("/api/agents?role=agent", headers=ho).get_json()[0]
     client.post("/api/alerts/1/assign-agent", json={"agent_id": agent["id"]}, headers=ho)
     client.post("/api/alerts/1/complete", headers=ha)
+    client.post("/api/alerts/2/assign-agent", json={"agent_id": agent["id"]}, headers=ho)
     client.post("/api/alerts/2/accept", headers=ha)
     # historique via opérateur
     h = client.get(f"/api/agents/{agent['id']}/interventions", headers=ho).get_json()
@@ -797,8 +802,10 @@ def test_agent_complete_intervention():
         "email": "agent2@safecity.local", "password": "safecity123"}).get_json()["token"]
     h1 = {"Authorization": "Bearer " + ag1}
     h2 = {"Authorization": "Bearer " + ag2}
+    _assign(client, 1, "agent1@safecity.local")
     client.post("/api/alerts/1/accept", headers=h1)
-    # un autre agent ne peut pas terminer l'intervention
+    # un autre agent ne peut ni reprendre ni terminer l'intervention d'un collègue
+    assert client.post("/api/alerts/1/accept", headers=h2).status_code == 403
     assert client.post("/api/alerts/1/complete", headers=h2).status_code == 403
     # l'agent assigné termine
     r = client.post("/api/alerts/1/complete", headers=h1)
@@ -1356,6 +1363,17 @@ def _tok(client, email):
     return {"Authorization": "Bearer " + t.get_json()["token"]}
 
 
+def _assign(client, alert_id, agent_email):
+    """Affecte l'alerte à l'agent (action opérateur, préalable désormais
+    obligatoire avant que l'agent ne puisse confirmer via /accept)."""
+    ho = _tok(client, "operateur@safecity.local")
+    agents = client.get("/api/agents?role=agent", headers=ho).get_json()
+    agent_id = next(a["id"] for a in agents if a["email"] == agent_email)
+    r = client.post(f"/api/alerts/{alert_id}/assign-agent", json={"agent_id": agent_id}, headers=ho)
+    assert r.status_code == 200, r.get_json()
+    return agent_id
+
+
 def test_false_alarm_flow_and_journal():
     """Fausse alerte : motif obligatoire, clôture, avertissement au prochain
     signalement du même citoyen, annulation réservée au superviseur, et journal
@@ -1429,12 +1447,13 @@ def test_intervention_actions_are_journaled():
     _, client = make_client()
     client.post("/api/alerts", json={"type": "accident", "lat": -11.66, "lng": 27.48})
     ha = _tok(client, "agent1@safecity.local")
+    _assign(client, 1, "agent1@safecity.local")
     assert client.post("/api/alerts/1/accept", headers=ha).status_code == 200
     assert client.post("/api/alerts/1/complete", headers=ha).status_code == 200
     j = client.get("/api/alerts/1/journal", headers=ha).get_json()
     actions = [e["action"] for e in j]
-    assert actions == ["alert_created", "intervention_accepted", "intervention_completed"]
-    assert j[1]["role"] == "Agent" and j[1]["actor"]
+    assert actions == ["alert_created", "agent_assigned", "intervention_accepted", "intervention_completed"]
+    assert j[2]["role"] == "Agent" and j[2]["actor"]
 
 
 def test_security_overview_permissions():

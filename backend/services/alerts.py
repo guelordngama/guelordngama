@@ -410,17 +410,28 @@ def assign_agent(alert_id, agent_id):
 
 
 def accept_intervention(alert_id, agent):
-    """Un agent prend en charge une alerte."""
+    """Un agent confirme qu'il se rend sur une alerte **déjà affectée par
+    l'opérateur** (passage à l'étape « Agent en route »).
+
+    Le poste opérateur reste le seul point de passage pour affecter une
+    alerte à un agent précis (``assign_agent``) : un agent ne peut jamais
+    s'auto-affecter une alerte non assignée, ni reprendre celle d'un
+    collègue — ce serait une prise en charge sans validation du centre.
+    """
+    from ..errors import ForbiddenError
     from ..models import User
 
     alert = get_alert(alert_id)
-    agent_obj = db.session.get(User, agent["uid"] if isinstance(agent, dict) else agent)
+    agent_id = agent["uid"] if isinstance(agent, dict) else agent
+    agent_obj = db.session.get(User, agent_id)
     if not agent_obj:
         raise NotFoundError("Agent introuvable.")
+    if alert.assigned_agent_id != agent_obj.id:
+        raise ForbiddenError(
+            "Cette intervention n'est pas affectée. Seul le poste opérateur "
+            "peut affecter un agent." if alert.assigned_agent_id is None else
+            "Cette intervention est affectée à un autre agent.")
 
-    alert.assigned_agent_id = agent_obj.id
-    if alert.status == "active":
-        alert.status = "assignee"
     alert.stage = "en_route"
     if not alert.accepted_at:
         alert.accepted_at = datetime.utcnow()

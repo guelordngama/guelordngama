@@ -2,6 +2,29 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.26.0] — 2026-10-07 — Le poste opérateur, seul point de passage pour affecter un agent
+
+### Corrigé (sécurité / processus — important)
+- **Un agent pouvait s'auto-affecter n'importe quelle alerte active**, et même
+  **reprendre une intervention déjà affectée à un collègue**, directement
+  depuis son portail, sans validation du centre de surveillance. Le poste
+  opérateur reste désormais le **seul point de passage** pour affecter une
+  alerte à un agent précis (`POST /assign-agent`) :
+  - `POST /api/alerts/<id>/accept` (« confirmer qu'on s'y rend ») est
+    maintenant réservé à l'**agent déjà affecté par l'opérateur** — rejeté
+    (403) si l'alerte n'est affectée à personne, ou affectée à quelqu'un
+    d'autre.
+  - **Portail agents** : le bouton de chaque alerte reflète maintenant l'état
+    réel — « ⏳ En attente d'affectation » (alerte non affectée, désactivé),
+    « 👮 Affecté à *Nom* » (affectée à un collègue, désactivé),
+    « 🚗 Je suis en route » (affectée à moi, actif — confirme le départ), puis
+    « ✅ Prise en charge » (désactivé, une fois confirmé). L'agent continue de
+    **voir toutes les alertes en cours** (vue d'ensemble du terrain) mais ne
+    peut plus en prendre aucune de son propre chef.
+- 4 tests mis à jour (affectation préalable requise avant `/accept`) + 2
+  nouveaux cas couverts (auto-affectation et vol d'intervention rejetés).
+  Suite complète : 76/76.
+
 ## [1.25.12] — 2026-10-06 — Retirer une photo/vidéo/audio déjà importée (avant l'envoi)
 
 ### Ajouté

@@ -856,11 +856,27 @@
       // Médias joints par le citoyen (photo / vocal / vidéo) : les agents sur le
       // terrain doivent aussi les voir, pas seulement l'opérateur.
       renderAlertMedia(node.querySelector(".alert-media"), a);
-      const accepted = a.assigned_agent && state.agent && a.assigned_agent.id === state.agent.id;
+      // Seul le poste opérateur affecte une alerte à un agent précis : un
+      // agent ne peut jamais s'auto-affecter une alerte non affectée, ni
+      // reprendre celle d'un collègue. Une fois affectée par l'opérateur,
+      // l'agent confirme simplement qu'il s'y rend (« Agent en route »).
+      const assignedToMe = a.assigned_agent && state.agent && a.assigned_agent.id === state.agent.id;
+      const accepted = assignedToMe && a.stage && a.stage !== "assigned";
       if (accepted) card.classList.add("accepted");
       const bAccept = node.querySelector(".btn-accept");
-      bAccept.textContent = accepted ? "✅ Prise en charge" : "✅ Accepter";
-      bAccept.disabled = accepted;
+      if (accepted) {
+        bAccept.textContent = "✅ Prise en charge";
+        bAccept.disabled = true;
+      } else if (assignedToMe) {
+        bAccept.textContent = "🚗 Je suis en route";
+        bAccept.disabled = false;
+      } else if (a.assigned_agent) {
+        bAccept.textContent = "👮 Affecté à " + a.assigned_agent.name;
+        bAccept.disabled = true;
+      } else {
+        bAccept.textContent = "⏳ En attente d'affectation";
+        bAccept.disabled = true;
+      }
       bAccept.addEventListener("click", () => accept(a.id));
       // Itinéraire Google Maps vers le citoyen (téléphone de l'agent).
       const gm = node.querySelector(".btn-gmaps");

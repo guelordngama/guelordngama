@@ -112,9 +112,11 @@ def assign_agent(alert_id):
 
 
 @bp.post("/<int:alert_id>/accept")
-@require_auth(roles=["agent", "operator", "supervisor", "admin"])
+@require_auth(roles=["agent"])
 def accept(alert_id):
-    """Prise en charge d'une intervention par l'agent connecté."""
+    """L'agent assigné confirme qu'il se rend sur l'intervention (étape
+    « Agent en route »). Réservé à l'agent : affecter une alerte reste le
+    rôle exclusif du poste opérateur (POST /<id>/assign-agent)."""
     payload = alerts_service.accept_intervention(alert_id, g.user)
     stats_service.invalidate_cache()
     audit.record("intervention_accepted", detail=_ref(payload), alert_id=alert_id)
