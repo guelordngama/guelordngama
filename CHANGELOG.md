@@ -2,6 +2,14 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.27.4] — 2026-10-09 — Render : plus de création de base par le Blueprint
+
+### Corrigé
+- `render.yaml` ne déclare plus la base : Render n'autorise qu'une base
+  PostgreSQL gratuite par compte, et chaque synchronisation tentait d'en créer
+  une seconde (« cannot have more than one active free tier database »). La
+  base existante s'utilise via `DATABASE_URL` (External Database URL).
+
 ## [1.27.3] — 2026-10-08 — Render : adresse externe de la base
 
 ### Corrigé

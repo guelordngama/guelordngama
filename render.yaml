@@ -1,4 +1,7 @@
-# Déploiement SafeCity sur Render (Blueprint) : service web + base PostgreSQL.
+# Déploiement SafeCity sur Render (Blueprint) : service web.
+# La base PostgreSQL (safecity-db) est créée à part dans Render (une seule base
+# gratuite par compte) ; son « External Database URL » se colle dans
+# DATABASE_URL ci-dessous.
 #
 # Render > New > Blueprint > choisir ce dépôt. Render demande alors les valeurs
 # marquées « sync: false » (identifiants du compte opérateur initial).
@@ -56,9 +59,3 @@ services:
       # name »), l'adresse externe marche toujours.
       - key: DATABASE_URL
         sync: false
-
-databases:
-  - name: safecity-db
-    plan: free
-    databaseName: safecity
-    user: safecity
