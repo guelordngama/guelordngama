@@ -34,7 +34,9 @@ def register_blueprints(app):
 
     # En développement, le backend sert aussi les fronts (app citoyenne au « / »,
     # portail au « /portal/ ») pour tout avoir sur la même origine (pas de CORS).
-    # En production, Nginx s'en charge : on n'enregistre donc pas ces routes.
-    if str(app.config.get("ENV", "development")).lower() != "production":
+    # En production, Nginx s'en charge : on n'enregistre donc pas ces routes,
+    # sauf hébergement à service unique (SAFECITY_SERVE_FRONTEND=true, ex. Render).
+    if (str(app.config.get("ENV", "development")).lower() != "production"
+            or app.config.get("SERVE_FRONTEND")):
         from .webapp import bp as frontend_bp
         app.register_blueprint(frontend_bp)

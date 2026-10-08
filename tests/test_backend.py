@@ -1476,6 +1476,14 @@ def test_security_overview_permissions():
 # --------------------------------------------------------------------------- #
 # Exécution directe (sans pytest)
 # --------------------------------------------------------------------------- #
+def test_database_url_postgres_scheme_is_normalized():
+    """Render fournit parfois « postgres:// » (refusé par SQLAlchemy 2)."""
+    from backend.config import _normalize_db_url
+    assert _normalize_db_url("postgres://u:p@h/db") == "postgresql://u:p@h/db"
+    assert _normalize_db_url("postgresql://u:p@h/db") == "postgresql://u:p@h/db"
+    assert _normalize_db_url("sqlite:///x.db") == "sqlite:///x.db"
+
+
 if __name__ == "__main__":
     passed = failed = 0
     for name, fn in sorted(globals().items()):

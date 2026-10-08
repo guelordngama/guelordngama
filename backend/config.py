@@ -25,6 +25,14 @@ def _env_bool(name, default=False):
     return os.environ.get(name, str(default)).strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _normalize_db_url(url):
+    """Render (et Heroku) fournissent parfois « postgres:// », que SQLAlchemy 2
+    n'accepte plus : on le convertit en « postgresql:// »."""
+    if url and url.startswith("postgres://"):
+        return "postgresql://" + url[len("postgres://"):]
+    return url
+
+
 class Config:
     """Configuration de base commune à tous les environnements."""
 
@@ -46,9 +54,14 @@ class Config:
     CORS_ORIGINS = os.environ.get("SAFECITY_CORS_ORIGINS", "*")
 
     # --- Base de données ---
-    SQLALCHEMY_DATABASE_URI = os.environ.get(
+    SQLALCHEMY_DATABASE_URI = _normalize_db_url(os.environ.get(
         "DATABASE_URL", "sqlite:///" + os.path.join(BASE_DIR, "safecity.db")
-    )
+    ))
+
+    # Sert aussi l'app citoyenne et le portail depuis le backend en production
+    # (hébergement à service unique, ex. Render, sans Nginx devant).
+    SERVE_FRONTEND = os.environ.get("SAFECITY_SERVE_FRONTEND", "false").lower() in (
+        "1", "true", "yes")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True}
 

@@ -2,6 +2,25 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.27.1] — 2026-10-08 — Déploiement Render prêt (render.yaml + base PostgreSQL)
+
+### Ajouté
+- **`render.yaml`** (Blueprint Render) : un service web (migrations puis
+  gunicorn + eventlet, vraies websockets) + une base **PostgreSQL**
+  persistante, secrets générés automatiquement, sonde `/api/health`. Corrige
+  la cause probable des « Compte introuvable » : sans base PostgreSQL, les
+  comptes (base SQLite du conteneur) disparaissaient à chaque redémarrage.
+- `SAFECITY_SERVE_FRONTEND=true` : le backend sert aussi l'app citoyenne (`/`)
+  et le portail agents (`/portal/`) en production (hébergement à service
+  unique, sans Nginx).
+
+### Corrigé
+- `DATABASE_URL` en `postgres://` (fourni par Render) est converti en
+  `postgresql://` (refusé sinon par SQLAlchemy 2).
+- **gunicorn borné à `<24`** (requirements + Dockerfile) : les versions
+  récentes (≥ 25) n'ont plus le worker `eventlet`, ce qui aurait empêché le
+  démarrage à la prochaine reconstruction de l'image (vérifié avec 23.0.0).
+
 ## [1.27.0] — 2026-10-08 — Affectation de patrouille : les 7 communes de Lubumbashi
 
 ### Ajouté

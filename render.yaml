@@ -1,0 +1,62 @@
+# Déploiement SafeCity sur Render (Blueprint) : service web + base PostgreSQL.
+#
+# Render > New > Blueprint > choisir ce dépôt. Render demande alors les valeurs
+# marquées « sync: false » (identifiants du compte opérateur initial).
+#
+# À SAVOIR :
+#  - Base PostgreSQL « free » : supprimée par Render après 30 jours. Pour un
+#    usage réel, passer la base au plan payant (plan: basic-256mb).
+#  - Les photos/vidéos envoyées sont stockées sur le disque du service, qui est
+#    EFFACÉ à chaque redéploiement sur le plan gratuit (un disque persistant
+#    exige un plan payant).
+services:
+  - type: web
+    name: safecity
+    runtime: python
+    plan: free
+    branch: claude/safecity-alert-platform-yohh1v
+    buildCommand: pip install -r requirements.txt
+    # Migrations de schéma (sans perte de données) puis serveur avec vraies websockets.
+    startCommand: flask db upgrade && gunicorn -k eventlet -w 1 -b 0.0.0.0:$PORT --access-logfile - backend.wsgi:app
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: FLASK_APP
+        value: backend
+      - key: SAFECITY_ENV
+        value: production
+      - key: SAFECITY_ASYNC_MODE
+        value: eventlet
+      # Sert l'app citoyenne (/) et le portail agents (/portal/) depuis ce service.
+      - key: SAFECITY_SERVE_FRONTEND
+        value: "true"
+      # Secrets générés par Render, stables entre les redéploiements.
+      - key: SAFECITY_SECRET_KEY
+        generateValue: true
+      - key: SAFECITY_JWT_SECRET
+        generateValue: true
+      # Obligatoire en production (« * » refusé). Les pages servies par ce même
+      # service n'ont pas besoin de CORS ; mettre ici l'adresse du site citoyen
+      # s'il est hébergé ailleurs.
+      - key: SAFECITY_CORS_ORIGINS
+        value: https://safecity-lubumbashi.com
+      # Premier compte opérateur : à définir au moment de créer le Blueprint.
+      # (Crée aussi les comptes de démonstration agents/superviseur avec le
+      # même mot de passe : les supprimer ensuite dans l'application bureau.)
+      - key: SAFECITY_SEED_DEMO
+        value: "true"
+      - key: SAFECITY_DEMO_EMAIL
+        sync: false
+      - key: SAFECITY_DEMO_PASSWORD
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: safecity-db
+          property: connectionString
+
+databases:
+  - name: safecity-db
+    plan: free
+    databaseName: safecity
+    user: safecity
