@@ -2,6 +2,15 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.27.2] — 2026-10-08 — Render : pilote PostgreSQL
+
+### Corrigé
+- Démarrage sur Render en échec (`ModuleNotFoundError: No module named
+  'psycopg'`) : l'adresse de base fournie par l'hébergeur visait le pilote
+  psycopg 3, non installé. Toute adresse PostgreSQL (`postgres://`,
+  `postgresql://`, `postgresql+psycopg://`) est maintenant convertie pour
+  utiliser `psycopg2`, le pilote installé.
+
 ## [1.27.1] — 2026-10-08 — Déploiement Render prêt (render.yaml + base PostgreSQL)
 
 ### Ajouté

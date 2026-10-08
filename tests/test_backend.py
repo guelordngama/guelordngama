@@ -1477,10 +1477,13 @@ def test_security_overview_permissions():
 # Exécution directe (sans pytest)
 # --------------------------------------------------------------------------- #
 def test_database_url_postgres_scheme_is_normalized():
-    """Render fournit parfois « postgres:// » (refusé par SQLAlchemy 2)."""
+    """Render peut fournir postgres://, postgresql:// ou postgresql+psycopg:// :
+    tous doivent utiliser le pilote psycopg2 (le seul installé)."""
     from backend.config import _normalize_db_url
-    assert _normalize_db_url("postgres://u:p@h/db") == "postgresql://u:p@h/db"
-    assert _normalize_db_url("postgresql://u:p@h/db") == "postgresql://u:p@h/db"
+    for src in ("postgres://u:p@h/db", "postgresql://u:p@h/db",
+                "postgresql+psycopg://u:p@h/db"):
+        assert _normalize_db_url(src) == "postgresql+psycopg2://u:p@h/db"
+    assert _normalize_db_url("postgresql+psycopg2://u:p@h/db") == "postgresql+psycopg2://u:p@h/db"
     assert _normalize_db_url("sqlite:///x.db") == "sqlite:///x.db"
 
 

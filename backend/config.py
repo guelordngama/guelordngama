@@ -26,10 +26,15 @@ def _env_bool(name, default=False):
 
 
 def _normalize_db_url(url):
-    """Render (et Heroku) fournissent parfois « postgres:// », que SQLAlchemy 2
-    n'accepte plus : on le convertit en « postgresql:// »."""
-    if url and url.startswith("postgres://"):
-        return "postgresql://" + url[len("postgres://"):]
+    """Force le pilote PostgreSQL installé (psycopg2) quel que soit le schéma
+    fourni par l'hébergeur : « postgres:// » (refusé par SQLAlchemy 2),
+    « postgresql:// » ou « postgresql+psycopg:// » (pilote psycopg 3, non
+    installé → « No module named 'psycopg' » au démarrage sur Render)."""
+    if not url:
+        return url
+    for prefix in ("postgres://", "postgresql://", "postgresql+psycopg://"):
+        if url.startswith(prefix):
+            return "postgresql+psycopg2://" + url[len(prefix):]
     return url
 
 
