@@ -2,6 +2,14 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.27.3] — 2026-10-08 — Render : adresse externe de la base
+
+### Corrigé
+- `render.yaml` : `DATABASE_URL` n'est plus liée automatiquement à l'adresse
+  interne de la base (inutilisable si le service et la base sont dans deux
+  régions différentes : « could not translate host name »). À renseigner une
+  fois avec l'« External Database URL » dans le tableau de bord Render.
+
 ## [1.27.2] — 2026-10-08 — Render : pilote PostgreSQL
 
 ### Corrigé

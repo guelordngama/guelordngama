@@ -50,10 +50,12 @@ services:
         sync: false
       - key: SAFECITY_DEMO_PASSWORD
         sync: false
+      # À coller UNE FOIS dans Render > service > Environment : l'« External
+      # Database URL » de safecity-db. L'adresse interne ne fonctionne que si le
+      # service et la base sont dans la même région (« could not translate host
+      # name »), l'adresse externe marche toujours.
       - key: DATABASE_URL
-        fromDatabase:
-          name: safecity-db
-          property: connectionString
+        sync: false
 
 databases:
   - name: safecity-db
