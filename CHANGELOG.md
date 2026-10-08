@@ -2,6 +2,16 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.26.2] — 2026-10-08 — Déconnexion après ajout de photo : afficher la vraie cause
+
+### Corrigé
+- Quand le serveur refuse l'ajout/retrait de la photo de profil (401), l'écran
+  de connexion affichait toujours « session expirée », même quand la vraie
+  cause était autre (« Jeton invalide », « Compte introuvable » — ex. compte
+  absent côté serveur après un redémarrage avec base non persistante). Il
+  affiche maintenant le **message réel du serveur**, ce qui permet de
+  distinguer une session trop ancienne d'un compte supprimé côté serveur.
+
 ## [1.26.1] — 2026-10-08 — Portail agents : fin des identifiants de démo pré-remplis
 
 ### Corrigé

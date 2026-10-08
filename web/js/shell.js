@@ -187,9 +187,14 @@
   // mais où plus aucune action protégée ne fonctionnera. On déconnecte et on
   // revient à l'écran de connexion avec un message clair, plutôt que de le
   // laisser deviner qu'il doit se reconnecter.
-  function handleExpiredSession() {
+  // `res` : la réponse 401 du serveur — son message réel (« Jeton expiré. »,
+  // « Jeton invalide. », « Compte introuvable. »…) est affiché sur l'écran de
+  // connexion, car ces causes sont très différentes (session trop ancienne
+  // vs compte supprimé côté serveur) et se corrigent différemment.
+  async function handleExpiredSession(res) {
+    const reason = res ? await errorMessage(res, "") : "";
     localStorage.removeItem("safecity_auth");
-    try { sessionStorage.setItem("safecity_session_expired", "1"); } catch (e) {}
+    try { sessionStorage.setItem("safecity_session_expired", reason || "1"); } catch (e) {}
     location.reload();
   }
   async function uploadAvatar(dataUrl) {
@@ -204,7 +209,7 @@
         headers: { "Content-Type": "application/json", "Authorization": "Bearer " + a.token },
         body: JSON.stringify({ photo: dataUrl }),
       });
-      if (res.status === 401) return handleExpiredSession();
+      if (res.status === 401) return handleExpiredSession(res);
       if (!res.ok) {
         throw new Error(await errorMessage(res, "Échec de l'envoi (" + res.status + ")."));
       }
@@ -228,7 +233,7 @@
         method: "DELETE",
         headers: { "Authorization": "Bearer " + a.token },
       });
-      if (res.status === 401) return handleExpiredSession();
+      if (res.status === 401) return handleExpiredSession(res);
       if (!res.ok) {
         throw new Error(await errorMessage(res, "Échec de la suppression (" + res.status + ")."));
       }

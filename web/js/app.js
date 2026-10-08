@@ -1343,10 +1343,13 @@
     // shell.js a déjà déconnecté et rechargé la page ; on explique pourquoi
     // l'utilisateur se retrouve sur l'écran de connexion.
     try {
-      if (sessionStorage.getItem("safecity_session_expired")) {
+      const expired = sessionStorage.getItem("safecity_session_expired");
+      if (expired) {
         sessionStorage.removeItem("safecity_session_expired");
         showForm("form-login");
-        authError("Votre session a expiré. Reconnectez-vous.");
+        // « 1 » = ancien drapeau sans détail ; sinon c'est le message du serveur.
+        authError("Déconnecté par le serveur" + (expired !== "1" ? " (" + expired + ")" : "") +
+          ". Reconnectez-vous.");
       }
     } catch (e) {}
   }
