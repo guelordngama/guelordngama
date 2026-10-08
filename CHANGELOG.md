@@ -2,6 +2,15 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.26.1] — 2026-10-08 — Portail agents : fin des identifiants de démo pré-remplis
+
+### Corrigé
+- **La fenêtre de connexion du portail agents affichait un vrai compte de
+  démonstration pré-rempli** (`agent1@safecity.local` / `safecity123`) : il
+  suffisait de cliquer « Se connecter » sans rien saisir pour entrer sur le
+  compte de démo. Champs désormais vides avec indication (« votre e-mail » /
+  « votre mot de passe »), comme le poste opérateur (corrigé en 1.3.6).
+
 ## [1.26.0] — 2026-10-07 — Le poste opérateur, seul point de passage pour affecter un agent
 
 ### Corrigé (sécurité / processus — important)
