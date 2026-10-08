@@ -2,6 +2,16 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.27.0] — 2026-10-08 — Affectation de patrouille : les 7 communes de Lubumbashi
+
+### Ajouté
+- **Une patrouille par commune** proposée dans « Affecter une équipe » (poste
+  opérateur) : Lubumbashi, Kamalondo, Katuba, Kenya, Kampemba, Ruashi, Annexe.
+  Ajoutées automatiquement au démarrage du serveur **si elles n'existent pas
+  déjà** (aucune équipe existante n'est modifiée ni dupliquée), y compris sur
+  un déploiement déjà en service. Positions de départ approximatives, mises à
+  jour avec les positions réelles des patrouilles.
+
 ## [1.26.2] — 2026-10-08 — Déconnexion après ajout de photo : afficher la vraie cause
 
 ### Corrigé
