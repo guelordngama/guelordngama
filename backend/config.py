@@ -79,6 +79,8 @@ class Config:
 
     # --- Temps réel ---
     SURVEILLANCE_ROOM = "surveillance"
+    OPERATORS_ROOM = "operators"   # opérateurs / superviseurs / admins : alertes complètes
+    AGENTS_ROOM = "agents"         # agents : alertes sans position ni données personnelles
 
     # --- Pagination ---
     ALERTS_PAGE_SIZE = int(os.environ.get("SAFECITY_ALERTS_PAGE_SIZE", "50"))

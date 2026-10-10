@@ -48,6 +48,9 @@ def list_():
         request.args.get("page_size", current_app.config["ALERTS_PAGE_SIZE"], type=int),
     )
     result = alerts_service.list_alerts(filters=filters, page=page, page_size=page_size)
+    if g.user.get("role") == "agent":
+        uid = g.user.get("uid")
+        result["items"] = [alerts_service.redact_for_agent(a, uid) for a in result["items"]]
     # Compatibilité : liste simple si ni pagination ni filtre de recherche.
     search_keys = {"page", "page_size", "q", "type", "urgency", "neighborhood",
                    "agent_id", "date_from", "date_to", "false_alarm"}
@@ -70,7 +73,10 @@ def track(ref):
 @require_auth(roles=["agent", "operator", "supervisor", "admin"])
 def detail(alert_id):
     item = alerts_service.get_alert(alert_id).to_dict()
-    return jsonify(alerts_service.attach_reporter_flags([item])[0])
+    item = alerts_service.attach_reporter_flags([item])[0]
+    if g.user.get("role") == "agent":
+        item = alerts_service.redact_for_agent(item, g.user.get("uid"))
+    return jsonify(item)
 
 
 @bp.post("/<int:alert_id>/assign")
@@ -178,7 +184,12 @@ def cancel_false_alarm(alert_id):
 @bp.get("/<int:alert_id>/journal")
 @require_auth(roles=["agent", "operator", "supervisor", "admin"])
 def journal(alert_id):
-    """Journal de l'intervention : chaque action, son auteur, son rôle, l'heure."""
+    """Journal de l'intervention : chaque action, son auteur, son rôle, l'heure.
+    Un agent n'y accède que pour les alertes qui lui sont affectées."""
+    if g.user.get("role") == "agent":
+        from ..errors import ForbiddenError
+        if alerts_service.get_alert(alert_id).assigned_agent_id != g.user.get("uid"):
+            raise ForbiddenError("Cette intervention ne vous est pas assignée.")
     return jsonify(alerts_service.alert_journal(alert_id))
 
 

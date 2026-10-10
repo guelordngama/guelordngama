@@ -1487,6 +1487,58 @@ def test_database_url_postgres_scheme_is_normalized():
     assert _normalize_db_url("sqlite:///x.db") == "sqlite:///x.db"
 
 
+def test_agent_cannot_locate_unassigned_alert():
+    """Un agent non affecté voit l'alerte (type, urgence, statut) mais NI la
+    position, NI le téléphone, NI le nom, NI les médias du citoyen — par l'API
+    comme par le temps réel. Une fois affecté par l'opérateur, il a tout."""
+    from backend import socketio
+    app, client = make_client()
+    ho = _tok(client, "operateur@safecity.local")
+    ha1 = _tok(client, "agent1@safecity.local")
+    ha2 = _tok(client, "agent2@safecity.local")
+    sock_agent1 = socketio.test_client(app, auth={"token": ha1["Authorization"][7:]})
+    sock_op = socketio.test_client(app, auth={"token": ho["Authorization"][7:]})
+    sock_agent1.get_received(); sock_op.get_received()
+
+    a = client.post("/api/alerts", json={
+        "type": "vol", "description": "sac volé", "lat": -11.66, "lng": 27.48,
+        "reporter_name": "Jean", "reporter_phone": "+243812345678"}).get_json()
+    aid = a["id"]
+
+    # Temps réel : l'agent reçoit la version restreinte, l'opérateur la complète.
+    ev_agent = [e for e in sock_agent1.get_received() if e["name"] == "new_alert"][0]["args"][0]
+    ev_op = [e for e in sock_op.get_received() if e["name"] == "new_alert"][0]["args"][0]
+    assert ev_agent["restricted"] is True
+    assert ev_agent["lat"] is None and ev_agent["reporter_phone"] is None
+    assert ev_agent["type"] == "vol"
+    assert ev_op["lat"] == -11.66 and ev_op["reporter_phone"] == "+243812345678"
+
+    # API : liste et détail restreints pour l'agent, complets pour l'opérateur.
+    lst = client.get("/api/alerts", headers=ha1).get_json()
+    item = next(i for i in lst if i["id"] == aid)
+    assert item["lat"] is None and item["lng"] is None and item["reporter_phone"] is None
+    assert item["street"] is None and item["description"] is None
+    assert item["reporter_name"] == "Citoyen" and item["restricted"] is True
+    det = client.get(f"/api/alerts/{aid}", headers=ha1).get_json()
+    assert det["lat"] is None and det["restricted"] is True
+    full = client.get(f"/api/alerts/{aid}", headers=ho).get_json()
+    assert full["lat"] == -11.66 and full["reporter_phone"] == "+243812345678"
+    assert "restricted" not in full
+    # Journal (contient nom et IP) refusé à un agent non affecté.
+    assert client.get(f"/api/alerts/{aid}/journal", headers=ha1).status_code == 403
+
+    # Affectation à l'agent 1 : lui voit tout, l'agent 2 reste restreint.
+    _assign(client, aid, "agent1@safecity.local")
+    mine = client.get(f"/api/alerts/{aid}", headers=ha1).get_json()
+    assert mine["lat"] == -11.66 and mine["reporter_phone"] == "+243812345678"
+    other = client.get(f"/api/alerts/{aid}", headers=ha2).get_json()
+    assert other["lat"] is None and other["restricted"] is True
+    assert client.get(f"/api/alerts/{aid}/journal", headers=ha1).status_code == 200
+    got = [e["args"][0] for e in sock_agent1.get_received() if e["name"] == "alert_updated"]
+    assert any(g.get("lat") == -11.66 for g in got), "l'agent affecté doit recevoir la version complète"
+    sock_agent1.disconnect(); sock_op.disconnect()
+
+
 if __name__ == "__main__":
     passed = failed = 0
     for name, fn in sorted(globals().items()):

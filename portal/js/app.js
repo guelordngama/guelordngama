@@ -687,6 +687,10 @@
   // ---- Rendu des alertes ----
   function addAlert(a, isNew) {
     if (a.status === "cloturee") { removeAlert(a.id); return; }
+    // Alerte restreinte (sans position) reçue pour une mission qui m'est assignée :
+    // la version complète arrive par ma salle personnelle, on n'écrase rien.
+    const me = state.agent && state.agent.id;
+    if (a.restricted && a.assigned_agent && a.assigned_agent.id === me) return;
     state.alerts[a.id] = a;
     renderList();
     drawMarker(a);
@@ -806,6 +810,7 @@
       const dupLine = dup > 0
         ? "🔁 " + (dup + 1) + " signalements du même incident (regroupés)<br>"
         : "";
+      const locked = !!a.restricted;
       const descLine = a.description
         ? "📝 " + escapeHtml(a.description) + "<br>"
         : "";
@@ -818,11 +823,13 @@
       node.querySelector(".alert-type").textContent =
         (TYPE_NAMES[a.type] || (a.type || "").toUpperCase()).toUpperCase() +
         "  #" + (a.incident_number || a.reference || a.id) + (dup > 0 ? "  🔁" + (dup + 1) : "");
+      const lockNote = '<div class="fiche-lock">🔒 Position et coordonnées du citoyen visibles ' +
+        "uniquement une fois l'alerte affectée par le centre.</div>";
       node.querySelector(".alert-meta").innerHTML =
-        dupLine + approxLine +
+        dupLine + (locked ? "" : approxLine) +
         '<div class="fiche">' +
         ficheRow("Type", escapeHtml(TYPE_NAMES[a.type] || a.type || "—")) +
-        ficheRow("Citoyen", escapeHtml(a.reporter_name || "Anonyme") +
+        (locked ? "" : ficheRow("Citoyen", escapeHtml(a.reporter_name || "Anonyme") +
           (a.reporter_phone ? ' · <a href="tel:' + escapeHtml(a.reporter_phone) + '">📞 ' +
             escapeHtml(a.reporter_phone) + "</a>" : "")) +
         ficheRow("Commune", escapeHtml(a.commune || "—")) +
@@ -832,7 +839,7 @@
         '<div class="fiche-sep"></div>' +
         ficheRow("GPS", '<span class="alert-coords" title="Cliquer pour copier la position">' +
           gpsSigned(a.lat, a.lng) + "</span>") +
-        ficheRow("Précision", escapeHtml(precisionText(a))) +
+        ficheRow("Précision", escapeHtml(precisionText(a)))) +
         ficheRow("Heure", escapeHtml(whenText(a)) +
           (a.distance_m != null ? " · 📏 " + Math.round(a.distance_m) + " m" : "")) +
         ficheRow("Statut", '<span class="fiche-status" style="color:' + st[1] + "\">" + st[0] + "</span>") +
@@ -842,7 +849,7 @@
         })()) +
         (a.assigned_agent ? ficheRow("Agent", "👮 " + escapeHtml(a.assigned_agent.name) + " → Intervention #" +
           escapeHtml(a.incident_number || a.reference || a.id)) : "") +
-        "</div>" + descLine;
+        "</div>" + (locked ? lockNote : descLine);
       // Position GPS exacte cliquable → copie (pour la transmettre par radio/tel).
       const coordsEl = node.querySelector(".alert-coords");
       if (coordsEl) {
@@ -880,11 +887,18 @@
       bAccept.addEventListener("click", () => accept(a.id));
       // Itinéraire Google Maps vers le citoyen (téléphone de l'agent).
       const gm = node.querySelector(".btn-gmaps");
-      if (gm) gm.href = "https://www.google.com/maps/dir/?api=1&destination=" + a.lat + "," + a.lng;
-      node.querySelector(".btn-locate").addEventListener("click", () => {
-        if (state.live) state.live.focusAlert(a.id);
-        else if (state.map) state.map.setView([a.lat, a.lng], 16);
-      });
+      const bLocate = node.querySelector(".btn-locate");
+      if (locked) {
+        // Pas de position tant que l'alerte ne m'est pas affectée.
+        if (gm) gm.hidden = true;
+        bLocate.hidden = true;
+      } else {
+        if (gm) gm.href = "https://www.google.com/maps/dir/?api=1&destination=" + a.lat + "," + a.lng;
+        bLocate.addEventListener("click", () => {
+          if (state.live) state.live.focusAlert(a.id);
+          else if (state.map) state.map.setView([a.lat, a.lng], 16);
+        });
+      }
       // Bouton « Terminer l'intervention » : visible seulement si l'alerte
       // m'est assignée.
       const bComplete = node.querySelector(".btn-complete");
@@ -902,7 +916,8 @@
 
   function drawMarker() { syncMap(); }
   function syncMap() {
-    if (state.live) state.live.setAlerts(Object.values(state.alerts));
+    // Les alertes non affectées à cet agent n'ont pas de position : rien à placer.
+    if (state.live) state.live.setAlerts(Object.values(state.alerts).filter((a) => a.lat != null && a.lng != null));
     updateMyRoute(false);
   }
 

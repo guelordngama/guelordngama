@@ -20,7 +20,46 @@ from ..security import save_data_url
 log = logging.getLogger("safecity")
 
 
+# Données du citoyen et du lieu : un agent ne les voit QUE pour les alertes que
+# l'opérateur lui a affectées (il voit les autres, mais sans pouvoir localiser
+# ni joindre le citoyen).
+_AGENT_HIDDEN_FIELDS = (
+    "description", "lat", "lng", "address", "neighborhood", "street", "commune",
+    "city", "gps_accuracy_m", "reporter_id", "reporter_phone", "photo_url",
+    "audio_url", "video_url", "distance_m", "eta_moto_min", "eta_walk_min",
+)
+
+
+def redact_for_agent(payload, agent_id):
+    """Copie de l'alerte sans position ni données personnelles, sauf si elle est
+    affectée à cet agent (alors renvoyée telle quelle)."""
+    assigned = payload.get("assigned_agent") or {}
+    if agent_id is not None and assigned.get("id") == agent_id:
+        return payload
+    out = dict(payload)
+    for k in _AGENT_HIDDEN_FIELDS:
+        out[k] = None
+    out["reporter_name"] = "Citoyen"
+    out["position_approx"] = False
+    out["position_manual"] = False
+    out["reporter_false_alarms"] = 0
+    out["restricted"] = True
+    return out
+
+
 def _emit(event, payload):
+    """Alertes : version complète au poste opérateur / superviseur / admin,
+    version SANS position ni données personnelles aux agents — sauf l'agent
+    affecté, qui reçoit la version complète dans sa salle personnelle."""
+    if event in ("new_alert", "alert_updated") and isinstance(payload, dict) \
+            and "reference" in payload:
+        socketio.emit(event, payload, room=current_app.config["OPERATORS_ROOM"])
+        socketio.emit(event, redact_for_agent(payload, None),
+                      room=current_app.config["AGENTS_ROOM"])
+        agent = (payload.get("assigned_agent") or {}).get("id")
+        if agent:
+            socketio.emit(event, payload, room=f"user_{agent}")
+        return
     socketio.emit(event, payload, room=current_app.config["SURVEILLANCE_ROOM"])
 
 

@@ -83,6 +83,14 @@ def register_socket_events():
             log.debug("Connexion temps réel anonyme (aucune donnée transmise)")
             return
         join_room(current_app.config["SURVEILLANCE_ROOM"])
+        # Alertes : les agents ne reçoivent que la version sans position ni données
+        # personnelles (+ la version complète des alertes qui leur sont affectées,
+        # dans leur salle personnelle).
+        if staff["role"] == "agent":
+            join_room(current_app.config["AGENTS_ROOM"])
+        else:
+            join_room(current_app.config["OPERATORS_ROOM"])
+        join_room(f"user_{staff['uid']}")
         with _lock:
             _sid_staff[request.sid] = staff
             _connected += 1

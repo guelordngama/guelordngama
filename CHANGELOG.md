@@ -2,6 +2,21 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.28.0] — 2026-10-10 — Un agent ne localise un citoyen qu'une fois affecté
+
+### Changé (confidentialité)
+- **Un agent non affecté ne peut plus localiser ni joindre le citoyen.** Il
+  voit toujours les alertes en cours (type, urgence, statut, progression),
+  mais **sans position GPS, adresse, quartier, téléphone, nom, description ni
+  médias**. Dès que l'opérateur lui affecte l'alerte, il reçoit la fiche
+  complète (et l'itinéraire). Appliqué **côté serveur** : API (liste, détail,
+  journal de l'intervention) et temps réel (salles séparées : le poste
+  opérateur / superviseur / admin reçoit la version complète, les agents la
+  version restreinte, l'agent affecté la complète dans sa salle personnelle).
+- **Portail agents** : la fiche d'une alerte non affectée affiche « 🔒 Position
+  et coordonnées du citoyen visibles uniquement une fois l'alerte affectée »,
+  sans boutons Localiser / Google Maps, et rien n'est placé sur la carte.
+
 ## [1.27.4] — 2026-10-09 — Render : plus de création de base par le Blueprint
 
 ### Corrigé
