@@ -1539,6 +1539,48 @@ def test_agent_cannot_locate_unassigned_alert():
     sock_agent1.disconnect(); sock_op.disconnect()
 
 
+def test_citizen_live_position_updates():
+    """Le citoyen qui se déplace après son signalement met à jour la position de
+    SON alerte (par référence) ; le centre la voit, l'agent non affecté non ;
+    refusé une fois l'alerte clôturée ou si la référence est inconnue."""
+    app, client = make_client()
+    ho = _tok(client, "operateur@safecity.local")
+    ha = _tok(client, "agent1@safecity.local")
+    a = client.post("/api/alerts", json={"type": "vol", "lat": -11.66, "lng": 27.48,
+                                         "reporter_phone": "+243812345678"}).get_json()
+    ref, aid = a["reference"], a["id"]
+    url = f"/api/alerts/track/{ref}/position"
+
+    r = client.post(url, json={"lat": -11.6610, "lng": 27.4810, "accuracy": 12})
+    assert r.status_code == 200 and r.get_json()["updated"] is True
+    full = client.get(f"/api/alerts/{aid}", headers=ho).get_json()
+    assert full["lat"] == -11.6610 and full["lng"] == 27.4810
+    assert full["gps_accuracy_m"] == 12 and full["position_updated_at"]
+    # Position identique : rien à mettre à jour.
+    assert client.post(url, json={"lat": -11.6610, "lng": 27.4810}).get_json()["updated"] is False
+    # L'agent non affecté ne voit toujours pas la position.
+    hidden = client.get(f"/api/alerts/{aid}", headers=ha).get_json()
+    assert hidden["lat"] is None and hidden["restricted"] is True
+    # Entrées invalides / inconnues.
+    assert client.post(url, json={"lat": 999, "lng": 27.4}).status_code == 400
+    assert client.post(url, json={"lng": 27.4}).status_code == 400
+    assert client.post("/api/alerts/track/SC-ZZZZZZ/position",
+                       json={"lat": -11.6, "lng": 27.4}).status_code == 404
+    # Distance recalculée depuis l'agent affecté lorsque le citoyen bouge.
+    _assign(client, aid, "agent1@safecity.local")
+    client.post("/api/agents/me/location", json={"lat": -11.70, "lng": 27.50}, headers=ha)
+    d1 = client.post(url, json={"lat": -11.6700, "lng": 27.4900}).get_json()
+    assert d1["updated"] is True
+    near = client.get(f"/api/alerts/{aid}", headers=ho).get_json()["distance_m"]
+    client.post(url, json={"lat": -11.6990, "lng": 27.4990})
+    nearer = client.get(f"/api/alerts/{aid}", headers=ho).get_json()["distance_m"]
+    assert nearer < near
+    # Alerte clôturée : le suivi s'arrête (409).
+    client.post(f"/api/alerts/{aid}/close", headers=ho)
+    closed = client.post(url, json={"lat": -11.5, "lng": 27.4})
+    assert closed.status_code == 409 and closed.get_json()["error"]["details"]["closed"] is True
+
+
 if __name__ == "__main__":
     passed = failed = 0
     for name, fn in sorted(globals().items()):

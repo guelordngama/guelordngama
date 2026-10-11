@@ -455,6 +455,7 @@
     const confirmFn = (window.SafeCityShell && window.SafeCityShell.confirmDialog) || window.confirm;
     const ok = await confirmFn(window.t ? window.t("auth.confirmLogout") : "Voulez-vous vous déconnecter ?");
     if (!ok) return;
+    stopLiveShare();
     clearAuth();
     refreshUserChip();
     $("login-password").value = "";
@@ -485,6 +486,7 @@
         headers: { "Authorization": "Bearer " + auth.token },
       });
       if (!res.ok) throw new Error("HTTP " + res.status);
+      stopLiveShare();
       clearAuth();
       refreshUserChip();
       alert("Votre compte et vos données personnelles ont été supprimés.");
@@ -1201,14 +1203,86 @@
               : tr("confirm.assigned", "🚓 Votre alerte a été prise en charge.");
           }
         }
-        if (st.status === "cloturee") stopTrackPoll();
+        if (st.status === "cloturee") { stopTrackPoll(); stopLiveShare("live.closed"); }
       } catch (e) { /* réseau : on retentera au prochain tick */ }
     };
     update();
     trackPoll = setInterval(update, 15000);
   }
 
-  let miniMap = null;
+  let miniMap = null, miniMarker = null;
+  // ---------------------------------------------------------------------- //
+  // Partage de position en direct après un signalement : si le citoyen se
+  // déplace, la position de SON alerte est mise à jour (centre + agent affecté).
+  // N'agit que sur l'alerte envoyée, s'arrête à la clôture, à la demande du
+  // citoyen, après 3 h ou à la déconnexion. (Ne touche pas à l'acquisition GPS
+  // de l'envoi : c'est un suivi séparé.)
+  // ---------------------------------------------------------------------- //
+  const LIVE_MAX_MS = 3 * 3600 * 1000;      // durée maximale du partage
+  const LIVE_MIN_MOVE_M = 20;               // déplacement minimal avant un envoi
+  const LIVE_MIN_GAP_MS = 8000;             // délai minimal entre deux envois
+  const LIVE_MAX_ACC_M = 100;               // positions trop imprécises ignorées
+  let live = null;                          // { ref, watchId, last:[lat,lng], lastAt, until, sentAt }
+
+  function liveStatus(text, stopped) {
+    const st = $("live-share-status"), box = $("live-share-box");
+    if (st) st.textContent = text || "";
+    if (box) box.classList.toggle("stopped", !!stopped);
+  }
+  function stopLiveShare(reasonKey) {
+    if (live && live.watchId != null && navigator.geolocation) {
+      navigator.geolocation.clearWatch(live.watchId);
+    }
+    live = null;
+    if (reasonKey) liveStatus(tr(reasonKey, "Partage arrêté."), true);
+    const b = $("btn-live-stop"); if (b) b.hidden = !!reasonKey;
+  }
+  async function sendLivePosition(pos) {
+    const l = live;
+    if (!l) return;
+    const lat = pos.coords.latitude, lng = pos.coords.longitude, acc = pos.coords.accuracy;
+    if (acc != null && acc > LIVE_MAX_ACC_M) return;
+    const now = Date.now();
+    if (now > l.until) return stopLiveShare("live.ended");
+    if (l.last && (distM(l.last, [lat, lng]) < LIVE_MIN_MOVE_M || now - l.sentAt < LIVE_MIN_GAP_MS)) return;
+    l.sentAt = now;                         // évite les envois simultanés
+    try {
+      const res = await fetch(API + "/api/alerts/track/" + encodeURIComponent(l.ref) + "/position", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lat: lat, lng: lng, accuracy: acc }),
+      });
+      if (res.status === 409 || res.status === 404) return stopLiveShare("live.closed");
+      if (!res.ok) return;                  // réseau / limite : on retentera au prochain mouvement
+      if (!live) return;
+      l.last = [lat, lng];
+      state.lat = lat; state.lng = lng; state.accuracy = acc;
+      if ($("cf-coords-val")) {
+        $("cf-coords-val").textContent = gpsSigned(lat, lng) + (acc != null ? "  (±" + Math.round(acc) + " m)" : "");
+      }
+      if (typeof miniMarker !== "undefined" && miniMarker) miniMarker.setLatLng([lat, lng]);
+      if (miniMap) miniMap.panTo([lat, lng]);
+      const t = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+      liveStatus(tr("live.updated", "Dernière mise à jour : {time}").replace("{time}", t), false);
+    } catch (e) { /* hors-ligne : prochain mouvement */ }
+  }
+  function startLiveShare(ref) {
+    stopLiveShare();
+    const box = $("live-share-box");
+    if (!ref || !navigator.geolocation) { if (box) box.hidden = true; return; }
+    live = { ref: ref, watchId: null, last: null, sentAt: 0,
+             until: Date.now() + LIVE_MAX_MS };
+    if (box) box.hidden = false;
+    const b = $("btn-live-stop"); if (b) b.hidden = false;
+    liveStatus(tr("live.waiting", "En attente de votre prochain déplacement…"), false);
+    if (state.lat != null) live.last = [state.lat, state.lng];
+    live.watchId = navigator.geolocation.watchPosition(sendLivePosition, (err) => {
+      if (err && err.code === 1) {         // autorisation refusée
+        stopLiveShare("live.denied");
+      }
+    }, { enableHighAccuracy: true, maximumAge: 5000, timeout: 30000 });
+  }
+  if ($("btn-live-stop")) $("btn-live-stop").addEventListener("click", () => stopLiveShare("live.stoppedByUser"));
+
   function showConfirmation(alert) {
     const sub = document.querySelector("#screen-confirm .confirm-sub");
     if (sub) sub.textContent = "Le centre de surveillance a bien reçu votre signalement.";
@@ -1234,6 +1308,8 @@
     show("confirm");
     // Affiche la référence et démarre le suivi en direct de l'avancement.
     startConfirmTracking(alert.reference);
+    // Position approximative (GPS indisponible) : pas de suivi, il serait faux.
+    if (!approx) startLiveShare(alert.reference); else stopLiveShare();
 
     // Carte Leaflet centrée sur l'alerte.
     setTimeout(() => {
@@ -1249,7 +1325,8 @@
       } else {
         miniMap.setView([alert.lat, alert.lng], 15);
       }
-      L.marker([alert.lat, alert.lng]).addTo(miniMap)
+      if (miniMarker) miniMarker.remove();
+      miniMarker = L.marker([alert.lat, alert.lng]).addTo(miniMap)
         .bindPopup(capitalize(alert.type) + " — " + (alert.neighborhood || ""))
         .openPopup();
       miniMap.invalidateSize();

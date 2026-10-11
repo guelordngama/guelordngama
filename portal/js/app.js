@@ -967,7 +967,9 @@
     const a = myMission();
     if (!a) { if (routeKey) { routeKey = null; state.live.setMyRoute(null, null); } return; }
     if (!state.selfPos) return;
-    const key = a.id + ":" + state.selfPos[0].toFixed(3) + "," + state.selfPos[1].toFixed(3);
+    // La clé inclut la position du citoyen : s'il se déplace, le trajet est recalculé.
+    const key = a.id + ":" + state.selfPos[0].toFixed(3) + "," + state.selfPos[1].toFixed(3) +
+      ">" + Number(a.lat).toFixed(4) + "," + Number(a.lng).toFixed(4);
     if ((!force && key === routeKey) || routeBusy) return;
     routeBusy = true;
     try {

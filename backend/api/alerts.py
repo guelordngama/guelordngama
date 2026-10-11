@@ -2,11 +2,11 @@
 clôture (opérateur)."""
 from flask import Blueprint, current_app, g, jsonify, request
 
-from ..security import require_auth
+from ..security import rate_limit, require_auth
 from ..services import alerts as alerts_service
 from ..services import audit
 from ..services import stats as stats_service
-from ..validation import validate_alert_payload, validate_team_id
+from ..validation import validate_alert_payload, validate_coordinates, validate_team_id
 
 bp = Blueprint("alerts", __name__, url_prefix="/api/alerts")
 
@@ -67,6 +67,24 @@ def track(ref):
     if status is None:
         return jsonify({"error": {"message": "Référence introuvable"}}), 404
     return jsonify(status)
+
+
+@bp.post("/track/<ref>/position")
+@rate_limit(40, 60, scope="citizen_position")
+def citizen_position(ref):
+    """Le citoyen qui se déplace envoie sa nouvelle position (suivi en direct).
+    Public mais protégé par la référence de l'alerte (non devinable) ; limité à
+    40 envois/min par appareil ; refusé (409) une fois l'alerte clôturée."""
+    data = request.get_json(silent=True) or {}
+    lat, lng = validate_coordinates(data.get("lat"), data.get("lng"))
+    acc = data.get("accuracy")
+    try:
+        acc = float(acc) if acc is not None else None
+    except (TypeError, ValueError):
+        acc = None
+    if acc is not None and not (0 <= acc <= 5000):
+        acc = None
+    return jsonify(alerts_service.update_citizen_position(ref, lat, lng, acc))
 
 
 @bp.get("/<int:alert_id>")

@@ -2,6 +2,33 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.29.0] — 2026-10-11 — Position du citoyen mise à jour pendant ses déplacements
+
+### Ajouté
+- **Suivi de position après un signalement** (application citoyenne) : si le
+  citoyen se déplace après avoir envoyé son alerte, la position de **son**
+  alerte est mise à jour automatiquement (à partir d'environ 20 m de
+  déplacement, au plus un envoi toutes les 8 s, positions trop imprécises
+  ignorées). Le **poste opérateur** et l'**agent affecté** voient la nouvelle
+  position en direct ; la distance / durée d'arrivée est recalculée, et
+  l'adresse (quartier, avenue) est relue après un déplacement notable. Un agent
+  non affecté ne voit toujours aucune position (1.28.0).
+- Sur l'écran de confirmation : carte « 📍 Position partagée en direct » avec
+  la dernière mise à jour et le bouton **Arrêter le partage** (traduit FR /
+  Kiswahili / Lingala).
+- **Fin du partage** : à la clôture de l'alerte, à la demande du citoyen, à la
+  déconnexion, au lancement d'une nouvelle alerte, si la localisation est
+  refusée, ou au bout de 3 h. Pas de partage si la position envoyée était
+  approximative. Il s'arrête aussi si la page est fermée ou rechargée (une page
+  web ne peut pas suivre en arrière-plan écran verrouillé).
+- API : `POST /api/alerts/track/<référence>/position` (public mais protégé par
+  la référence non devinable ; 40 envois/min par appareil ; 409 une fois
+  l'alerte clôturée). Nouveau champ `position_updated_at`.
+
+### Migration
+- `d2f6b8a0c4e1` : ajoute `position_updated_at` aux alertes (appliquée au
+  démarrage du serveur).
+
 ## [1.28.0] — 2026-10-10 — Un agent ne localise un citoyen qu'une fois affecté
 
 ### Changé (confidentialité)

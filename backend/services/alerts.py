@@ -297,6 +297,56 @@ def create_alert(data):
     return payload
 
 
+# Suivi en direct : on ne re-géocode (adresse/quartier) qu'après un déplacement
+# notable, pour rester dans la limite d'usage du service d'adresses.
+_REGEOCODE_MOVE_M = 150
+
+
+def update_citizen_position(reference, lat, lng, accuracy=None):
+    """Le citoyen se déplace après son signalement : met à jour la position de
+    SON alerte (identifiée par sa référence publique non devinable) et prévient
+    le centre / l'agent affecté. Refusé une fois l'alerte clôturée."""
+    from ..errors import ConflictError
+
+    alert = Alert.query.filter_by(public_ref=(reference or "").strip().upper()).first()
+    if not alert:
+        raise NotFoundError("Référence introuvable.")
+    if alert.status == "cloturee" or alert.false_alarm:
+        raise ConflictError("Cette alerte est clôturée : le suivi de position est terminé.",
+                            details={"closed": True})
+    moved = (haversine_m(alert.lat, alert.lng, lat, lng)
+             if alert.lat is not None and alert.lng is not None else None)
+    if moved is not None and moved < 1:
+        return {"updated": False, "moved_m": 0}      # position inchangée
+    prev_lat, prev_lng = alert.lat, alert.lng
+    alert.lat, alert.lng = lat, lng
+    alert.gps_accuracy_m = accuracy
+    alert.position_approx = False
+    alert.position_manual = False
+    alert.position_updated_at = datetime.utcnow()
+    # Distance / temps d'arrivée recalculés depuis l'agent affecté (ou la patrouille).
+    agent = alert.assigned_agent
+    if agent is not None and agent.lat is not None and agent.lng is not None:
+        dist, moto, walk = compute_intervention(agent.lat, agent.lng, lat, lng)
+        alert.distance_m, alert.eta_moto_min, alert.eta_walk_min = dist, moto, walk
+    elif alert.assigned_team is not None:
+        dist, moto, walk = compute_intervention(
+            alert.assigned_team.patrol_lat, alert.assigned_team.patrol_lng, lat, lng)
+        alert.distance_m, alert.eta_moto_min, alert.eta_walk_min = dist, moto, walk
+    db.session.commit()
+    # Un doublon n'a pas de fiche propre à l'écran : on met à jour l'incident principal.
+    shown = alert.primary if (alert.duplicate_of_id and alert.primary) else alert
+    _emit("alert_updated", attach_reporter_flags([shown.to_dict()])[0])
+    if current_app.config.get("GEOCODING_ENABLED", True) and (
+            prev_lat is None or haversine_m(prev_lat, prev_lng, lat, lng) >= _REGEOCODE_MOVE_M):
+        app = current_app._get_current_object()
+        try:
+            socketio.start_background_task(_enrich_location, app, alert.id, lat, lng)
+        except Exception:  # pragma: no cover
+            _enrich_location(app, alert.id, lat, lng)
+    return {"updated": True, "moved_m": round(moved or 0)}
+
+
 def list_alerts(filters=None, page=1, page_size=50):
     """Liste filtrée + paginée des alertes.
 

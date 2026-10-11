@@ -187,6 +187,9 @@ class Alert(TimestampMixin, db.Model):
     # -> agent en route -> sur place -> résolue. Purement additif / affichage.
     stage = db.Column(db.String(20), default="received", nullable=False)
     arrived_at = db.Column(db.DateTime)   # agent arrivé sur les lieux
+    # Dernière mise à jour de la position par le citoyen qui se déplace après
+    # son signalement (suivi en direct) ; NULL = position envoyée à la création.
+    position_updated_at = db.Column(db.DateTime)
 
     # Fausse alerte : qualifiée par un opérateur, MOTIF OBLIGATOIRE (traçabilité),
     # annulable uniquement par un superviseur / administrateur.
@@ -299,6 +302,7 @@ class Alert(TimestampMixin, db.Model):
             "stage": self.stage,
             "stage_label": self.STAGE_LABELS.get(self.stage, self.stage),
             "arrived_at": _iso(self.arrived_at),
+            "position_updated_at": _iso(self.position_updated_at),
             "progress_steps": self.progress_steps(),
             "assigned_team": self.assigned_team.to_dict() if self.assigned_team else None,
             "assigned_agent": (
