@@ -127,7 +127,34 @@ def track_alert(reference):
     incident = alert.primary if (alert.duplicate_of_id and alert.primary) else alert
     status = incident.public_status()
     status["reference"] = alert.public_ref
+    status["agent_live"] = _agent_live(incident, alert)
     return status
+
+
+_AGENT_LIVE_MAX_AGE_S = 600   # au-delà, la position de l'agent est jugée périmée
+
+
+def _agent_live(incident, alert):
+    """Position de l'agent en route, visible par le citoyen QUI A SIGNALÉ.
+
+    Uniquement tant que l'intervention est en cours (alerte affectée, non
+    clôturée) et que l'agent a donné sa position récemment. Aucun nom complet ni
+    contact : seulement un point sur la carte et un temps d'arrivée estimé
+    depuis la position (à jour) du citoyen. None sinon.
+    """
+    agent = incident.assigned_agent
+    if (agent is None or incident.status != "assignee" or agent.lat is None
+            or agent.lng is None or agent.last_seen is None
+            or alert.lat is None or alert.lng is None):
+        return None
+    age = (datetime.utcnow() - agent.last_seen).total_seconds()
+    if age > _AGENT_LIVE_MAX_AGE_S:
+        return None
+    dist, moto, _walk = compute_intervention(agent.lat, agent.lng, alert.lat, alert.lng)
+    on_site = incident.stage == "on_site" or dist < 40
+    return {"lat": round(agent.lat, 5), "lng": round(agent.lng, 5),
+            "distance_m": round(dist), "eta_min": 0 if on_site else max(1, round(moto)),
+            "on_site": bool(on_site), "age_s": round(age)}
 
 
 def _find_duplicate_primary(alert_type, lat, lng):

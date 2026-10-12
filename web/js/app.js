@@ -1166,6 +1166,46 @@
     });
   }
 
+  // ---- Suivi de l'agent en route : carte + temps estimé (comme un taxi) ----
+  let agentMarker = null, lastAgentLive = null, agentFitted = false;
+  function fmtDist(m) {
+    return m < 1000 ? m + " m" : (m / 1000).toFixed(1).replace(".", ",") + " km";
+  }
+  function drawAgentOnMap() {
+    if (!miniMap) return;
+    const a = lastAgentLive;
+    if (!a) { if (agentMarker) { agentMarker.remove(); agentMarker = null; } return; }
+    const ll = [a.lat, a.lng];
+    if (agentMarker) agentMarker.setLatLng(ll);
+    else agentMarker = L.marker(ll, { icon: L.divIcon({ className: "agent-marker", html: "🚓",
+      iconSize: [28, 28], iconAnchor: [14, 14] }), keyboard: false, zIndexOffset: 500 }).addTo(miniMap);
+    if (!agentFitted && miniMarker) {   // cadrage une seule fois : le citoyen peut ensuite bouger la carte
+      agentFitted = true;
+      try { miniMap.fitBounds(L.latLngBounds([ll, miniMarker.getLatLng()]), { padding: [40, 40], maxZoom: 17 }); } catch (e) {}
+    }
+  }
+  function renderAgentLive(a, firstName) {
+    lastAgentLive = a || null;
+    const box = $("agent-live-box");
+    if (!box) return;
+    box.hidden = !a;
+    if (a) {
+      const name = firstName || tr("agent.fallback", "Agent");
+      box.classList.toggle("onsite", !!a.on_site);
+      $("agent-live-title").textContent = a.on_site ? tr("agent.onSite", "L’agent est sur place")
+        : tr("agent.enRoute", "{name} est en route vers vous").replace("{name}", name);
+      $("agent-live-sub").textContent = a.on_site ? ""
+        : tr("agent.distance", "à {dist} de vous").replace("{dist}", fmtDist(a.distance_m));
+      $("agent-live-eta").textContent = a.on_site ? "✅"
+        : tr("agent.eta", "Arrivée estimée dans environ {min} min").replace("{min}", a.eta_min);
+    }
+    if (a) {   // garde les lignes « Distance / Temps estimé » cohérentes avec le suivi en direct
+      $("cf-distance").textContent = a.distance_m + " m";
+      $("cf-eta").textContent = a.eta_min + " min";
+    }
+    drawAgentOnMap();
+  }
+
   let trackPoll = null;      // intervalle de rafraîchissement du suivi (confirm)
   function stopTrackPoll() {
     if (trackPoll) { clearInterval(trackPoll); trackPoll = null; }
@@ -1181,6 +1221,7 @@
   // les 15 s tant que l'alerte n'est pas résolue (repli si le socket est bloqué).
   function startConfirmTracking(ref) {
     stopTrackPoll();
+    agentFitted = false; lastAgentLive = null; renderAgentLive(null);
     if (!ref) return;
     const box = $("cf-ref-box");
     $("cf-ref").textContent = ref;
@@ -1203,11 +1244,12 @@
               : tr("confirm.assigned", "🚓 Votre alerte a été prise en charge.");
           }
         }
+        renderAgentLive(st.status === "cloturee" ? null : st.agent_live, st.agent_first_name);
         if (st.status === "cloturee") { stopTrackPoll(); stopLiveShare("live.closed"); }
       } catch (e) { /* réseau : on retentera au prochain tick */ }
     };
     update();
-    trackPoll = setInterval(update, 15000);
+    trackPoll = setInterval(update, 10000);
   }
 
   let miniMap = null, miniMarker = null;
@@ -1330,6 +1372,7 @@
         .bindPopup(capitalize(alert.type) + " — " + (alert.neighborhood || ""))
         .openPopup();
       miniMap.invalidateSize();
+      drawAgentOnMap();
     }, 100);
   }
 

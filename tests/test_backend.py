@@ -1659,3 +1659,45 @@ def test_push_subscription_and_assignment_notification(monkeypatch):
     from backend.models import PushSubscription
     with app.app_context():
         assert PushSubscription.query.count() == 0
+
+
+def test_citizen_sees_assigned_agent_live():
+    """Suivi « taxi » : le citoyen voit la position et le temps d'arrivée de
+    l'agent affecté — jamais avant l'affectation, jamais après la clôture, et
+    sans nom complet ni contact."""
+    app, client = make_client()
+    ha1 = _tok(client, "agent1@safecity.local")
+    ho = _tok(client, "operateur@safecity.local")
+    a = client.post("/api/alerts", json={
+        "type": "vol", "description": "sac volé", "lat": -11.6600, "lng": 27.4800,
+        "reporter_name": "Jean", "reporter_phone": "+243812345678"}).get_json()
+    ref = a["reference"]
+
+    assert client.get(f"/api/alerts/track/{ref}").get_json()["agent_live"] is None  # pas affecté
+
+    _assign(client, a["id"], "agent1@safecity.local")
+    client.post("/api/agents/me/location", json={"lat": -11.6700, "lng": 27.4800}, headers=ha1)
+    live = client.get(f"/api/alerts/track/{ref}").get_json()["agent_live"]
+    assert live and live["lat"] == -11.67 and live["eta_min"] >= 1 and not live["on_site"]
+    assert 1000 < live["distance_m"] < 1200
+    assert set(live) == {"lat", "lng", "distance_m", "eta_min", "on_site", "age_s"}
+
+    # L'agent se rapproche : l'estimation baisse.
+    client.post("/api/agents/me/location", json={"lat": -11.6603, "lng": 27.4800}, headers=ha1)
+    near = client.get(f"/api/alerts/track/{ref}").get_json()["agent_live"]
+    assert near["on_site"] and near["eta_min"] == 0
+
+    # Position périmée : on ne montre plus rien (pas de fausse information).
+    from datetime import datetime, timedelta
+    from backend.extensions import db
+    from backend.models import User
+    with app.app_context():
+        u = User.query.filter_by(email="agent1@safecity.local").first()
+        u.last_seen = datetime.utcnow() - timedelta(minutes=30)
+        db.session.commit()
+    assert client.get(f"/api/alerts/track/{ref}").get_json()["agent_live"] is None
+
+    # Clôturée : plus de suivi.
+    client.post("/api/agents/me/location", json={"lat": -11.67, "lng": 27.48}, headers=ha1)
+    client.post(f"/api/alerts/{a['id']}/close", json={}, headers=ho)
+    assert client.get(f"/api/alerts/track/{ref}").get_json()["agent_live"] is None

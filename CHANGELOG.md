@@ -2,6 +2,24 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.31.0] — 2026-10-12 — Suivi de l'agent côté citoyen (comme un taxi)
+
+### Ajouté
+- Une fois l'alerte affectée, le citoyen voit sur sa carte **l'agent qui arrive**
+  (🚓) avec la **distance** et le **temps d'arrivée estimé**, mis à jour toutes
+  les 10 s. À l'approche (moins de 40 m) : « L'agent est sur place ».
+- L'estimation part de la position **à jour** du citoyen (voir 1.29.0) et de la
+  dernière position de l'agent ; les lignes « Distance / Temps estimé » de
+  l'écran restent cohérentes.
+- Textes en français, swahili et lingala.
+
+### Confidentialité
+- Visible uniquement par le citoyen qui a signalé (via sa référence de suivi),
+  **pas avant l'affectation, plus après la clôture** (ou fausse alerte).
+- Seulement un point sur la carte et le prénom de l'agent : ni nom complet, ni
+  téléphone. Position masquée si l'agent n'a pas donné sa position depuis plus
+  de 10 minutes (pas de fausse information).
+
 ## [1.30.0] — 2026-10-12 — Notifications push pour les agents
 
 ### Ajouté
