@@ -129,6 +129,11 @@ class Config:
     NOTIFY_URGENCY_LEVELS = {
         s.strip() for s in os.environ.get("SAFECITY_NOTIFY_LEVELS", "haute,critique").split(",") if s.strip()
     }
+    # Notifications push (Web Push / VAPID). Clés dérivées de SECRET_KEY si
+    # SAFECITY_VAPID_PRIVATE_KEY (PEM) n'est pas défini.
+    VAPID_PRIVATE_KEY = os.environ.get("SAFECITY_VAPID_PRIVATE_KEY")
+    VAPID_SUBJECT = os.environ.get("SAFECITY_VAPID_SUBJECT", "mailto:contact@safecity.local")
+
     # E-mail (SMTP) — actif si SAFECITY_SMTP_HOST est défini.
     SMTP_HOST = os.environ.get("SAFECITY_SMTP_HOST")
     SMTP_PORT = int(os.environ.get("SAFECITY_SMTP_PORT", "587"))

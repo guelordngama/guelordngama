@@ -495,7 +495,22 @@ def assign_agent(alert_id, agent_id):
     payload = alert.to_dict()
     _emit("alert_updated", payload)
     _emit("agent_updated", agent.to_dict(with_tracking=True))
+    _push_assignment(agent, alert)
     return payload
+
+
+def _push_assignment(agent, alert):
+    """Prévient l'agent par notification push (même portail fermé). Ne bloque jamais."""
+    try:
+        from . import push
+
+        place = alert.neighborhood or alert.commune or alert.address or "position à ouvrir"
+        push.notify_user(
+            agent.id, "🚨 Nouvelle mission SafeCity",
+            f"{(alert.type or 'alerte').capitalize()} — {place}",
+            url="/portal/", tag=f"alert-{alert.public_ref}")
+    except Exception as e:  # une panne de notification ne doit jamais bloquer l'affectation
+        log.warning("Notification push non envoyée : %s", e)
 
 
 def accept_intervention(alert_id, agent):

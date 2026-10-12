@@ -2,6 +2,27 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.30.0] — 2026-10-12 — Notifications push pour les agents
+
+### Ajouté
+- **Notification push de mission** : quand l'opérateur affecte une alerte à un
+  agent, celui-ci reçoit une notification sur son téléphone **même portail
+  fermé et écran verrouillé** (vibration, reste affichée jusqu'au toucher).
+  Toucher la notification ouvre le portail.
+- Bouton 🔔 / 🔕 dans l'en-tête du portail pour activer ou couper les
+  notifications ; l'abonnement se fait aussi automatiquement à la connexion si
+  l'autorisation est déjà accordée. À la déconnexion, l'appareil est désabonné.
+- Web Push standard (VAPID, chiffrement RFC 8291) implémenté sans dépendance
+  supplémentaire. Les clés sont dérivées de `SAFECITY_SECRET_KEY` (ou fournies
+  via `SAFECITY_VAPID_PRIVATE_KEY`) : aucun réglage requis sur Render.
+- Migration `e3a7c9b1d5f2` (table `push_subscriptions`) ; routes
+  `/api/push/key`, `/api/push/subscribe`, `/api/push/unsubscribe`.
+
+### Notes
+- Les abonnements expirés sont supprimés automatiquement. Une panne de
+  notification ne bloque jamais l'affectation.
+- iPhone : le portail doit d'abord être ajouté à l'écran d'accueil.
+
 ## [1.29.0] — 2026-10-11 — Position du citoyen mise à jour pendant ses déplacements
 
 ### Ajouté

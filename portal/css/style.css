@@ -338,3 +338,4 @@ input:focus, select:focus { outline: none; border-color: var(--blue); box-shadow
 
 /* Alerte non affectée : position et contact du citoyen masqués. */
 .fiche-lock { margin: 8px 0 2px; padding: 8px 10px; border-radius: 10px; background: var(--card-2, #f1f5f9); color: var(--muted, #64748b); font-size: 12.5px; }
+#btn-push.on { background: #dcfce7; border-color: #16a34a; }

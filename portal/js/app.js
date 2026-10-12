@@ -145,7 +145,7 @@
     unlockAudio();  // le clic « Se connecter » débloque le son (autoplay)
     try {
       if ("Notification" in window && Notification.permission === "default") {
-        Notification.requestPermission();  // notifications système (arrière-plan)
+        Notification.requestPermission().then(() => { if (state.token) enablePush(false); });
       }
     } catch (e) {}
     const btn = $("btn-login");
@@ -195,7 +195,65 @@
     }
   });
 
-  $("btn-logout").addEventListener("click", () => location.reload());
+  // ---- Notifications push (mission reçue même portail fermé / écran verrouillé) ----
+  const pushSupported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+  function b64ToBytes(b64) {
+    const pad = "=".repeat((4 - (b64.length % 4)) % 4);
+    const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
+    return Uint8Array.from(raw, (c) => c.charCodeAt(0));
+  }
+  async function pushRegistration() {
+    return navigator.serviceWorker.register("sw.js", { scope: "./" })
+      .then(() => navigator.serviceWorker.ready);
+  }
+  function updatePushButton(active) {
+    const b = $("btn-push");
+    if (!b || !pushSupported) return;
+    b.hidden = false;
+    b.textContent = active ? "🔔" : "🔕";
+    b.classList.toggle("on", !!active);
+    b.title = active ? "Notifications de mission activées" : "Activer les notifications de mission";
+  }
+  // askPermission=true uniquement sur un geste de l'agent (clic).
+  async function enablePush(askPermission) {
+    if (!pushSupported) return;
+    try {
+      if (Notification.permission === "default" && askPermission) await Notification.requestPermission();
+      if (Notification.permission !== "granted") { updatePushButton(false); return; }
+      const reg = await pushRegistration();
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) {
+        const { key } = await api("GET", "/api/push/key");
+        sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(key) });
+      }
+      await api("POST", "/api/push/subscribe", sub.toJSON());
+      updatePushButton(true);
+    } catch (e) {
+      console.warn("Notifications push indisponibles :", e);
+      updatePushButton(false);
+    }
+  }
+  async function disablePush() {
+    try {
+      const reg = await navigator.serviceWorker.getRegistration("./");
+      const sub = reg && await reg.pushManager.getSubscription();
+      if (sub) {
+        await api("POST", "/api/push/unsubscribe", { endpoint: sub.endpoint }).catch(() => {});
+        await sub.unsubscribe();
+      }
+    } catch (e) {}
+  }
+  $("btn-push").addEventListener("click", async () => {
+    if ($("btn-push").classList.contains("on")) { await disablePush(); updatePushButton(false); }
+    else if (Notification.permission === "denied") {
+      alert("Les notifications sont bloquées pour ce site. Autorisez-les dans les réglages du navigateur.");
+    } else await enablePush(true);
+  });
+
+  $("btn-logout").addEventListener("click", async () => {
+    await disablePush();   // l'appareil ne reçoit plus les missions de cet agent
+    location.reload();
+  });
 
   // ---- Démarrage ----
   function startApp() {
@@ -204,6 +262,7 @@
     try { initMap(); } catch (e) { console.warn("Carte indisponible :", e); }
     try { connectRealtime(); } catch (e) { console.warn("Temps réel indisponible :", e); }
     loadAlerts();
+    enablePush(false);
     try { startGeolocation(); } catch (e) {}
     loadAgentPositions();
     setInterval(loadAgentPositions, 30000);   // filet de sécurité si le temps réel coupe

@@ -1594,3 +1594,68 @@ if __name__ == "__main__":
                 failed += 1
     print(f"\n{passed} réussis, {failed} échoués")
     sys.exit(1 if failed else 0)
+
+
+def test_push_subscription_and_assignment_notification(monkeypatch):
+    """Web Push : abonnement réservé au personnel, chiffrement RFC 8291
+    déchiffrable côté navigateur, notification envoyée à l'agent affecté."""
+    import base64
+    import json as _json
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+    from backend.services import push
+
+    app, client = make_client()
+    ha1 = _tok(client, "agent1@safecity.local")
+
+    key = client.get("/api/push/key").get_json()["key"]
+    assert len(push._unb64(key)) == 65
+
+    # Un navigateur simulé (clés de l'appareil).
+    ua_priv = ec.generate_private_key(ec.SECP256R1())
+    ua_pub = ua_priv.public_key().public_bytes(
+        serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint)
+    auth = b"0123456789abcdef"
+    sub = {"endpoint": "https://push.example.test/abc",
+           "keys": {"p256dh": push._b64(ua_pub), "auth": push._b64(auth)}}
+
+    assert client.post("/api/push/subscribe", json=sub).status_code == 401
+    cit = client.post("/api/auth/register", json={
+        "name": "Cit", "email": "c@x.cd", "phone": "+243811111111", "password": "motdepasse1"})
+    assert client.post("/api/push/subscribe", json={**sub, "endpoint": "http://x"},
+                       headers=ha1).status_code == 400
+    assert client.post("/api/push/subscribe", json=sub, headers=ha1).status_code == 200
+    assert client.post("/api/push/subscribe", json=sub, headers=ha1).status_code == 200  # idempotent
+
+    # Déchiffrement côté « navigateur » du message produit par le serveur.
+    with app.app_context():
+        body = push.encrypt(b'{"title":"ok"}', sub["keys"]["p256dh"], sub["keys"]["auth"])
+    salt, as_pub = body[:16], body[21:21 + body[20]]
+    secret = ua_priv.exchange(ec.ECDH(), ec.EllipticCurvePublicKey.from_encoded_point(
+        ec.SECP256R1(), as_pub))
+    prk = HKDF(hashes.SHA256(), 32, auth, b"WebPush: info\x00" + ua_pub + as_pub).derive(secret)
+    cek = HKDF(hashes.SHA256(), 16, salt, b"Content-Encoding: aes128gcm\x00").derive(prk)
+    nonce = HKDF(hashes.SHA256(), 12, salt, b"Content-Encoding: nonce\x00").derive(prk)
+    assert AESGCM(cek).decrypt(nonce, body[21 + body[20]:], None) == b'{"title":"ok"}\x02'
+
+    # L'affectation par l'opérateur déclenche la notification vers l'agent.
+    sent = []
+    monkeypatch.setattr(push, "_send_one", lambda s, b: sent.append((s["endpoint"], _json.loads(b))) or 201)
+    a = client.post("/api/alerts", json={
+        "type": "vol", "description": "sac volé", "lat": -11.66, "lng": 27.48,
+        "reporter_name": "Jean", "reporter_phone": "+243812345678"}).get_json()
+    _assign(client, a["id"], "agent1@safecity.local")
+    assert len(sent) == 1 and sent[0][0] == sub["endpoint"]
+    assert "mission" in sent[0][1]["title"].lower()
+
+    # Un abonnement expiré (410) est purgé.
+    monkeypatch.setattr(push, "_send_one", lambda s, b: 410)
+    b = client.post("/api/alerts", json={
+        "type": "vol", "description": "autre", "lat": -11.67, "lng": 27.49,
+        "reporter_name": "Jean", "reporter_phone": "+243812345678"}).get_json()
+    _assign(client, b["id"], "agent1@safecity.local")
+    from backend.models import PushSubscription
+    with app.app_context():
+        assert PushSubscription.query.count() == 0

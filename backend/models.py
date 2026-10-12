@@ -422,3 +422,15 @@ def local_str(dt, fmt):
 
 def _iso(dt):
     return dt.isoformat() if dt else None
+
+
+class PushSubscription(TimestampMixin, db.Model):
+    """Abonnement Web Push d'un appareil (notifications même écran verrouillé)."""
+
+    __tablename__ = "push_subscriptions"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    endpoint = db.Column(db.Text, nullable=False, unique=True)
+    p256dh = db.Column(db.String(200), nullable=False)
+    auth = db.Column(db.String(100), nullable=False)
