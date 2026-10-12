@@ -77,6 +77,7 @@
   };
 
   function show(name) {
+    if (name !== "track" && typeof stopTrackLookupPoll === "function") stopTrackLookupPoll();
     Object.values(screens).forEach((s) => s.classList.remove("active"));
     screens[name].classList.add("active");
   }
@@ -1167,43 +1168,51 @@
   }
 
   // ---- Suivi de l'agent en route : carte + temps estimé (comme un taxi) ----
-  let agentMarker = null, lastAgentLive = null, agentFitted = false;
+  // Deux vues partagent le même rendu : l'écran de confirmation et « Suivre une alerte ».
+  const confirmAgentView = { pfx: "agent-live", marker: null, last: null, fitted: false,
+    map: () => miniMap, target: () => miniMarker && miniMarker.getLatLng() };
+  const trackAgentView = { pfx: "tk-agent-live", marker: null, last: null, fitted: false,
+    map: () => trackMap, target: () => (trackMap && trackTarget) || null };
+  let trackMap = null, trackTarget = null, trackLookupPoll = null, trackLookupRef = null;
+
   function fmtDist(m) {
     return m < 1000 ? m + " m" : (m / 1000).toFixed(1).replace(".", ",") + " km";
   }
-  function drawAgentOnMap() {
-    if (!miniMap) return;
-    const a = lastAgentLive;
-    if (!a) { if (agentMarker) { agentMarker.remove(); agentMarker = null; } return; }
+  function drawAgentOnMap(v) {
+    const map = v.map();
+    if (!map) return;
+    const a = v.last;
+    if (!a) { if (v.marker) { v.marker.remove(); v.marker = null; } return; }
     const ll = [a.lat, a.lng];
-    if (agentMarker) agentMarker.setLatLng(ll);
-    else agentMarker = L.marker(ll, { icon: L.divIcon({ className: "agent-marker", html: "🚓",
-      iconSize: [28, 28], iconAnchor: [14, 14] }), keyboard: false, zIndexOffset: 500 }).addTo(miniMap);
-    if (!agentFitted && miniMarker) {   // cadrage une seule fois : le citoyen peut ensuite bouger la carte
-      agentFitted = true;
-      try { miniMap.fitBounds(L.latLngBounds([ll, miniMarker.getLatLng()]), { padding: [40, 40], maxZoom: 17 }); } catch (e) {}
+    if (v.marker) v.marker.setLatLng(ll);
+    else v.marker = L.marker(ll, { icon: L.divIcon({ className: "agent-marker", html: "🚓",
+      iconSize: [28, 28], iconAnchor: [14, 14] }), keyboard: false, zIndexOffset: 500 }).addTo(map);
+    const target = v.target();
+    if (!v.fitted && target) {   // cadrage une seule fois : le citoyen peut ensuite bouger la carte
+      v.fitted = true;
+      try { map.fitBounds(L.latLngBounds([ll, target]), { padding: [40, 40], maxZoom: 17 }); } catch (e) {}
     }
   }
-  function renderAgentLive(a, firstName) {
-    lastAgentLive = a || null;
-    const box = $("agent-live-box");
+  function renderAgentLive(v, a, firstName) {
+    v.last = a || null;
+    const box = $(v.pfx + "-box");
     if (!box) return;
     box.hidden = !a;
     if (a) {
       const name = firstName || tr("agent.fallback", "Agent");
       box.classList.toggle("onsite", !!a.on_site);
-      $("agent-live-title").textContent = a.on_site ? tr("agent.onSite", "L’agent est sur place")
+      $(v.pfx + "-title").textContent = a.on_site ? tr("agent.onSite", "L’agent est sur place")
         : tr("agent.enRoute", "{name} est en route vers vous").replace("{name}", name);
-      $("agent-live-sub").textContent = a.on_site ? ""
+      $(v.pfx + "-sub").textContent = a.on_site ? ""
         : tr("agent.distance", "à {dist} de vous").replace("{dist}", fmtDist(a.distance_m));
-      $("agent-live-eta").textContent = a.on_site ? "✅"
+      $(v.pfx + "-eta").textContent = a.on_site ? "✅"
         : tr("agent.eta", "Arrivée estimée dans environ {min} min").replace("{min}", a.eta_min);
+      if (v === confirmAgentView) {   // garde « Distance / Temps estimé » cohérents avec le direct
+        $("cf-distance").textContent = a.distance_m + " m";
+        $("cf-eta").textContent = a.eta_min + " min";
+      }
     }
-    if (a) {   // garde les lignes « Distance / Temps estimé » cohérentes avec le suivi en direct
-      $("cf-distance").textContent = a.distance_m + " m";
-      $("cf-eta").textContent = a.eta_min + " min";
-    }
-    drawAgentOnMap();
+    drawAgentOnMap(v);
   }
 
   let trackPoll = null;      // intervalle de rafraîchissement du suivi (confirm)
@@ -1221,7 +1230,7 @@
   // les 15 s tant que l'alerte n'est pas résolue (repli si le socket est bloqué).
   function startConfirmTracking(ref) {
     stopTrackPoll();
-    agentFitted = false; lastAgentLive = null; renderAgentLive(null);
+    confirmAgentView.fitted = false; renderAgentLive(confirmAgentView, null);
     if (!ref) return;
     const box = $("cf-ref-box");
     $("cf-ref").textContent = ref;
@@ -1244,7 +1253,7 @@
               : tr("confirm.assigned", "🚓 Votre alerte a été prise en charge.");
           }
         }
-        renderAgentLive(st.status === "cloturee" ? null : st.agent_live, st.agent_first_name);
+        renderAgentLive(confirmAgentView, st.status === "cloturee" ? null : st.agent_live, st.agent_first_name);
         if (st.status === "cloturee") { stopTrackPoll(); stopLiveShare("live.closed"); }
       } catch (e) { /* réseau : on retentera au prochain tick */ }
     };
@@ -1372,7 +1381,7 @@
         .bindPopup(capitalize(alert.type) + " — " + (alert.neighborhood || ""))
         .openPopup();
       miniMap.invalidateSize();
-      drawAgentOnMap();
+      drawAgentOnMap(confirmAgentView);
     }, 100);
   }
 
@@ -1396,18 +1405,48 @@
     // sinon l'écran d'alerte.
     show($("cf-ref-box").hidden ? "alert" : "confirm");
   });
+  function stopTrackLookupPoll() {
+    if (trackLookupPoll) { clearInterval(trackLookupPoll); trackLookupPoll = null; }
+  }
+  // Affiche l'état d'une alerte retrouvée par sa référence ; rafraîchit le suivi
+  // de l'agent toutes les 10 s tant que l'écran reste ouvert.
+  function renderTrackResult(st, ref) {
+    $("tk-ref").textContent = st.reference || ref;
+    $("tk-type").textContent = st.type ? typeLabel(st.type) : "—";
+    $("tk-neighborhood").textContent = st.neighborhood || "—";
+    $("tk-agent").textContent = st.agent_first_name || "—";
+    renderTimeline($("tk-timeline"), st.steps, st.false_alarm);
+    const live = st.status === "cloturee" ? null : st.agent_live;
+    $("track-result").hidden = false;
+    $("tk-map-wrap").hidden = !live;
+    if (live) {
+      trackTarget = live.target ? [live.target.lat, live.target.lng] : null;
+      if (!trackMap) {
+        trackMap = L.map("tk-map").setView([live.lat, live.lng], 15);
+        L.tileLayer(API + "/tiles/v2/{z}/{x}/{y}.png", { attribution: "© OpenStreetMap",
+          maxZoom: 20, maxNativeZoom: 19 }).addTo(trackMap);
+      }
+      if (trackTarget && !trackMap._tkTarget) {
+        trackMap._tkTarget = L.marker(trackTarget).addTo(trackMap);
+      } else if (trackTarget) trackMap._tkTarget.setLatLng(trackTarget);
+      trackMap.invalidateSize();
+    }
+    renderAgentLive(trackAgentView, live, st.agent_first_name);
+    if (st.status === "cloturee") stopTrackLookupPoll();
+  }
   async function runTrackLookup() {
     const ref = ($("track-input").value || "").trim().toUpperCase();
     if (!ref) return;
     $("track-error").hidden = true;
+    stopTrackLookupPoll();
     try {
       const st = await fetchTrack(ref);
-      $("tk-ref").textContent = st.reference || ref;
-      $("tk-type").textContent = st.type ? typeLabel(st.type) : "—";
-      $("tk-neighborhood").textContent = st.neighborhood || "—";
-      $("tk-agent").textContent = st.agent_first_name || "—";
-      renderTimeline($("tk-timeline"), st.steps, st.false_alarm);
-      $("track-result").hidden = false;
+      if (ref !== trackLookupRef) { trackAgentView.fitted = false; trackLookupRef = ref; }
+      renderTrackResult(st, ref);
+      trackLookupPoll = setInterval(async () => {
+        if (!screens.track.classList.contains("active")) { stopTrackLookupPoll(); return; }
+        try { renderTrackResult(await fetchTrack(ref), ref); } catch (e) { /* réessaie au tick suivant */ }
+      }, 10000);
     } catch (e) {
       $("track-result").hidden = true;
       $("track-error").hidden = false;

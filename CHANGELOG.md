@@ -2,6 +2,17 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.31.1] — 2026-10-12 — Suivi de l'agent dans « Suivre une alerte »
+
+### Ajouté
+- L'écran **Suivre une alerte** (recherche par référence) affiche aussi l'agent
+  en route : carte avec l'agent 🚓 et le point du citoyen, distance et temps
+  d'arrivée estimé, rafraîchis toutes les 10 s tant que l'écran reste ouvert.
+  Disparaît à la clôture. Même rendu et mêmes règles de confidentialité que
+  l'écran de confirmation (1.31.0).
+- Le suivi renvoie le point du citoyen **arrondi à ~11 m**, uniquement tant que
+  l'agent est en route, pour cadrer la carte.
+
 ## [1.31.0] — 2026-10-12 — Suivi de l'agent côté citoyen (comme un taxi)
 
 ### Ajouté

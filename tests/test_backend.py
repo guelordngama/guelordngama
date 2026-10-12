@@ -1680,7 +1680,8 @@ def test_citizen_sees_assigned_agent_live():
     live = client.get(f"/api/alerts/track/{ref}").get_json()["agent_live"]
     assert live and live["lat"] == -11.67 and live["eta_min"] >= 1 and not live["on_site"]
     assert 1000 < live["distance_m"] < 1200
-    assert set(live) == {"lat", "lng", "distance_m", "eta_min", "on_site", "age_s"}
+    assert set(live) == {"lat", "lng", "distance_m", "eta_min", "on_site", "age_s", "target"}
+    assert live["target"] == {"lat": -11.66, "lng": 27.48}
 
     # L'agent se rapproche : l'estimation baisse.
     client.post("/api/agents/me/location", json={"lat": -11.6603, "lng": 27.4800}, headers=ha1)

@@ -154,7 +154,9 @@ def _agent_live(incident, alert):
     on_site = incident.stage == "on_site" or dist < 40
     return {"lat": round(agent.lat, 5), "lng": round(agent.lng, 5),
             "distance_m": round(dist), "eta_min": 0 if on_site else max(1, round(moto)),
-            "on_site": bool(on_site), "age_s": round(age)}
+            "on_site": bool(on_site), "age_s": round(age),
+            # Point du citoyen (arrondi ~11 m) pour cadrer la carte « Suivre une alerte ».
+            "target": {"lat": round(alert.lat, 4), "lng": round(alert.lng, 4)}}
 
 
 def _find_duplicate_primary(alert_type, lat, lng):
