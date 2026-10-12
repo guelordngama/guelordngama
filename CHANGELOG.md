@@ -2,6 +2,37 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.33.0] — 2026-10-13 — Zones à risque : carte de chaleur et rapports par commune
+
+### Ajouté
+- **Page « 🔥 Zones à risque »** (poste opérateur) : carte de chaleur des
+  incidents (pondérée par l'urgence), cinq **points chauds** numérotés (zones
+  d'environ 300 m), bilan par commune, et **recommandations d'affectation des
+  patrouilles** (ex. « Priorité n°1 — Kenya : 45 % des incidents, pic le soir… »,
+  « Le soir : Kenya concentre 79 % des incidents »). Filtres : période (7 j / 30 j
+  / 90 j / 1 an), type d'incident, tranche horaire (carte).
+- Bilan par commune : incidents, part du total, urgents, pic horaire, évolution
+  par rapport à la période précédente, quartier le plus touché, temps de
+  réponse, **niveau de risque relatif** (élevé / moyen / faible). Les 7 communes
+  de Lubumbashi figurent toujours, même à zéro.
+- **Rapport PDF « Zones à risque par commune »** à remettre à la mairie
+  (classement, tranches horaires, quartiers, carte de chaleur simplifiée,
+  recommandations).
+- Routes `/api/risk/heatmap`, `/api/risk/communes`, `/api/reports/communes`,
+  réservées au centre (opérateur / superviseur / admin) : les agents de terrain
+  n'y ont pas accès. Aucune donnée personnelle : positions arrondies, types,
+  urgences et heures seulement. Aucune migration.
+
+### Précisions
+- Seuls les **incidents réels** sont comptés : sans doublons, fausses alertes ni
+  alertes annulées par le citoyen.
+- Le nom de commune vient du géocodage de chaque alerte (« Commune de Kenya » est
+  rattachée à « Kenya ») ; les alertes sans commune sont regroupées sous « Non
+  localisée ».
+- Le rapport PDF général indiquait « par commune » pour des quartiers : libellé
+  corrigé (« par quartier »).
+- Menu : la page s'insère après « Rapports » ; Ctrl+0 reste la Messagerie.
+
 ## [1.32.0] — 2026-10-13 — Messages citoyen ↔ centre et annulation par le citoyen
 
 ### Ajouté

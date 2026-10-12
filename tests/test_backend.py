@@ -1793,3 +1793,64 @@ def test_cancel_keeps_incident_when_other_citizens_report_it():
     client.post(f"/api/alerts/track/{first['reference']}/cancel", json={"reason": "erreur"})
     d = client.get(f"/api/alerts/{first['id']}", headers=ho).get_json()
     assert d["status"] == "active" and d["cancelled_by_citizen"] is True
+
+
+def _seed_risk(app, client):
+    """Alertes réparties sur deux communes, à des heures différentes."""
+    from datetime import datetime, timedelta
+    from backend.extensions import db
+    from backend.models import Alert
+    spec = [("Kenya", "Luapula", "vol", "haute", -11.652, 27.501, 20),
+            ("Kenya", "Luapula", "vol", "critique", -11.6521, 27.5011, 20),
+            ("Commune de Kenya", "Luapula", "braquage", "moyenne", -11.6522, 27.5012, 20),
+            ("Kamalondo", "Bel-Air", "vol", "faible", -11.656, 27.464, 9)]
+    ids = []
+    for i, (commune, hood, typ, urg, lat, lng, hour_utc) in enumerate(spec):
+        a = _new_alert(client, lat + i * 0.01, lng + i * 0.01, typ, phone=f"+24381000000{i}")
+        ids.append(a["id"])
+    with app.app_context():
+        for aid, (commune, hood, typ, urg, lat, lng, hour_utc) in zip(ids, spec):
+            al = db.session.get(Alert, aid)
+            al.commune, al.neighborhood, al.urgency, al.lat, al.lng = commune, hood, urg, lat, lng
+            al.created_at = (datetime.utcnow() - timedelta(days=2)).replace(hour=hour_utc, minute=0)
+        db.session.commit()
+    return ids
+
+
+def test_risk_heatmap_and_communes_report():
+    app, client = make_client()
+    ho = _tok(client, "operateur@safecity.local")
+    ha = _tok(client, "agent1@safecity.local")
+    ids = _seed_risk(app, client)
+
+    assert client.get("/api/risk/communes").status_code == 401
+    assert client.get("/api/risk/communes", headers=ha).status_code == 403      # pas pour les agents
+    assert client.get("/api/risk/heatmap", headers=ha).status_code == 403
+
+    rep = client.get("/api/risk/communes?days=30", headers=ho).get_json()
+    by = {r["commune"]: r for r in rep["communes"]}
+    assert rep["total"] == 4 and len(rep["communes"]) >= 7                     # 7 communes toujours listées
+    assert by["Kenya"]["count"] == 3 and by["Kenya"]["rank"] == 1              # « Commune de Kenya » rattachée
+    assert by["Kenya"]["risk"] == "élevé" and by["Kenya"]["urgent"] == 2
+    assert by["Kenya"]["peak_band"] == "soir"                                  # 20 h UTC = 22 h locales
+    assert by["Kenya"]["top_neighborhoods"][0] == {"name": "Luapula", "count": 3}
+    assert by["Katuba"]["count"] == 0 and by["Katuba"]["risk"] == "faible"
+    assert any("Kenya" in r for r in rep["recommendations"])
+
+    # Fausse alerte et annulation citoyenne exclues ; l'ensemble reste cohérent.
+    client.post(f"/api/alerts/{ids[3]}/false-alarm", json={"reason": "canular test"}, headers=ho)
+    assert client.get("/api/risk/communes", headers=ho).get_json()["total"] == 3
+
+    heat = client.get("/api/risk/heatmap?days=30", headers=ho).get_json()
+    assert heat["total"] == 3 and len(heat["points"]) == 3
+    assert set(heat["points"][0]) == {"lat", "lng", "w", "type"}                # aucune donnée personnelle
+    assert heat["hotspots"][0]["label"] == "Luapula" and heat["hotspots"][0]["count"] >= 1
+    only = client.get("/api/risk/heatmap?type=braquage", headers=ho).get_json()
+    assert only["total"] == 1
+    assert client.get("/api/risk/communes?type=braquage", headers=ho).get_json()["total"] == 1
+    assert client.get("/api/risk/heatmap?band=matin", headers=ho).get_json()["total"] == 0
+    assert client.get("/api/risk/heatmap?days=abc", headers=ho).get_json()["days"] == 30
+
+    pdf = client.get("/api/reports/communes?days=30", headers=ho)
+    assert pdf.status_code == 200 and pdf.data[:4] == b"%PDF"
+    assert client.get("/api/reports/communes", headers=ha).status_code == 403

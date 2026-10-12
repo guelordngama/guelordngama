@@ -972,6 +972,187 @@ class AnalyticsPage(QWidget):
                 self.table.setItem(i, j, _item(text, color))
 
 
+class RiskPage(QWidget):
+    """Zones à risque : carte de chaleur + bilan par commune + recommandations
+    d'affectation de patrouilles (aide à la décision de la mairie)."""
+
+    request_load = Signal(int, str, str)    # jours, type, tranche horaire
+    request_pdf = Signal(int)
+    open_commune = Signal(str)
+
+    TYPES = [("Tous les types", ""), ("Vol", "vol"), ("Braquage", "braquage"), ("Incendie", "incendie"),
+             ("Accident", "accident"), ("Violence", "violence"), ("Autre", "autre")]
+    BANDS = [("Toute la journée", ""), ("Nuit (00h–06h)", "nuit"), ("Matin (06h–12h)", "matin"),
+             ("Après-midi (12h–18h)", "apres_midi"), ("Soir (18h–24h)", "soir")]
+    RISK_COLORS = {"élevé": "#dc2626", "moyen": "#f97316", "faible": "#16a34a"}
+
+    def __init__(self, api_base=None):
+        super().__init__()
+        self.api_base = api_base
+        self.ready = False
+        self._pending_heat = None
+        self._hotspots = []
+        scroll = QScrollArea(self); scroll.setWidgetResizable(True); scroll.setFrameShape(QScrollArea.NoFrame)
+        outer = QVBoxLayout(self); outer.setContentsMargins(0, 0, 0, 0); outer.addWidget(scroll)
+        content = QWidget(); scroll.setWidget(content)
+        root = QVBoxLayout(content)
+        root.setContentsMargins(24, 20, 24, 24); root.setSpacing(16)
+
+        from PySide6.QtWidgets import QComboBox
+
+        top = QHBoxLayout(); top.setSpacing(8)
+        info = QLabel("Où envoyer les patrouilles ? Incidents réels uniquement (hors doublons, fausses alertes et annulations).")
+        info.setObjectName("muted"); info.setWordWrap(True)
+        top.addWidget(info, 1)
+        self.period = QComboBox()
+        for lbl, val in [("7 jours", 7), ("30 jours", 30), ("90 jours", 90), ("1 an", 365)]:
+            self.period.addItem(lbl, val)
+        self.period.setCurrentIndex(1)
+        self.type = QComboBox()
+        for lbl, val in self.TYPES:
+            self.type.addItem(lbl, val)
+        self.band = QComboBox()
+        for lbl, val in self.BANDS:
+            self.band.addItem(lbl, val)
+        self.type.setToolTip("Filtre la carte, le bilan par commune et les recommandations")
+        self.band.setToolTip("Filtre la carte de chaleur uniquement (le bilan montre déjà toutes les tranches)")
+        for w in (self.period, self.type, self.band):
+            w.currentIndexChanged.connect(self._changed)
+            top.addWidget(w)
+        self.btn_pdf = QPushButton("📄 Rapport par commune (PDF)")
+        self.btn_pdf.clicked.connect(lambda: self.request_pdf.emit(self.period.currentData()))
+        top.addWidget(self.btn_pdf)
+        root.addLayout(top)
+
+        cards = QHBoxLayout(); cards.setSpacing(16)
+        self.k_total = StatCard("🚨", "Incidents réels", theme.ACCENT)
+        self.k_top = StatCard("🔥", "Commune la plus touchée", "#ef4444")
+        self.k_peak = StatCard("🕘", "Tranche horaire de pointe", "#f97316")
+        self.k_trend = StatCard("📈", "Évolution", "#a78bfa")
+        for c in (self.k_total, self.k_top, self.k_peak, self.k_trend):
+            cards.addWidget(c)
+        root.addLayout(cards)
+
+        self.card_map = Card("Carte de chaleur")
+        if WEBENGINE_AVAILABLE:
+            self.view = QWebEngineView()
+            self.view.setMinimumHeight(430)
+            self.view.loadFinished.connect(self._on_loaded)
+            self.view.load(QUrl.fromLocalFile(os.path.join(BASE_DIR, "risk_map.html")))
+            self.card_map.add(self.view)
+        else:
+            self.view = None
+            lbl = QLabel("Module carte (Qt WebEngine) indisponible : pip install PySide6-Addons")
+            lbl.setObjectName("muted")
+            self.card_map.add(lbl)
+        self.hot_label = QLabel("")
+        self.hot_label.setWordWrap(True)
+        self.hot_label.setObjectName("muted")
+        self.card_map.add(self.hot_label)
+        root.addWidget(self.card_map)
+
+        self.card_reco = Card("Recommandations pour les patrouilles")
+        self.reco = QLabel("—")
+        self.reco.setWordWrap(True)
+        self.reco.setTextFormat(Qt.RichText)
+        self.reco.setStyleSheet("font-size: 13px;")
+        self.card_reco.add(self.reco)
+        root.addWidget(self.card_reco)
+
+        title = QLabel("Bilan par commune")
+        title.setObjectName("sectionTitle")
+        root.addWidget(title)
+        self.table = _table(["#", "Commune", "Risque", "Incidents", "Part", "Urgents", "Pic horaire",
+                             "Tendance", "Quartier le plus touché", "Réponse moy."])
+        self.table.setMinimumHeight(300)
+        root.addWidget(self.table)
+        self.status = QLabel("")
+        self.status.setObjectName("muted")
+        root.addWidget(self.status)
+
+    def _changed(self, *_):
+        self.request_load.emit(self.period.currentData(), self.type.currentData(), self.band.currentData())
+
+    def reload(self):
+        self._changed()
+
+    def _on_loaded(self, ok):
+        self.ready = bool(ok)
+        if not ok:
+            return
+        if self.api_base:
+            import json
+
+            self.view.page().runJavaScript(f"window.setTileServer({json.dumps(self.api_base)});")
+        if self._pending_heat is not None:
+            self.set_heat(self._pending_heat)
+
+    def set_heat(self, heat):
+        import json
+
+        self._pending_heat = heat
+        self._hotspots = heat.get("hotspots", [])
+        if self.ready and self.view:
+            self.view.page().runJavaScript(f"window.setHeat({json.dumps(heat)});")
+        if self._hotspots:
+            self.hot_label.setText("Points chauds : " + "  ·  ".join(
+                f"{i}. {h['label']} ({h['count']})" for i, h in enumerate(self._hotspots[:5], 1)))
+        else:
+            self.hot_label.setText("Aucun incident localisé pour ces filtres.")
+
+    def set_report(self, rep):
+        rows = rep.get("communes", [])
+        total = rep.get("total", 0)
+        prev = rep.get("previous_total", 0)
+        self.k_total.set_value(total)
+        active = [r for r in rows if r["count"]]
+        self.k_top.set_value(active[0]["commune"] if active else "—")
+        bands = {}
+        for r in rows:
+            for k, v in r["by_band"].items():
+                bands[k] = bands.get(k, 0) + v
+        peak = max(bands, key=bands.get) if bands and max(bands.values()) else None
+        names = {v: l.split(" (")[0] for l, v in self.BANDS if v}
+        self.k_peak.set_value(names.get(peak, "—"))
+        if prev:
+            pct = round((total - prev) * 100 / prev)
+            self.k_trend.set_value(f"{'+' if pct > 0 else ''}{pct} %")
+        else:
+            self.k_trend.set_value("—")
+        self.reco.setText("<br>".join("• " + _html_escape(r) for r in rep.get("recommendations", [])) or "—")
+
+        self.table.setRowCount(len(rows))
+        for i, r in enumerate(rows):
+            t = r.get("trend_pct")
+            rt = r.get("avg_response_min")
+            hood = r["top_neighborhoods"][0] if r["top_neighborhoods"] else None
+            cells = [
+                (str(r["rank"]), theme.MUTED),
+                (r["commune"], None),
+                (r["risk"].capitalize(), self.RISK_COLORS.get(r["risk"])),
+                (str(r["count"]), None), (f"{r['share_pct']} %", theme.MUTED),
+                (str(r["urgent"]), "#ef4444" if r["urgent"] else theme.MUTED),
+                (names.get(r["peak_band"], "—"), None),
+                ("—" if t is None else f"{'+' if t > 0 else ''}{t} %",
+                 "#ef4444" if (t or 0) > 0 else "#16a34a" if (t or 0) < 0 else theme.MUTED),
+                (f"{hood['name']} ({hood['count']})" if hood else "—", None),
+                (f"{rt} min" if rt is not None else "—", "#f97316"),
+            ]
+            for j, (text, color) in enumerate(cells):
+                self.table.setItem(i, j, _item(text, color, bold=(j in (1, 2))))
+        self.status.setText("")
+
+    def set_error(self, msg):
+        self.status.setText(msg)
+        self.status.setStyleSheet("color: #ff8181;")
+
+
+def _html_escape(text):
+    import html
+
+    return html.escape(str(text))
+
+
 class HistoryPage(QWidget):
     """Historique des incidents (registre) : Référence, Type, Quartier, Heure,
     Statut, Agent, Urgence — chargé depuis le serveur (tout l'historique, pas

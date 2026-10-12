@@ -137,6 +137,14 @@ class ApiClient:
     def get_analytics(self, period="month"):
         return self._request("GET", f"/api/analytics?period={period}", auth=True)
 
+    def get_risk_heatmap(self, days=30, type_="", band=""):
+        q = f"days={int(days)}" + (f"&type={type_}" if type_ else "") + (f"&band={band}" if band else "")
+        return self._request("GET", f"/api/risk/heatmap?{q}", auth=True)
+
+    def get_risk_communes(self, days=30, type_=""):
+        q = f"days={int(days)}" + (f"&type={type_}" if type_ else "")
+        return self._request("GET", f"/api/risk/communes?{q}", auth=True)
+
     def get_messages(self, limit=50):
         return self._request("GET", f"/api/messages?limit={limit}", auth=True)
 
@@ -214,7 +222,14 @@ class ApiClient:
 
     def download_report(self, period, dest_path):
         """Télécharge le rapport PDF de la période vers dest_path."""
-        url = f"{self.base_url}/api/reports/pdf?period={period}"
+        return self._download(f"/api/reports/pdf?period={period}", dest_path)
+
+    def download_communes_report(self, days, dest_path):
+        """Télécharge le rapport PDF « zones à risque par commune »."""
+        return self._download(f"/api/reports/communes?days={int(days)}", dest_path)
+
+    def _download(self, path, dest_path):
+        url = f"{self.base_url}{path}"
         headers = {"Authorization": "Bearer " + self.token} if self.token else {}
         req = urllib.request.Request(url, headers=headers, method="GET")
         try:

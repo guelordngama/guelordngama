@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Carte de chaleur SafeCity</title>
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css" />
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <style>
+    html, body, #map { height: 100%; margin: 0; }
+    .leaflet-container { background: #e9edf2; font-family: 'Segoe UI', Inter, Arial, sans-serif; }
+    .legend { background: rgba(255,255,255,.92); padding: 6px 10px; border-radius: 8px; font-size: 12px;
+              box-shadow: 0 1px 6px rgba(0,0,0,.25); }
+    .grad { display: inline-block; width: 90px; height: 8px; border-radius: 4px; vertical-align: middle;
+            background: linear-gradient(90deg, rgba(250,204,21,.8), rgba(249,115,22,.9), rgba(220,38,38,1)); }
+    .hs { background: #1e293b; color: #fff; border-radius: 12px; width: 22px; height: 22px; text-align: center;
+          font: 700 12px/22px Arial; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.5); }
+  </style>
+</head>
+<body>
+<div id="map"></div>
+<script>
+  var map = L.map("map").setView([-11.6647, 27.4794], 12);
+  var tiles = null;
+  window.setTileServer = function (base) {
+    if (tiles) map.removeLayer(tiles);
+    tiles = L.tileLayer(String(base || "").replace(/\/+$/, "") + "/tiles/v2/{z}/{x}/{y}.png",
+      { attribution: "© OpenStreetMap", maxZoom: 20, maxNativeZoom: 19 }).addTo(map);
+  };
+  window.setTileServer("");
+
+  // Chaleur : grands disques translucides superposés (pas de dépendance externe) ;
+  // la superposition fait ressortir les zones où les incidents se concentrent.
+  var heat = L.layerGroup().addTo(map), spots = L.layerGroup().addTo(map), first = true;
+  var legend = L.control({ position: "bottomleft" });
+  legend.onAdd = function () {
+    var d = L.DomUtil.create("div", "legend");
+    d.innerHTML = 'Moins <span class="grad"></span> Plus d\'incidents';
+    return d;
+  };
+  legend.addTo(map);
+
+  function radiusFor(zoom) { return Math.max(10, Math.min(46, 8 + zoom * 2.4)); }
+  var lastData = null;
+  function draw() {
+    heat.clearLayers(); spots.clearLayers();
+    if (!lastData) return;
+    var r = radiusFor(map.getZoom());
+    lastData.points.forEach(function (p) {
+      var col = p.w >= 4 ? "#dc2626" : p.w === 3 ? "#ea580c" : p.w === 2 ? "#f97316" : "#facc15";
+      L.circleMarker([p.lat, p.lng], { radius: r, stroke: false, fillColor: col,
+        fillOpacity: 0.16 + 0.03 * p.w, interactive: false }).addTo(heat);
+    });
+    (lastData.hotspots || []).slice(0, 5).forEach(function (h, i) {
+      L.marker([h.lat, h.lng], { icon: L.divIcon({ className: "", html: '<div class="hs">' + (i + 1) + '</div>',
+        iconSize: [22, 22], iconAnchor: [11, 11] }) })
+        .bindTooltip("<b>" + h.label.replace(/</g, "&lt;") + "</b><br>" + h.count + " incident(s)").addTo(spots);
+    });
+  }
+  map.on("zoomend", draw);
+  window.setHeat = function (data) {
+    lastData = data; draw();
+    if (first && data.points.length) {
+      first = false;
+      map.fitBounds(L.latLngBounds(data.points.map(function (p) { return [p.lat, p.lng]; })),
+        { padding: [40, 40], maxZoom: 15 });
+    }
+  };
+  window.focusAt = function (lat, lng) { map.setView([lat, lng], 15); };
+</script>
+</body>
+</html>

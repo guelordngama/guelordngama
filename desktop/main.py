@@ -47,6 +47,7 @@ from pages import (
     ChatPage,
     DashboardPage,
     HistoryPage,
+    RiskPage,
     LiveAlertsPage,
     MapPage,
     NotificationsPage,
@@ -540,6 +541,7 @@ class Sidebar(QFrame):
         ("📊", "Statistiques"),
         ("📈", "Performances"),
         ("📄", "Rapports"),
+        ("🔥", "Zones à risque"),
         ("💬", "Messagerie"),
         ("🔔", "Notifications"),
         ("🔐", "Sécurité & traçabilité"),
@@ -664,9 +666,10 @@ class MainWindow(QWidget):
     IDX_ALERTS = 1
     IDX_MAP = 2
     IDX_AGENTS = 3
-    IDX_CHAT = 9
-    IDX_NOTIF = 10
-    IDX_SECURITY = 11
+    IDX_RISK = 9
+    IDX_CHAT = 10
+    IDX_NOTIF = 11
+    IDX_SECURITY = 12
     NOTIF_MAX = 200          # notifications conservées (les plus récentes)
 
     def __init__(self, api, operator):
@@ -809,6 +812,7 @@ class MainWindow(QWidget):
         self.page_stats = StatisticsPage()
         self.page_analytics = AnalyticsPage()
         self.page_reports = ReportsPage()
+        self.page_risk = RiskPage(API_BASE)
         self.page_chat = ChatPage(self.operator, API_BASE)
         self.page_notifications = NotificationsPage()
         self.page_security = SecurityPage(self.operator.get("role", "operator"))
@@ -817,7 +821,7 @@ class MainWindow(QWidget):
         for p in (
             self.page_dashboard, self.page_live, self.page_map, self.page_agents,
             self.page_citizens, self.page_history, self.page_stats, self.page_analytics,
-            self.page_reports, self.page_chat, self.page_notifications,
+            self.page_reports, self.page_risk, self.page_chat, self.page_notifications,
             self.page_security, self.page_settings, self.page_about,
         ):
             self.stack.addWidget(p)
@@ -862,6 +866,8 @@ class MainWindow(QWidget):
         self.page_live.reset_search.connect(lambda: self.page_live.set_alerts(self._sorted_alerts()))
         self.page_reports.generate_pdf.connect(self._generate_report)
         self.page_analytics.period_changed.connect(self._load_analytics)
+        self.page_risk.request_load.connect(self._load_risk)
+        self.page_risk.request_pdf.connect(self._risk_pdf)
         self.page_agents.request_add.connect(self._add_agent)
         self.page_agents.request_edit.connect(self._edit_agent)
         self.page_agents.request_delete.connect(self._delete_agent)
@@ -952,7 +958,7 @@ class MainWindow(QWidget):
         for i in range(1, 10):
             QShortcut(QKeySequence(f"Ctrl+{i}"), self,
                       activated=lambda idx=i - 1: self._navigate(idx))
-        QShortcut(QKeySequence("Ctrl+0"), self, activated=lambda: self._navigate(9))
+        QShortcut(QKeySequence("Ctrl+0"), self, activated=lambda: self._navigate(self.IDX_CHAT))
         QShortcut(QKeySequence("F5"), self, activated=self._refresh_now)
         QShortcut(QKeySequence("Ctrl+F"), self, activated=self._focus_search)
         QShortcut(QKeySequence("Ctrl+M"), self, activated=self._toggle_sound)
@@ -1031,6 +1037,8 @@ class MainWindow(QWidget):
             self.page_history.reload()       # historique chargé depuis le serveur
         elif idx == 7:
             self._load_analytics(self.page_analytics.period.currentData())
+        elif idx == self.IDX_RISK:
+            self.page_risk.reload()
         elif idx == self.IDX_CHAT:
             self._load_messages()  # affiche puis efface les « non lus » messages
             self._notifs_mark_read(lambda n: n.get("kind") == "message")
@@ -1146,6 +1154,29 @@ class MainWindow(QWidget):
             self.page_analytics.set_data(self.api.get_analytics(period))
         except Exception as e:
             QMessageBox.warning(self, "Performances", str(e))
+
+    def _load_risk(self, days, type_, band):
+        try:
+            self.page_risk.set_heat(self.api.get_risk_heatmap(days, type_, band))
+            self.page_risk.set_report(self.api.get_risk_communes(days, type_))
+        except Exception as e:
+            self.page_risk.set_error(f"Chargement impossible : {_api_error_message(e)}")
+
+    def _risk_pdf(self, days):
+        from PySide6.QtGui import QDesktopServices
+        from PySide6.QtCore import QUrl as _QUrl
+        from PySide6.QtWidgets import QFileDialog
+
+        default = os.path.join(os.path.expanduser("~"), f"safecity_zones_a_risque_{days}j.pdf")
+        path, _ = QFileDialog.getSaveFileName(self, "Enregistrer le rapport par commune", default, "PDF (*.pdf)")
+        if not path:
+            return
+        try:
+            self.api.download_communes_report(days, path)
+            QDesktopServices.openUrl(_QUrl.fromLocalFile(path))
+            Toast(self, "Rapport par commune généré 📄", "#22c55e").show_for(3000)
+        except Exception as e:
+            QMessageBox.warning(self, "Rapport par commune", _api_error_message(e))
 
     def _search_alerts(self, filters):
         try:
