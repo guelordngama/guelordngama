@@ -108,12 +108,21 @@ STATUS_FICHE = {"active": ("EN ATTENTE", "#ef4444"),
                 "assignee": ("EN COURS", "#f97316"),
                 "cloturee": ("TRAITÉ", "#16a34a")}
 FALSE_ALARM_FICHE = ("FAUSSE ALERTE", "#64748b")
+CANCELLED_FICHE = ("ANNULÉE", "#64748b")
+
+
+def is_cancelled(alert):
+    """Alerte close parce que le citoyen l'a lui-même annulée (≠ fausse alerte)."""
+    return bool(alert.get("cancelled_by_citizen")) and alert.get("status") == "cloturee" \
+        and not alert.get("false_alarm")
 
 
 def fiche_status(alert):
     """(libellé, couleur) du statut affiché dans la fiche."""
     if alert.get("false_alarm"):
         return FALSE_ALARM_FICHE
+    if is_cancelled(alert):
+        return CANCELLED_FICHE
     return STATUS_FICHE.get(alert.get("status"),
                             ((alert.get("status") or "—").upper(), theme.TEXT))
 
@@ -233,6 +242,8 @@ def progress_text(alert):
     Agent en route -> Sur place -> Résolue."""
     if alert.get("false_alarm"):
         return "🚫 Classée fausse alerte"
+    if is_cancelled(alert):
+        return "❎ Annulée"
     stage = alert.get("stage") or "received"
     icon = theme.STAGE_ICONS.get(stage, "")
     label = theme.STAGE_LABELS.get(stage, stage)
@@ -445,6 +456,7 @@ class IncidentPopup(QDialog):
     close_incident = Signal(dict)
     false_alarm = Signal(dict)
     show_journal = Signal(dict)
+    show_chat = Signal(dict)
     mark_arrived = Signal(dict)
 
     def __init__(self, alert, parent=None, api_base=""):
@@ -690,7 +702,12 @@ class IncidentPopup(QDialog):
         actions.addWidget(self.btn_arrived, 2, 0, 1, 2)
         actions.addWidget(self.btn_false, 3, 0)
         actions.addWidget(b_journal, 3, 1)
-        actions.addWidget(b_close, 4, 0, 1, 2)
+        self.btn_chat = QPushButton("💬 Messages du citoyen")
+        self.btn_chat.setObjectName("ghost")
+        self.btn_chat.setToolTip("Précisions du citoyen après l'alerte (« ils sont deux »…) et réponses du centre")
+        actions.addWidget(self.btn_chat, 4, 0, 1, 2)
+        actions.addWidget(b_close, 5, 0, 1, 2)
+        self._refresh_chat_button(alert)
         self.btn_false.setEnabled(not alert.get("false_alarm"))
         self._refresh_arrived_button(alert)
         body.addLayout(actions)
@@ -719,7 +736,13 @@ class IncidentPopup(QDialog):
         b_close.clicked.connect(lambda: (self.close_incident.emit(self.alert), self.accept()))
         self.btn_false.clicked.connect(lambda: self.false_alarm.emit(self.alert))
         b_journal.clicked.connect(lambda: self.show_journal.emit(self.alert))
+        self.btn_chat.clicked.connect(lambda: self.show_chat.emit(self.alert))
         self.btn_arrived.clicked.connect(lambda: self.mark_arrived.emit(self.alert))
+
+    def _refresh_chat_button(self, alert):
+        n = alert.get("citizen_msg_unread") or 0
+        self.btn_chat.setText("💬 Messages du citoyen" + (f"  ({n} nouveau{'x' if n > 1 else ''})" if n else ""))
+        self.btn_chat.setStyleSheet("font-weight: 800; color: #b45309;" if n else "")
 
     def _refresh_arrived_button(self, alert):
         """Visible seulement quand un agent est affecté et pas encore sur place
@@ -736,11 +759,17 @@ class IncidentPopup(QDialog):
             self.btn_arrived.setText("📍 Agent arrivé sur place")
 
     def _refresh_trace_banners(self, alert):
+        cancelled = bool(alert.get("cancelled_by_citizen")) and not alert.get("false_alarm")
         if alert.get("false_alarm"):
             self.false_banner.setText(
                 f"🚫  Classée FAUSSE ALERTE par {alert.get('false_alarm_by') or '—'} — "
                 f"motif : {alert.get('false_alarm_reason') or '—'}")
-        self.false_banner.setVisible(bool(alert.get("false_alarm")))
+        elif cancelled:
+            kept = alert.get("status") != "cloturee"
+            self.false_banner.setText(
+                f"❎  Annulée par le citoyen — motif : {alert.get('cancel_reason') or '—'}"
+                + ("  ·  L'incident reste ouvert (d'autres citoyens le signalent)." if kept else ""))
+        self.false_banner.setVisible(bool(alert.get("false_alarm")) or cancelled)
         n = alert.get("reporter_false_alarms") or 0
         if n and not alert.get("false_alarm"):
             self.reporter_banner.setText(
@@ -822,6 +851,8 @@ class IncidentPopup(QDialog):
     def _title_text(alert):
         if alert.get("false_alarm"):
             return "⚪  FAUSSE ALERTE"
+        if is_cancelled(alert):
+            return "⚪  ANNULÉE PAR LE CITOYEN"
         return {"active": "🔴  NOUVELLE ALERTE", "assignee": "🟠  INTERVENTION EN COURS",
                 "cloturee": "🟢  INTERVENTION TRAITÉE"}.get(alert.get("status"), "🔴  ALERTE")
 
@@ -832,7 +863,7 @@ class IncidentPopup(QDialog):
             return (f"font-weight: 800; color: {color}; background: {theme.tint(color, 0.12)};"
                     " border-radius: 8px; padding: 2px 8px;")
         if key == "progress":
-            color = ("#64748b" if alert.get("false_alarm")
+            color = ("#64748b" if (alert.get("false_alarm") or is_cancelled(alert))
                     else theme.STAGE_COLORS.get(alert.get("stage") or "received", theme.TEXT))
             return (f"font-weight: 800; color: {color}; background: {theme.tint(color, 0.12)};"
                     " border-radius: 8px; padding: 2px 8px;")
@@ -857,6 +888,7 @@ class IncidentPopup(QDialog):
         self._refresh_trace_banners(alert)
         self.btn_false.setEnabled(not alert.get("false_alarm"))
         self._refresh_arrived_button(alert)
+        self._refresh_chat_button(alert)
         for key, label, value in alert_fiche(alert):
             vl = self._fiche_values.get(key)
             if vl is None:
@@ -1180,6 +1212,7 @@ class JournalDialog(QDialog):
         "agent_assigned": "👮", "intervention_accepted": "✅",
         "intervention_completed": "🏁", "alert_closed": "🏁",
         "false_alarm_marked": "🚫", "false_alarm_cancelled": "↩️",
+        "alert_cancelled_by_citizen": "❎",
     }
 
     def __init__(self, alert, events, parent=None):
@@ -1342,3 +1375,132 @@ class ProfileDialog(QDialog):
         close.clicked.connect(self.accept)
         btns.addWidget(close)
         root.addLayout(btns)
+
+
+class CitizenChatDialog(QDialog):
+    """Messagerie avec le(s) citoyen(s) d'un incident : précisions reçues
+    (« ils sont deux », « ils sont partis ») et réponses du centre.
+
+    `fetch()` renvoie la liste des messages (et les marque comme lus côté
+    serveur) ; `send(text, reference)` envoie une réponse."""
+
+    def __init__(self, alert, fetch, send, parent=None):
+        super().__init__(parent)
+        self.alert = alert
+        self._fetch, self._send = fetch, send
+        self._last_sig = None
+        self._last_ref = None
+        self.setStyleSheet(theme.QSS + f"QDialog {{ background: {theme.BG}; }}")
+        self.setMinimumSize(520, 520)
+        self.setWindowTitle(f"Messages du citoyen — #{incident_ref(alert)}")
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(20, 18, 20, 18)
+        root.setSpacing(10)
+        title = QLabel(f"💬  Messages du citoyen — #{incident_ref(alert)}")
+        title.setObjectName("pageTitle")
+        root.addWidget(title)
+        self.sub = QLabel("Le citoyen précise la situation ; vos réponses lui sont affichées sur son écran.")
+        self.sub.setObjectName("muted")
+        self.sub.setWordWrap(True)
+        root.addWidget(self.sub)
+
+        self.area = QScrollArea()
+        self.area.setWidgetResizable(True)
+        self.area.setFrameShape(QFrame.NoFrame)
+        self.holder = QWidget()
+        self.lay = QVBoxLayout(self.holder)
+        self.lay.setSpacing(8)
+        self.lay.setContentsMargins(0, 0, 6, 0)
+        self.area.setWidget(self.holder)
+        root.addWidget(self.area, 1)
+
+        row = QHBoxLayout()
+        self.input = QLineEdit()
+        self.input.setMaxLength(500)
+        self.input.setPlaceholderText("Votre réponse au citoyen…")
+        self.btn_send = QPushButton("Envoyer")
+        self.btn_send.setObjectName("success")
+        row.addWidget(self.input, 1)
+        row.addWidget(self.btn_send)
+        root.addLayout(row)
+        self.error = QLabel("")
+        self.error.setStyleSheet("color: #b91c1c; font-weight: 700;")
+        self.error.setWordWrap(True)
+        self.error.hide()
+        root.addWidget(self.error)
+
+        self.btn_send.clicked.connect(self._do_send)
+        self.input.returnPressed.connect(self._do_send)
+        self._timer = QTimer(self)          # filet de sécurité si un événement temps réel est manqué
+        self._timer.timeout.connect(self.refresh)
+        self._timer.start(6000)
+        self.refresh()
+
+    def refresh(self):
+        try:
+            msgs = self._fetch()
+        except Exception as e:
+            self.error.setText(str(e)[:200]); self.error.show()
+            return
+        sig = [m.get("id") for m in msgs]
+        if sig == self._last_sig:
+            return
+        self._last_sig = sig
+        while self.lay.count():
+            it = self.lay.takeAt(0)
+            if it.widget():
+                it.widget().deleteLater()
+        refs = {m.get("reference") for m in msgs if m.get("reference")}
+        if not msgs:
+            empty = QLabel("Aucun message du citoyen pour l'instant.")
+            empty.setObjectName("muted")
+            self.lay.addWidget(empty)
+        for m in msgs:
+            mine = m.get("sender") == "operator"
+            who = (m.get("sender_name") or "Centre") if mine else (m.get("sender_name") or "Citoyen")
+            if len(refs) > 1 and m.get("reference"):
+                who += f" · {m['reference']}"
+            bubble = QLabel(f"<b>{_esc(who)}</b> · {_esc(m.get('time') or '')}<br>{_esc(m.get('text') or '')}")
+            bubble.setWordWrap(True)
+            bubble.setTextFormat(Qt.RichText)
+            bubble.setMaximumWidth(380)
+            color = theme.ACCENT if mine else "#64748b"
+            bubble.setStyleSheet(
+                f"background: {theme.tint(color, 0.14)}; border-radius: 12px; padding: 8px 12px;")
+            line = QHBoxLayout()
+            if mine:
+                line.addStretch(1)
+            line.addWidget(bubble)
+            if not mine:
+                line.addStretch(1)
+            self.lay.addLayout(line)
+            if not mine:
+                self._last_ref = m.get("reference")     # répondre au dernier citoyen qui a écrit
+        self.lay.addStretch(1)
+        self.error.hide()
+        QTimer.singleShot(50, lambda: self.area.verticalScrollBar().setValue(
+            self.area.verticalScrollBar().maximum()))
+
+    def _do_send(self):
+        text = self.input.text().strip()
+        if not text:
+            return
+        self.btn_send.setEnabled(False)
+        try:
+            self._send(text, self._last_ref)
+            self.input.clear()
+            self.error.hide()
+            self._last_sig = None
+            self.refresh()
+        except Exception as e:
+            self.error.setText(f"Envoi impossible : {str(e)[:200]}")
+            self.error.show()
+        finally:
+            self.btn_send.setEnabled(True)
+            self.input.setFocus()
+
+
+def _esc(text):
+    import html
+    return html.escape(str(text)).replace("\n", "<br>")

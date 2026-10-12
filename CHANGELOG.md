@@ -2,6 +2,35 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.32.0] — 2026-10-13 — Messages citoyen ↔ centre et annulation par le citoyen
+
+### Ajouté
+- **Messagerie citoyen ↔ opérateur** après l'alerte, pour préciser la situation
+  (« ils sont deux », « ils sont partis »). Côté citoyen : carte « Message au
+  centre » sur l'écran de confirmation et dans « Suivre une alerte » (500
+  caractères max, texte brut). Côté poste opérateur : bouton **💬 Messages du
+  citoyen** dans la fiche d'incident (avec le nombre de nouveaux messages),
+  notification + son + bandeau à la réception, réponse directe. Pour un
+  incident regroupé (plusieurs citoyens), le fil réunit tous les déclarants et la
+  réponse part au dernier qui a écrit. Fermée à la clôture / annulation.
+- **Annulation par le citoyen** de sa propre alerte, avec un **motif
+  obligatoire** (choix + précision), à la place d'une « fausse alerte » : le
+  citoyen n'est pas compté comme auteur de fausse alerte. L'alerte est clôturée,
+  l'agent/équipe est libéré et l'agent est prévenu par notification push
+  (« Mission annulée »). Le centre voit « ANNULÉE PAR LE CITOYEN » avec le motif ;
+  l'action est inscrite au journal de l'intervention.
+- Cas des doublons : un citoyen qui annule un signalement regroupé n'éteint pas
+  l'incident tant que d'autres citoyens le signalent.
+- Migration `f4b8d0a2c6e3` (table `alert_messages` ; colonnes
+  `cancelled_by_citizen`, `cancel_reason`, `cancelled_at`, `citizen_msg_unread`).
+  Routes : `/api/alerts/track/<réf>/messages|cancel`, `/api/alerts/<id>/citizen-messages`.
+- Textes en français, swahili et lingala.
+
+### Notes
+- Les alertes annulées restent comptées parmi les alertes clôturées dans les
+  statistiques ; elles sont distinguables par leur statut « Annulée ».
+- Les agents ne voient pas ces messages (échange citoyen ↔ centre uniquement).
+
 ## [1.31.1] — 2026-10-12 — Suivi de l'agent dans « Suivre une alerte »
 
 ### Ajouté

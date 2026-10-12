@@ -353,6 +353,18 @@
                 <div class="agent-live-eta"><strong id="agent-live-eta">—</strong></div>
                 <p class="live-share-text" data-i18n="agent.note">Estimation à vol d’oiseau, selon la circulation.</p>
               </div>
+              <div class="card cchat-card">
+              <div id="cf-chat" class="cchat" hidden>
+                <h3 data-i18n="chat.title">Message au centre</h3>
+                <div id="cf-chat-thread" class="cchat-thread" aria-live="polite"></div>
+                <form id="cf-chat-form" class="cchat-form" autocomplete="off">
+                  <input id="cf-chat-input" type="text" maxlength="500" data-i18n-ph="chat.placeholder" placeholder="Ex. : ils sont deux, ils sont partis…" />
+                  <button type="submit" class="btn-primary" data-i18n="chat.send">Envoyer</button>
+                </form>
+                <p id="cf-chat-note" class="live-share-text"></p>
+                <button id="cf-cancel" type="button" class="btn-ghost cancel-alert-btn" data-i18n="cancel.btn">Annuler mon alerte</button>
+              </div>
+              </div>
               <div id="live-share-box" class="card live-share" hidden>
                 <div class="live-share-head"><span class="live-dot" aria-hidden="true"></span>
                   <strong data-i18n="live.title">Position partagée en direct</strong></div>
@@ -417,6 +429,16 @@
               <div id="tk-map-wrap" hidden style="margin-top:10px"><div id="tk-map" class="mini-map"></div>
                 <p class="live-share-text" data-i18n="agent.note">Estimation à vol d’oiseau, selon la circulation.</p></div>
               <ol id="tk-timeline" class="timeline" style="margin-top:14px"></ol>
+              <div id="tk-chat" class="cchat" hidden style="margin-top:16px">
+                <h3 data-i18n="chat.title">Message au centre</h3>
+                <div id="tk-chat-thread" class="cchat-thread" aria-live="polite"></div>
+                <form id="tk-chat-form" class="cchat-form" autocomplete="off">
+                  <input id="tk-chat-input" type="text" maxlength="500" data-i18n-ph="chat.placeholder" placeholder="Ex. : ils sont deux, ils sont partis…" />
+                  <button type="submit" class="btn-primary" data-i18n="chat.send">Envoyer</button>
+                </form>
+                <p id="tk-chat-note" class="live-share-text"></p>
+                <button id="tk-cancel" type="button" class="btn-ghost cancel-alert-btn" data-i18n="cancel.btn">Annuler mon alerte</button>
+              </div>
             </div>
           </div>
           <div class="actions" style="margin-top:18px;">
@@ -617,6 +639,26 @@
       <div class="crop-actions">
         <button type="button" id="confirm-modal-no" class="btn-secondary" data-i18n="common.no">Non</button>
         <button type="button" id="confirm-modal-yes" class="btn-primary" data-i18n="common.yes">Oui</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Annulation de sa propre alerte (motif obligatoire) -->
+  <div id="cancel-modal" class="modal-backdrop" hidden>
+    <div class="modal confirm-modal">
+      <h3 data-i18n="cancel.title">Annuler votre alerte ?</h3>
+      <p data-i18n="cancel.text">Utilisez ceci si vous avez envoyé l'alerte par erreur. Le centre et l'agent éventuel seront prévenus.</p>
+      <select id="cancel-reason" class="cancel-field">
+        <option value="r1" data-i18n="cancel.r1">Je me suis trompé(e) de bouton</option>
+        <option value="r2" data-i18n="cancel.r2">Le danger est passé</option>
+        <option value="r3" data-i18n="cancel.r3">Alerte envoyée par erreur</option>
+        <option value="other" data-i18n="cancel.other">Autre (préciser)</option>
+      </select>
+      <input id="cancel-comment" class="cancel-field" type="text" maxlength="200" data-i18n-ph="cancel.comment" placeholder="Précision (obligatoire si « Autre »)" />
+      <p id="cancel-error" class="track-error" hidden></p>
+      <div class="crop-actions sheet-actions">
+        <button type="button" id="cancel-confirm" class="btn-primary danger" data-i18n="cancel.confirm">Oui, annuler l'alerte</button>
+        <button type="button" id="cancel-back" class="btn-ghost" data-i18n="cancel.back">Non, la garder</button>
       </div>
     </div>
   </div>

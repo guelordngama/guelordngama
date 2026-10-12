@@ -1702,3 +1702,94 @@ def test_citizen_sees_assigned_agent_live():
     client.post("/api/agents/me/location", json={"lat": -11.67, "lng": 27.48}, headers=ha1)
     client.post(f"/api/alerts/{a['id']}/close", json={}, headers=ho)
     assert client.get(f"/api/alerts/track/{ref}").get_json()["agent_live"] is None
+
+
+def _new_alert(client, lat=-11.66, lng=27.48, typ="vol", phone="+243812345678"):
+    return client.post("/api/alerts", json={
+        "type": typ, "description": "x", "lat": lat, "lng": lng,
+        "reporter_name": "Jean", "reporter_phone": phone}).get_json()
+
+
+def test_citizen_operator_messaging():
+    """Le citoyen précise la situation (« ils sont deux ») ; l'opérateur voit un
+    compteur non lu, lit, répond ; le citoyen reçoit la réponse. Messagerie
+    fermée après clôture ; agents exclus."""
+    from backend import socketio
+    app, client = make_client()
+    ho = _tok(client, "operateur@safecity.local")
+    ha = _tok(client, "agent1@safecity.local")
+    sock = socketio.test_client(app, auth={"token": ho["Authorization"][7:]})
+    a = _new_alert(client); ref = a["reference"]; sock.get_received()
+
+    assert client.post(f"/api/alerts/track/{ref}/messages", json={"text": "  "}).status_code == 400
+    assert client.post(f"/api/alerts/track/{ref}/messages", json={"text": "x" * 501}).status_code == 400
+    assert client.post("/api/alerts/track/SC-NOPE00/messages", json={"text": "a"}).status_code == 404
+    r = client.post(f"/api/alerts/track/{ref}/messages", json={"text": "ils sont deux"})
+    assert r.status_code == 201 and r.get_json()["sender"] == "citizen"
+    ev = [e for e in sock.get_received() if e["name"] == "citizen_message"]
+    assert ev and ev[0]["args"][0]["text"] == "ils sont deux"
+
+    assert client.get(f"/api/alerts/{a['id']}", headers=ho).get_json()["citizen_msg_unread"] == 1
+    assert client.get(f"/api/alerts/{a['id']}/citizen-messages", headers=ha).status_code == 403
+    assert client.get(f"/api/alerts/{a['id']}/citizen-messages").status_code == 401
+    msgs = client.get(f"/api/alerts/{a['id']}/citizen-messages", headers=ho).get_json()
+    assert [m["text"] for m in msgs] == ["ils sont deux"]
+    assert client.get(f"/api/alerts/{a['id']}", headers=ho).get_json()["citizen_msg_unread"] == 0  # lu
+
+    r = client.post(f"/api/alerts/{a['id']}/citizen-messages", json={"text": "Reçu, patrouille en route"}, headers=ho)
+    assert r.status_code == 201 and r.get_json()["sender"] == "operator"
+    thread = client.get(f"/api/alerts/track/{ref}/messages").get_json()
+    assert [m["sender"] for m in thread] == ["citizen", "operator"]
+    assert client.get(f"/api/alerts/track/{ref}/messages?after={thread[0]['id']}").get_json()[0]["sender"] == "operator"
+    assert client.get(f"/api/alerts/track/{ref}").get_json()["messages_count"] == 2
+
+    client.post(f"/api/alerts/{a['id']}/close", json={}, headers=ho)
+    assert client.post(f"/api/alerts/track/{ref}/messages", json={"text": "ils sont partis"}).status_code == 409
+
+
+def test_citizen_cancels_own_alert():
+    """Annulation par le citoyen : motif obligatoire, clôture sans « fausse
+    alerte », agent libéré, journal tracé, pas de double annulation."""
+    app, client = make_client()
+    ho = _tok(client, "operateur@safecity.local")
+    ha = _tok(client, "agent1@safecity.local")
+    a = _new_alert(client); ref = a["reference"]
+    _assign(client, a["id"], "agent1@safecity.local")
+
+    assert client.post(f"/api/alerts/track/{ref}/cancel", json={"reason": " "}).status_code == 400
+    assert client.post("/api/alerts/track/SC-NOPE00/cancel", json={"reason": "erreur"}).status_code == 404
+    r = client.post(f"/api/alerts/track/{ref}/cancel", json={"reason": "Appui par erreur"})
+    assert r.status_code == 200 and r.get_json()["cancelled"] is True
+
+    d = client.get(f"/api/alerts/{a['id']}", headers=ho).get_json()
+    assert d["status"] == "cloturee" and d["cancelled_by_citizen"] is True
+    assert d["cancel_reason"] == "Appui par erreur" and d["false_alarm"] is False
+    assert client.get("/api/alerts?false_alarm=1", headers=ho).get_json()["items"] == []
+    me = client.get("/api/agents/me", headers=ha).get_json()
+    assert me["availability"] == "available" and me["current_alert_id"] is None
+    t = client.get(f"/api/alerts/track/{ref}").get_json()
+    assert t["cancelled"] is True and t["agent_live"] is None
+    journal = client.get(f"/api/alerts/{a['id']}/journal", headers=ho).get_json()
+    assert any(e["action"] == "alert_cancelled_by_citizen" and "Appui par erreur" in (e["detail"] or "")
+               for e in journal)
+    assert client.post(f"/api/alerts/track/{ref}/cancel", json={"reason": "encore"}).status_code == 409
+    assert client.post(f"/api/alerts/track/{ref}/position", json={"lat": -11.6, "lng": 27.4}).status_code == 409
+
+
+def test_cancel_keeps_incident_when_other_citizens_report_it():
+    """Un doublon qui annule n'éteint pas l'incident ; le déclarant principal
+    qui annule alors que d'autres le signalent encore ne le clôture pas."""
+    app, client = make_client()
+    app.config.update(DEDUP_ENABLED=True, DEDUP_RADIUS_M=150, DEDUP_WINDOW_MIN=10)
+    ho = _tok(client, "operateur@safecity.local")
+    first = _new_alert(client, phone="+243811111111")
+    second = _new_alert(client, -11.6601, 27.4801, phone="+243822222222")
+    assert second.get("duplicate_of") == first["id"], second
+
+    client.post(f"/api/alerts/track/{second['reference']}/cancel", json={"reason": "erreur"})
+    assert client.get(f"/api/alerts/{first['id']}", headers=ho).get_json()["status"] == "active"
+
+    third = _new_alert(client, -11.6602, 27.4802, phone="+243833333333")
+    client.post(f"/api/alerts/track/{first['reference']}/cancel", json={"reason": "erreur"})
+    d = client.get(f"/api/alerts/{first['id']}", headers=ho).get_json()
+    assert d["status"] == "active" and d["cancelled_by_citizen"] is True

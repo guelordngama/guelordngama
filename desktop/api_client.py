@@ -253,6 +253,16 @@ class ApiClient:
         return self._request("DELETE", f"/api/alerts/{alert_id}/false-alarm",
                              {"reason": reason}, auth=True)
 
+    def get_citizen_messages(self, alert_id):
+        """Fil de messages du citoyen (et doublons) ; les marque comme lus."""
+        return self._request("GET", f"/api/alerts/{alert_id}/citizen-messages", auth=True)
+
+    def send_citizen_message(self, alert_id, text, reference=None):
+        body = {"text": text}
+        if reference:
+            body["reference"] = reference
+        return self._request("POST", f"/api/alerts/{alert_id}/citizen-messages", body, auth=True)
+
     def get_journal(self, alert_id):
         return self._request("GET", f"/api/alerts/{alert_id}/journal", auth=True)
 
@@ -309,7 +319,7 @@ class ApiClient:
         # n'arrivent pas en direct et n'apparaissent qu'après un redémarrage).
         for evt in ("new_alert", "alert_updated", "chat_message",
                     "agent_updated", "agent_deleted", "agents_count",
-                    "messages_read", "presence"):
+                    "messages_read", "presence", "citizen_message"):
             self.sio.on(evt, _make(evt))
 
         # Connexion dans un thread pour ne pas bloquer l'UI.

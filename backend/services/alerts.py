@@ -25,7 +25,7 @@ log = logging.getLogger("safecity")
 # ni joindre le citoyen).
 _AGENT_HIDDEN_FIELDS = (
     "description", "lat", "lng", "address", "neighborhood", "street", "commune",
-    "city", "gps_accuracy_m", "reporter_id", "reporter_phone", "photo_url",
+    "city", "gps_accuracy_m", "reporter_id", "reporter_phone", "photo_url", "cancel_reason",
     "audio_url", "video_url", "distance_m", "eta_moto_min", "eta_walk_min",
 )
 
@@ -127,7 +127,10 @@ def track_alert(reference):
     incident = alert.primary if (alert.duplicate_of_id and alert.primary) else alert
     status = incident.public_status()
     status["reference"] = alert.public_ref
-    status["agent_live"] = _agent_live(incident, alert)
+    status["agent_live"] = None if alert.cancelled_by_citizen else _agent_live(incident, alert)
+    status["cancelled"] = bool(alert.cancelled_by_citizen)   # SON annulation, pas celle de l'incident
+    from ..models import AlertMessage
+    status["messages_count"] = AlertMessage.query.filter_by(alert_id=alert.id).count()
     return status
 
 
@@ -340,7 +343,7 @@ def update_citizen_position(reference, lat, lng, accuracy=None):
     alert = Alert.query.filter_by(public_ref=(reference or "").strip().upper()).first()
     if not alert:
         raise NotFoundError("Référence introuvable.")
-    if alert.status == "cloturee" or alert.false_alarm:
+    if alert.status == "cloturee" or alert.false_alarm or alert.cancelled_by_citizen:
         raise ConflictError("Cette alerte est clôturée : le suivi de position est terminé.",
                             details={"closed": True})
     moved = (haversine_m(alert.lat, alert.lng, lat, lng)
@@ -687,6 +690,7 @@ JOURNAL_LABELS = {
     "alert_closed": "Incident clôturé",
     "false_alarm_marked": "Classée « fausse alerte »",
     "false_alarm_cancelled": "Qualification « fausse alerte » annulée",
+    "alert_cancelled_by_citizen": "Alerte annulée par le citoyen",
     "alert_viewed": "Fiche consultée",
 }
 ROLE_LABELS = {"citizen": "Citoyen", "agent": "Agent", "operator": "Opérateur",
@@ -711,7 +715,8 @@ def alert_journal(alert_id):
         events.append({"at": alert.accepted_at, "action": "agent_assigned",
                        "actor": "—", "role": None,
                        "detail": alert.assigned_agent.name if alert.assigned_agent else None, "ip": None})
-    if alert.closed_at and not have & {"alert_closed", "intervention_completed", "false_alarm_marked"}:
+    if alert.closed_at and not have & {"alert_closed", "intervention_completed", "false_alarm_marked",
+                                "alert_cancelled_by_citizen"}:
         events.append({"at": alert.closed_at, "action": "alert_closed", "actor": "—",
                        "role": None, "detail": None, "ip": None})
     events.sort(key=lambda e: e["at"] or datetime.min)
@@ -724,3 +729,63 @@ def alert_journal(alert_id):
         "detail": e["detail"],
         "ip": e["ip"],
     } for e in events]
+
+
+def cancel_by_citizen(reference, reason):
+    """Le citoyen annule SA propre alerte (erreur de manipulation), motif
+    obligatoire. Distinct d'une « fausse alerte » : le citoyen n'est pas
+    comptabilisé comme auteur de fausse alerte et le centre voit l'origine.
+
+    - Alerte simple : clôturée, agent/équipe libérés, agent prévenu.
+    - Doublon d'un incident : seul son signalement est annulé (l'incident reste).
+    - Incident maintenu par d'autres signalements encore actifs : on enregistre
+      l'annulation sans clôturer l'incident (d'autres citoyens le signalent).
+    """
+    from ..errors import ConflictError, ValidationError
+    from . import audit
+
+    reason = (reason or "").strip()
+    if len(reason) < 3:
+        raise ValidationError("Indiquez le motif de l'annulation.")
+    alert = Alert.query.filter_by(public_ref=(reference or "").strip().upper()).first()
+    if not alert:
+        raise NotFoundError("Référence introuvable.")
+    if alert.status == "cloturee" or alert.false_alarm or alert.cancelled_by_citizen:
+        raise ConflictError("Cette alerte est déjà clôturée.", details={"closed": True})
+
+    now = datetime.utcnow()
+    alert.cancelled_by_citizen = True
+    alert.cancel_reason = reason[:255]
+    alert.cancelled_at = now
+    agent = alert.assigned_agent
+    others = (Alert.query.filter(Alert.duplicate_of_id == alert.id,
+                                 Alert.status != "cloturee",
+                                 Alert.cancelled_by_citizen.is_(False)).count()
+              if not alert.duplicate_of_id else 0)
+    kept = bool(others)
+    if alert.duplicate_of_id or not kept:
+        alert.status = "cloturee"
+        alert.stage = "resolved"
+        alert.closed_at = now
+    if not alert.duplicate_of_id and not kept:
+        _free_resources(alert)
+    db.session.commit()
+    log.info("Alerte #%s annulée par le citoyen : %s", alert.id, reason)
+    shown = alert.primary if (alert.duplicate_of_id and alert.primary) else alert
+    audit.record("alert_cancelled_by_citizen",
+                 detail=f"{alert.public_ref} · motif : {reason}"
+                        + (f" · incident maintenu ({others} autre(s) signalement(s))" if kept else ""),
+                 user_name=alert.reporter_name or "Citoyen", role="citizen", alert_id=shown.id)
+
+    payload = attach_reporter_flags([shown.to_dict()])[0]
+    _emit("alert_updated", payload)
+    if agent is not None and not alert.duplicate_of_id and not kept:
+        try:
+            from . import push
+
+            push.notify_user(agent.id, "❎ Mission annulée",
+                             f"Le citoyen a annulé son alerte ({alert.public_ref}). Aucune intervention requise.",
+                             url="/portal/", tag=f"alert-{alert.public_ref}")
+        except Exception as e:
+            log.warning("Notification d'annulation non envoyée : %s", e)
+    return alert.public_status()

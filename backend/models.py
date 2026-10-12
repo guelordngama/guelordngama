@@ -198,6 +198,16 @@ class Alert(TimestampMixin, db.Model):
     false_alarm_by = db.Column(db.String(120))
     false_alarm_at = db.Column(db.DateTime)
 
+    # Annulation par le citoyen lui-même (erreur de sa part) : distincte d'une
+    # fausse alerte (qui, elle, est qualifiée par un opérateur). Additif : la
+    # clôture reste status="cloturee" ; ces champs précisent seulement l'origine.
+    cancelled_by_citizen = db.Column(db.Boolean, default=False, nullable=False,
+                                     server_default=db.false())
+    cancel_reason = db.Column(db.String(255))
+    cancelled_at = db.Column(db.DateTime)
+    # Messages du citoyen pas encore lus par le centre (pastille côté opérateur).
+    citizen_msg_unread = db.Column(db.Integer, default=0, nullable=False, server_default="0")
+
     # Regroupement de doublons : si renseigné, cette alerte est un signalement
     # supplémentaire du même incident que l'alerte « principale » pointée ici.
     duplicate_of_id = db.Column(db.Integer, db.ForeignKey("alerts.id"), index=True)
@@ -263,6 +273,7 @@ class Alert(TimestampMixin, db.Model):
             # Fausse alerte : le citoyen voit que le dossier est classé sans suite
             # (sans le motif interne ni le nom de l'opérateur).
             "false_alarm": bool(self.false_alarm),
+            "cancelled": bool(self.cancelled_by_citizen),
             "steps": steps,
         }
 
@@ -287,6 +298,10 @@ class Alert(TimestampMixin, db.Model):
             "false_alarm_reason": self.false_alarm_reason,
             "false_alarm_by": self.false_alarm_by,
             "false_alarm_at": _iso(self.false_alarm_at),
+            "cancelled_by_citizen": bool(self.cancelled_by_citizen),
+            "cancel_reason": self.cancel_reason,
+            "cancelled_at": _iso(self.cancelled_at),
+            "citizen_msg_unread": self.citizen_msg_unread or 0,
             "reporter_id": self.reporter_id,
             "reporter_name": self.reporter_name or "Citoyen anonyme",
             "reporter_phone": self.reporter_phone,
@@ -434,3 +449,29 @@ class PushSubscription(TimestampMixin, db.Model):
     endpoint = db.Column(db.Text, nullable=False, unique=True)
     p256dh = db.Column(db.String(200), nullable=False)
     auth = db.Column(db.String(100), nullable=False)
+
+
+class AlertMessage(TimestampMixin, db.Model):
+    """Échange citoyen ↔ centre au sujet d'une alerte (« ils sont deux »…).
+
+    Rattaché à l'alerte du citoyen (identifiée par sa référence publique)."""
+
+    __tablename__ = "alert_messages"
+
+    id = db.Column(db.Integer, primary_key=True)
+    alert_id = db.Column(db.Integer, db.ForeignKey("alerts.id"), nullable=False, index=True)
+    sender = db.Column(db.String(10), nullable=False)      # "citizen" | "operator"
+    sender_name = db.Column(db.String(120))
+    text = db.Column(db.String(500), nullable=False)
+
+    def to_dict(self, reference=None):
+        return {
+            "id": self.id,
+            "alert_id": self.alert_id,
+            "reference": reference,
+            "sender": self.sender,
+            "sender_name": self.sender_name,
+            "text": self.text,
+            "created_at": _iso(self.created_at),
+            "time": local_str(self.created_at, "%H:%M"),
+        }

@@ -57,7 +57,7 @@ from pages import (
     StatisticsPage,
 )
 from sound import AlarmPlayer
-from widgets import (AgentDialog, FalseAlarmDialog, IncidentPopup, JournalDialog, ProfileDialog,
+from widgets import (AgentDialog, CitizenChatDialog, FalseAlarmDialog, IncidentPopup, JournalDialog, ProfileDialog,
                      Toast, assignment_parts, incident_ref)
 
 # Serveur par défaut : la production de la mairie de Lubumbashi.
@@ -174,6 +174,7 @@ class RealtimeBridge(QThread):
     chat_message = Signal(dict)
     messages_read = Signal(dict)
     presence = Signal(dict)
+    citizen_message = Signal(dict)
 
     def __init__(self, api):
         super().__init__()
@@ -190,6 +191,7 @@ class RealtimeBridge(QThread):
         self.api.on("chat_message", lambda d: self.chat_message.emit(d))
         self.api.on("messages_read", lambda d: self.messages_read.emit(d))
         self.api.on("presence", lambda d: self.presence.emit(d))
+        self.api.on("citizen_message", lambda d: self.citizen_message.emit(d))
         self.api.connect_realtime()
 
 
@@ -1189,6 +1191,7 @@ class MainWindow(QWidget):
         self.bridge.chat_message.connect(self._on_chat_message)
         self.bridge.messages_read.connect(self._on_messages_read)
         self.bridge.presence.connect(self._on_presence)
+        self.bridge.citizen_message.connect(self._on_citizen_message)
         self.page_chat.request_participants.connect(self._open_participants)
 
     def _on_agent_updated(self, agent):
@@ -1681,6 +1684,7 @@ class MainWindow(QWidget):
         popup.close_incident.connect(lambda a: self._close(a["id"]))
         popup.false_alarm.connect(lambda a: self._mark_false_alarm(a["id"]))
         popup.show_journal.connect(lambda a: self._show_journal(a["id"]))
+        popup.show_chat.connect(lambda a: self._open_citizen_chat(a["id"]))
         popup.mark_arrived.connect(lambda a: self._mark_arrived(a["id"]))
         popup.finished.connect(lambda _=0, aid=alert["id"]: self._open_popups.pop(aid, None))
         self._open_popups[alert["id"]] = popup
@@ -1882,6 +1886,49 @@ class MainWindow(QWidget):
         except Exception as e:
             self.page_security.set_audit_error(_api_error_message(e))
 
+    def _open_citizen_chat(self, alert_id):
+        """Messagerie avec le citoyen de l'incident (lecture + réponse)."""
+        chats = self.__dict__.setdefault("_open_chats", {})
+        dlg = chats.get(alert_id)
+        if dlg is not None:
+            try:
+                dlg.refresh(); dlg.raise_(); dlg.activateWindow()
+                return
+            except RuntimeError:
+                chats.pop(alert_id, None)
+        try:
+            alert = self._alert_for(alert_id)
+        except Exception as e:
+            QMessageBox.warning(self, "Messages du citoyen", _api_error_message(e))
+            return
+        dlg = CitizenChatDialog(
+            alert,
+            lambda: self.api.get_citizen_messages(alert_id),
+            lambda text, ref: self.api.send_citizen_message(alert_id, text, ref),
+            self)
+        dlg.finished.connect(lambda _=0, aid=alert_id: chats.pop(aid, None))
+        chats[alert_id] = dlg
+        dlg.show()
+
+    def _on_citizen_message(self, msg):
+        """Un citoyen précise la situation : son, notification, fiche et fenêtre mises à jour."""
+        text = (msg.get("text") or "").strip()
+        aid = msg.get("incident_id") or msg.get("alert_id")
+        who = msg.get("sender_name") or "Citoyen"
+        self._notify("message", f"💬 {who} précise : {text[:90]}",
+                     f"Alerte {msg.get('reference') or ''}", ref={"alert_id": aid}, color="#f97316")
+        Toast(self, f"💬 {who} : {text[:70]}", "#f97316").show_for(6000)
+        try:
+            self.alarm.play_notify()
+        except Exception:
+            pass
+        dlg = self.__dict__.get("_open_chats", {}).get(aid)
+        if dlg is not None:
+            try:
+                dlg.refresh()
+            except RuntimeError:
+                pass
+
     def _show_journal(self, alert_id):
         try:
             alert = self._alert_for(alert_id)
@@ -2043,11 +2090,16 @@ class MainWindow(QWidget):
         agent = (new.get("assigned_agent") or {}).get("name")
         prev_agent = (prev.get("assigned_agent") or {}).get("name")
         ref = {"alert_id": new.get("id")}
-        if prev.get("status") != new.get("status") and new.get("status") == "cloturee":
+        if (prev.get("status") != new.get("status") and new.get("status") == "cloturee"
+                and not new.get("cancelled_by_citizen")):
             self._notify("update", f"✅ Intervention #{incident_ref(new)} traitée : {t}", where,
                          ref=ref, color="#16a34a")
         elif agent and (agent != prev_agent or prev.get("status") != new.get("status")):
             self._announce_assignment(new)
+        if new.get("cancelled_by_citizen") and not prev.get("cancelled_by_citizen"):
+            self._notify("update", f"❎ Alerte #{incident_ref(new)} annulée par le citoyen : {t}",
+                         f"Motif : {new.get('cancel_reason') or '—'}", ref=ref, color="#64748b")
+            Toast(self, f"❎ Alerte #{incident_ref(new)} annulée par le citoyen", "#64748b").show_for(6000)
 
     def _announce_assignment(self, alert):
         """« 👮 Agent Patrick → Intervention #SC-2026-0048 » + position + statut :

@@ -2024,13 +2024,14 @@ AUDIT_ACTION_LABELS = {
     "intervention_completed": "Intervention terminée",
     "alert_closed": "Incident clôturé",
     "false_alarm_marked": "Fausse alerte signalée",
+    "alert_cancelled_by_citizen": "Alerte annulée par le citoyen",
     "false_alarm_cancelled": "Fausse alerte annulée",
     "data_exported": "Export de données",
     "report_generated": "Rapport PDF généré",
 }
 AUDIT_ACTION_COLORS = {
     "login_failed": "#ef4444", "login_denied_inactive": "#ef4444",
-    "false_alarm_marked": "#64748b", "false_alarm_cancelled": "#f97316",
+    "false_alarm_marked": "#64748b", "alert_cancelled_by_citizen": "#64748b", "false_alarm_cancelled": "#f97316",
     "account_deleted": "#ef4444", "agent_deleted": "#ef4444",
     "alert_created": "#dc2626", "agent_assigned": "#f97316",
     "alert_closed": "#16a34a", "intervention_completed": "#16a34a",

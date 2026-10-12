@@ -1215,6 +1215,123 @@
     drawAgentOnMap(v);
   }
 
+  // ---------------------------------------------------------------------- //
+  // Messagerie avec le centre + annulation de SA propre alerte.
+  // Deux vues partagent le même code : confirmation (« cf ») et suivi (« tk »).
+  // ---------------------------------------------------------------------- //
+  const cases = { cf: { ref: null, count: 0, ended: false, lastId: 0 },
+                  tk: { ref: null, count: 0, ended: false, lastId: 0 } };
+
+  function caseApi(ref, path, method, body) {
+    return fetch(API + "/api/alerts/track/" + encodeURIComponent(ref) + path, {
+      method: method || "GET",
+      headers: body ? { "Content-Type": "application/json" } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  }
+  function renderThread(p, msgs) {
+    const box = $(p + "-chat-thread");
+    box.innerHTML = "";
+    if (!msgs.length) {
+      const e = document.createElement("span");
+      e.className = "cchat-empty"; e.textContent = tr("chat.empty", "Aucun message pour l’instant.");
+      box.appendChild(e);
+    }
+    msgs.forEach((m) => {
+      const d = document.createElement("div");
+      d.className = "cchat-msg " + (m.sender === "citizen" ? "me" : "centre");
+      d.textContent = m.text;                       // texte brut : jamais de HTML
+      const t = document.createElement("small");
+      t.textContent = (m.sender === "citizen" ? tr("chat.you", "Vous") : tr("chat.centre", "Centre SafeCity"))
+        + " · " + (m.time || "");
+      d.appendChild(t);
+      box.appendChild(d);
+    });
+    box.scrollTop = box.scrollHeight;
+  }
+  async function loadThread(p) {
+    const c = cases[p];
+    if (!c.ref) return;
+    try {
+      const res = await caseApi(c.ref, "/messages");
+      if (!res.ok) return;
+      const msgs = await res.json();
+      c.count = msgs.length;
+      renderThread(p, msgs);
+    } catch (e) { /* réseau : au prochain tick */ }
+  }
+  // Appelé à chaque rafraîchissement du suivi : (ré)initialise puis synchronise.
+  function caseSync(p, ref, st) {
+    const c = cases[p];
+    if (c.ref !== ref) { c.ref = ref; c.count = -1; c.ended = false; renderThread(p, []); }
+    const box = $(p + "-chat");
+    box.hidden = false;
+    const ended = !!(st.cancelled || st.status === "cloturee" || st.false_alarm);
+    box.classList.toggle("closed", ended);
+    c.ended = ended;
+    $(p + "-chat-note").textContent = st.cancelled ? tr("cancel.done", "Alerte annulée.")
+      : ended ? tr("chat.closed", "Alerte terminée : la messagerie est fermée.")
+      : tr("chat.hint", "Précisez la situation : le centre vous lit en direct.");
+    if (st.messages_count != null && st.messages_count !== c.count) loadThread(p);
+  }
+  ["cf", "tk"].forEach((p) => {
+    $(p + "-chat-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const c = cases[p], input = $(p + "-chat-input"), text = input.value.trim();
+      if (!c.ref || !text || c.ended) return;
+      input.disabled = true;
+      try {
+        const res = await caseApi(c.ref, "/messages", "POST", { text });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        input.value = "";
+        await loadThread(p);
+      } catch (err) {
+        $(p + "-chat-note").textContent = tr("chat.error", "Message non envoyé. Réessayez.");
+      } finally { input.disabled = false; input.focus(); }
+    });
+    $(p + "-cancel").addEventListener("click", () => openCancel(p));
+  });
+
+  let cancelFor = null;
+  function openCancel(p) {
+    cancelFor = p;
+    $("cancel-reason").value = "r1";
+    $("cancel-comment").value = "";
+    $("cancel-error").hidden = true;
+    $("cancel-modal").hidden = false;
+  }
+  $("cancel-back").addEventListener("click", () => { $("cancel-modal").hidden = true; cancelFor = null; });
+  $("cancel-confirm").addEventListener("click", async () => {
+    const p = cancelFor, c = p && cases[p];
+    if (!c || !c.ref) return;
+    const sel = $("cancel-reason"), comment = $("cancel-comment").value.trim();
+    if (sel.value === "other" && comment.length < 3) {
+      $("cancel-error").textContent = tr("cancel.needComment", "Merci de préciser le motif.");
+      $("cancel-error").hidden = false;
+      return;
+    }
+    const label = sel.options[sel.selectedIndex].textContent;
+    const reason = (sel.value === "other" ? comment : label + (comment ? " — " + comment : ""));
+    const btn = $("cancel-confirm");
+    btn.disabled = true;
+    try {
+      const res = await caseApi(c.ref, "/cancel", "POST", { reason });
+      if (!res.ok && res.status !== 409) throw new Error("HTTP " + res.status);
+      $("cancel-modal").hidden = true;
+      stopLiveShare("live.closed");
+      stopTrackPoll();
+      renderAgentLive(confirmAgentView, null);
+      const st = await fetchTrack(c.ref);
+      caseSync("cf", c.ref, st);
+      const sub = document.querySelector("#screen-confirm .confirm-sub");
+      if (sub) sub.textContent = tr("cancel.done", "Alerte annulée.");
+      if (!$("track-result").hidden && cases.tk.ref === c.ref) renderTrackResult(st, c.ref);
+    } catch (err) {
+      $("cancel-error").textContent = tr("cancel.error", "Annulation impossible. Réessayez.");
+      $("cancel-error").hidden = false;
+    } finally { btn.disabled = false; }
+  });
+
   let trackPoll = null;      // intervalle de rafraîchissement du suivi (confirm)
   function stopTrackPoll() {
     if (trackPoll) { clearInterval(trackPoll); trackPoll = null; }
@@ -1254,7 +1371,11 @@
           }
         }
         renderAgentLive(confirmAgentView, st.status === "cloturee" ? null : st.agent_live, st.agent_first_name);
-        if (st.status === "cloturee") { stopTrackPoll(); stopLiveShare("live.closed"); }
+        caseSync("cf", ref, st);
+        if (st.cancelled) {
+          if (sub) sub.textContent = tr("cancel.done", "Alerte annulée.");
+          stopTrackPoll(); stopLiveShare("live.closed");
+        } else if (st.status === "cloturee") { stopTrackPoll(); stopLiveShare("live.closed"); }
       } catch (e) { /* réseau : on retentera au prochain tick */ }
     };
     update();
@@ -1432,7 +1553,8 @@
       trackMap.invalidateSize();
     }
     renderAgentLive(trackAgentView, live, st.agent_first_name);
-    if (st.status === "cloturee") stopTrackLookupPoll();
+    caseSync("tk", ref, st);
+    if (st.status === "cloturee" || st.cancelled) stopTrackLookupPoll();
   }
   async function runTrackLookup() {
     const ref = ($("track-input").value || "").trim().toUpperCase();

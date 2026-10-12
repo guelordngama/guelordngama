@@ -4,7 +4,7 @@ from flask import Blueprint, current_app, g, jsonify, request
 
 from ..security import rate_limit, require_auth
 from ..services import alerts as alerts_service
-from ..services import audit
+from ..services import audit, citizen_chat
 from ..services import stats as stats_service
 from ..validation import validate_alert_payload, validate_coordinates, validate_team_id
 
@@ -85,6 +85,47 @@ def citizen_position(ref):
     if acc is not None and not (0 <= acc <= 5000):
         acc = None
     return jsonify(alerts_service.update_citizen_position(ref, lat, lng, acc))
+
+
+@bp.post("/track/<ref>/cancel")
+@rate_limit(6, 60, scope="citizen_cancel")
+def citizen_cancel(ref):
+    """Le citoyen annule SON alerte (erreur) avec un motif obligatoire."""
+    data = request.get_json(silent=True) or {}
+    return jsonify(alerts_service.cancel_by_citizen(ref, data.get("reason")))
+
+
+@bp.get("/track/<ref>/messages")
+@rate_limit(60, 60, scope="citizen_msg_list")
+def citizen_messages(ref):
+    """Fil de messages du citoyen avec le centre (sa référence fait office de clé)."""
+    try:
+        after = int(request.args.get("after", 0))
+    except ValueError:
+        after = 0
+    return jsonify(citizen_chat.list_for_citizen(ref, after))
+
+
+@bp.post("/track/<ref>/messages")
+@rate_limit(12, 60, scope="citizen_msg_post")
+def citizen_send_message(ref):
+    data = request.get_json(silent=True) or {}
+    return jsonify(citizen_chat.post_from_citizen(ref, data.get("text"))), 201
+
+
+@bp.get("/<int:alert_id>/citizen-messages")
+@require_auth(roles=["operator", "supervisor", "admin"])
+def operator_citizen_messages(alert_id):
+    return jsonify(citizen_chat.list_for_operator(alert_id))
+
+
+@bp.post("/<int:alert_id>/citizen-messages")
+@require_auth(roles=["operator", "supervisor", "admin"])
+@rate_limit(60, 60, scope="operator_citizen_msg")
+def operator_reply_citizen(alert_id):
+    data = request.get_json(silent=True) or {}
+    return jsonify(citizen_chat.post_from_operator(
+        alert_id, data.get("text"), g.user.get("name"), data.get("reference"))), 201
 
 
 @bp.get("/<int:alert_id>")
