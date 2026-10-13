@@ -1854,3 +1854,18 @@ def test_risk_heatmap_and_communes_report():
     pdf = client.get("/api/reports/communes?days=30", headers=ho)
     assert pdf.status_code == 200 and pdf.data[:4] == b"%PDF"
     assert client.get("/api/reports/communes", headers=ha).status_code == 403
+
+
+def test_socketio_allows_own_render_origin(monkeypatch):
+    """Sur Render, le portail est servi par le service lui-même : son adresse doit
+    toujours être acceptée par Socket.IO, sinon le temps réel est refusé et les
+    agents doivent recharger la page pour voir une alerte."""
+    from backend.config import Config
+    monkeypatch.setattr(Config, "CORS_ORIGINS", "https://safecity-lubumbashi.com")
+    monkeypatch.setenv("RENDER_EXTERNAL_URL", "https://safecity-q0o2.onrender.com/")
+    origins = Config().cors_origins_list
+    assert "https://safecity-q0o2.onrender.com" in origins
+    assert "https://safecity-lubumbashi.com" in origins
+    assert "https://evil.example.com" not in origins
+    monkeypatch.setattr(Config, "CORS_ORIGINS", "*")
+    assert Config().cors_origins_list == "*"

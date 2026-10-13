@@ -194,7 +194,16 @@ class Config:
     def cors_origins_list(self):
         if self.CORS_ORIGINS.strip() == "*":
             return "*"
-        return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
+        origins = [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
+        # L'adresse du service lui-même est toujours autorisée : sinon, quand le
+        # portail / l'app citoyenne sont servis par ce service (ex. Render), le
+        # temps réel Socket.IO est refusé (« Not an accepted origin ») et les
+        # agents ne reçoivent rien sans recharger la page.
+        for own in (os.environ.get("RENDER_EXTERNAL_URL"), os.environ.get("SAFECITY_PUBLIC_URL")):
+            own = (own or "").strip().rstrip("/")
+            if own and own not in origins:
+                origins.append(own)
+        return origins
 
     def validate(self):
         """Contrôles de cohérence ; lève une erreur en production non sûre."""

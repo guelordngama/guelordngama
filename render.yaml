@@ -39,9 +39,9 @@ services:
         generateValue: true
       - key: SAFECITY_JWT_SECRET
         generateValue: true
-      # Obligatoire en production (« * » refusé). Les pages servies par ce même
-      # service n'ont pas besoin de CORS ; mettre ici l'adresse du site citoyen
-      # s'il est hébergé ailleurs.
+      # Obligatoire en production (« * » refusé). L'adresse de ce service
+      # (RENDER_EXTERNAL_URL) est toujours autorisée automatiquement ; mettre ici
+      # seulement l'adresse du site citoyen s'il est hébergé ailleurs.
       - key: SAFECITY_CORS_ORIGINS
         value: https://safecity-lubumbashi.com
       # Premier compte opérateur : à définir au moment de créer le Blueprint.

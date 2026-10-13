@@ -2,6 +2,27 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.33.1] — 2026-10-13 — Portail agent : alertes et messages reçus sans recharger
+
+### Corrigé
+- **L'agent devait actualiser la page, ou se déconnecter puis se reconnecter,
+  pour recevoir une alerte, une affectation ou un message.** Cause : sur Render,
+  la liste d'origines autorisées (`SAFECITY_CORS_ORIGINS`) ne contenait pas
+  l'adresse du service lui-même ; Socket.IO refusait donc la connexion temps
+  réel du portail (« Not an accepted origin », HTTP 400). L'adresse du service
+  (`RENDER_EXTERNAL_URL`, ou `SAFECITY_PUBLIC_URL`) est désormais toujours
+  autorisée. Les autres origines restent refusées.
+
+### Ajouté
+- **Filet de sécurité dans le portail** : même si le temps réel coupe (réseau
+  mobile, téléphone en veille, serveur qui redémarre), le portail se
+  resynchronise tout seul — toutes les 15 s, au retour sur la page, au retour du
+  réseau et à chaque reconnexion — sans recharger. Une alerte manquée déclenche
+  le son et le bandeau, une mission qui vous est assignée déclenche l'alarme
+  d'affectation, les alertes closes disparaissent, les messages manqués
+  s'affichent (sans doublon). Si la session a expiré, retour automatique à la
+  connexion.
+
 ## [1.33.0] — 2026-10-13 — Zones à risque : carte de chaleur et rapports par commune
 
 ### Ajouté

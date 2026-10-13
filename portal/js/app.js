@@ -266,6 +266,9 @@
     try { startGeolocation(); } catch (e) {}
     loadAgentPositions();
     setInterval(loadAgentPositions, 30000);   // filet de sécurité si le temps réel coupe
+    setInterval(syncAll, 15000);              // idem pour les alertes et les messages
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) syncAll(); });
+    window.addEventListener("online", syncAll);
 
     $("availability").addEventListener("change", async (e) => {
       try { await api("POST", "/api/agents/me/status", { availability: e.target.value }); } catch (err) {}
@@ -549,6 +552,7 @@
     opts = opts || {};
     const box = $("chat-messages");
     const mine = state.agent && m.sender_id === state.agent.id;
+    if (m.id && box.querySelector('[data-mid="' + m.id + '"]')) return;   // déjà affiché (temps réel + rattrapage)
     if (!mine && state.chatReady && !opts.noScroll) {
       soundPing();  // bip pour un message entrant
       notify("💬 Nouveau message — SafeCity",
@@ -557,6 +561,7 @@
     maybeAddDateDivider(box, m);
     const div = document.createElement("div");
     div.className = "chat-msg " + (mine ? "mine" : "other") + (opts.unread ? " unread" : "");
+    if (m.id) div.dataset.mid = m.id;
     const who = document.createElement("span");
     who.className = "who";
     who.textContent = (opts.unread && !mine ? "🔵 " : "")
@@ -656,6 +661,7 @@
                                auth: (cb) => cb({ token: state.token || "" }) });
       state.socket.on("connect", () => {
         setConn(true);
+        syncAll();   // rattrape ce qui a pu arriver pendant la coupure
         if (state.agent) state.socket.emit("identify", { uid: state.agent.id });
       });
       state.socket.on("disconnect", () => setConn(false));
@@ -727,6 +733,53 @@
       (b.items || b).forEach((al) => addAlert(al, false));
     } catch (e) { console.warn(e); }
   }
+
+  // ---- Filet de sécurité : rattrapage des alertes / messages manqués ----
+  // Le temps réel peut couper (réseau mobile, veille du téléphone, serveur
+  // redémarré) : on resynchronise régulièrement, au retour sur la page et à la
+  // reconnexion, SANS recharger la page ni se reconnecter.
+  let syncBusy = false;
+  async function syncAlerts() {
+    if (syncBusy || !state.token) return;
+    syncBusy = true;
+    try {
+      const [a, b] = await Promise.all([
+        api("GET", "/api/alerts?status=active&page=1&page_size=50"),
+        api("GET", "/api/alerts?status=assignee&page=1&page_size=50"),
+      ]);
+      const la = a.items || a, lb = b.items || b;
+      const me = state.agent && state.agent.id;
+      const seen = new Set();
+      la.concat(lb).forEach((al) => {
+        seen.add(String(al.id));
+        const known = state.alerts[al.id];
+        const mine = al.assigned_agent && al.assigned_agent.id === me;
+        if (!known && al.status === "active" && !mine) {   // nouvelle alerte manquée
+          addAlert(al, true);
+          soundAlarm();
+          toast("🚨 Nouvelle alerte : " + (al.type || "").toUpperCase(), URGENCY[al.urgency]);
+        } else {
+          onAlertUpdated(al);   // sonne seulement si elle vient de m'être assignée
+        }
+      });
+      if (la.length < 50 && lb.length < 50) {   // listes complètes : retire les alertes closes
+        Object.keys(state.alerts).forEach((id) => { if (!seen.has(id)) removeAlert(Number(id)); });
+      }
+    } catch (e) {
+      if (/jeton|authentification/i.test(e.message || "")) {   // session expirée : retour à la connexion
+        toast("Session expirée : reconnexion…", "#f97316");
+        setTimeout(() => location.reload(), 1500);
+      }
+    } finally { syncBusy = false; }
+  }
+  async function syncMessages() {
+    if (!state.token || !state.chatReady) return;
+    try {
+      const msgs = await api("GET", "/api/messages?limit=40");
+      if (Array.isArray(msgs)) msgs.forEach((m) => addMessage(m, {}));   // les déjà affichés sont ignorés
+    } catch (e) { /* réessaie au prochain tick */ }
+  }
+  function syncAll() { syncAlerts(); syncMessages(); }
 
   // Une alerte est mise à jour : si elle vient de m'être assignée, alarme forte.
   function onAlertUpdated(a) {
