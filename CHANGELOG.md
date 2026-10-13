@@ -2,6 +2,28 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/).
 
+## [1.33.2] — 2026-10-13 — Position du citoyen : mise à jour manuelle et âge affiché
+
+### Corrigé
+- **Après un long moment (ex. 8 h), l'agent voyait toujours la première position
+  du citoyen.** Cause : le partage en direct du navigateur s'arrête après 3 h, à
+  la fermeture ou au rechargement de la page, et un navigateur ne peut pas suivre
+  la position écran verrouillé ou page en arrière-plan. Le serveur, lui, affichait
+  fidèlement la dernière position reçue.
+
+### Ajouté
+- **Bouton « 📍 Mettre à jour ma position »** (application citoyenne, écran de
+  confirmation et « Suivre une alerte ») : envoie la position actuelle à tout
+  moment tant que l'alerte est ouverte — même après la fin du partage ou un
+  rechargement — et relance le suivi en direct. Le suivi renvoie aussi la position
+  dès que le citoyen revient sur la page.
+- **Âge de la position affiché à l'agent (portail) et à l'opérateur (fiche
+  d'incident)** : « mise à jour il y a 3 min » ou « reçue à l'envoi, il y a 8 h ».
+  Au-delà de 30 min : « ⚠️ … — appeler le citoyen pour confirmer », pour ne
+  jamais se fier à une position périmée sans le savoir.
+- Une position confirmée sans déplacement rafraîchit aussi l'horodatage.
+- Textes en français, swahili et lingala.
+
 ## [1.33.1] — 2026-10-13 — Portail agent : alertes et messages reçus sans recharger
 
 ### Corrigé

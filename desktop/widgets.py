@@ -250,6 +250,35 @@ def progress_text(alert):
     return f"{icon} {label}".strip()
 
 
+def position_age(alert):
+    """(texte, ancienne ?) : ancienneté de la position du citoyen — dernière mise
+    à jour en direct, sinon position reçue à l'envoi de l'alerte."""
+    from datetime import datetime, timezone
+
+    iso = alert.get("position_updated_at") or alert.get("created_at")
+    if not iso:
+        return "—", False
+    try:
+        t = datetime.fromisoformat(str(iso).replace("Z", "+00:00"))
+        if t.tzinfo is None:
+            t = t.replace(tzinfo=timezone.utc)
+    except ValueError:
+        return "—", False
+    mins = max(0, int((datetime.now(timezone.utc) - t).total_seconds() // 60))
+    if mins < 1:
+        ago = "à l'instant"
+    elif mins < 60:
+        ago = f"il y a {mins} min"
+    elif mins < 1440:
+        ago = f"il y a {mins // 60} h {mins % 60:02d}"
+    else:
+        ago = f"il y a {mins // 1440} j"
+    live = bool(alert.get("position_updated_at"))
+    text = ("mise à jour " if live else "reçue à l'envoi, ") + ago
+    stale = mins >= 30 and alert.get("status") != "cloturee"
+    return (("⚠️ " + text + " — appeler le citoyen") if stale else text), stale
+
+
 def alert_fiche(alert):
     """Lignes de la fiche : liste de (clé, libellé, valeur)."""
     pending = _geocoding_pending(alert)
@@ -266,6 +295,7 @@ def alert_fiche(alert):
         ("city", "Ville", alert.get("city") or "—"),
         ("gps", "GPS", gps_signed(alert.get("lat"), alert.get("lng"))),
         ("precision", "Précision", precision_text(alert)),
+        ("position", "Position", position_age(alert)[0]),
         ("time", "Heure", when_text(alert)),
         ("status", "Statut", status),
         ("progress", "Progression", progress_text(alert)),
@@ -870,6 +900,8 @@ class IncidentPopup(QDialog):
         if key in ("commune", "street", "quartier") and _geocoding_pending(alert):
             return f"font-weight: 600; color: {theme.MUTED}; font-style: italic;"
         if key == "precision" and (alert.get("position_approx")):
+            return "font-weight: 800; color: #b45309;"
+        if key == "position" and position_age(alert)[1]:
             return "font-weight: 800; color: #b45309;"
         if key == "gps":
             return "font-weight: 800; font-family: Consolas, 'DejaVu Sans Mono', monospace;"

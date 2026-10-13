@@ -1869,3 +1869,22 @@ def test_socketio_allows_own_render_origin(monkeypatch):
     assert "https://evil.example.com" not in origins
     monkeypatch.setattr(Config, "CORS_ORIGINS", "*")
     assert Config().cors_origins_list == "*"
+
+
+def test_confirmed_unchanged_position_refreshes_timestamp():
+    """Le citoyen confirme sa position sans avoir bougé : l'horodatage est mis à
+    jour (l'agent voit « mise à jour à l'instant », pas « il y a 8 h »)."""
+    from datetime import datetime, timedelta
+    from backend.extensions import db
+    from backend.models import Alert
+    app, client = make_client()
+    ho = _tok(client, "operateur@safecity.local")
+    a = _new_alert(client)
+    with app.app_context():
+        db.session.get(Alert, a["id"]).position_updated_at = datetime.utcnow() - timedelta(hours=8)
+        db.session.commit()
+    r = client.post(f"/api/alerts/track/{a['reference']}/position", json={"lat": -11.66, "lng": 27.48})
+    assert r.status_code == 200 and r.get_json()["updated"] is False
+    d = client.get(f"/api/alerts/{a['id']}", headers=ho).get_json()
+    age = datetime.utcnow() - datetime.fromisoformat(d["position_updated_at"])
+    assert age < timedelta(minutes=1)

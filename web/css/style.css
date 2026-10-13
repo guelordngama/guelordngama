@@ -664,3 +664,7 @@ input.invalid { border-color: rgba(239,68,68,.6); }
 .cancel-alert-btn:hover { background: #fef2f2; }
 .cancel-field { width: 100%; margin: 8px 0 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--ink); font-size: 14px; }
 .btn-primary.danger { background: #dc2626; }
+
+.cpos { margin-top: 10px; }
+.cpos .btn-secondary { width: 100%; }
+.cchat.closed .cpos { display: none; }

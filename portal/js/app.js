@@ -856,6 +856,18 @@
     const [, m, d] = day.split("-");
     return d + "/" + m + " " + hm;
   }
+  // Ancienneté de la position du citoyen (dernière mise à jour, sinon envoi initial).
+  function positionAge(a) {
+    const iso = a.position_updated_at || a.created_at;
+    if (!iso) return { text: "—", stale: false };
+    const t = new Date(/Z|[+-]\d\d:?\d\d$/.test(iso) ? iso : iso + "Z").getTime();
+    const min = Math.max(0, Math.round((Date.now() - t) / 60000));
+    const text = min < 1 ? "à l'instant" : min < 60 ? "il y a " + min + " min"
+      : min < 1440 ? "il y a " + Math.floor(min / 60) + " h " + String(min % 60).padStart(2, "0")
+      : "il y a " + Math.floor(min / 1440) + " j";
+    const live = !!a.position_updated_at;
+    return { text: (live ? "mise à jour " : "reçue à l'envoi, ") + text, stale: min >= 30 };
+  }
   function precisionText(a) {
     if (a.position_approx) return "⚠️ Approximative (GPS non obtenu)";
     if (a.position_manual) return "Placée à la main sur la carte";
@@ -951,7 +963,12 @@
         '<div class="fiche-sep"></div>' +
         ficheRow("GPS", '<span class="alert-coords" title="Cliquer pour copier la position">' +
           gpsSigned(a.lat, a.lng) + "</span>") +
-        ficheRow("Précision", escapeHtml(precisionText(a)))) +
+        ficheRow("Précision", escapeHtml(precisionText(a))) +
+        (() => {
+          const pa = positionAge(a);
+          return ficheRow("Position", (pa.stale ? "⚠️ " : "") + escapeHtml(pa.text) +
+            (pa.stale ? " — appeler le citoyen pour confirmer" : ""));
+        })()) +
         ficheRow("Heure", escapeHtml(whenText(a)) +
           (a.distance_m != null ? " · 📏 " + Math.round(a.distance_m) + " m" : "")) +
         ficheRow("Statut", '<span class="fiche-status" style="color:' + st[1] + "\">" + st[0] + "</span>") +

@@ -349,7 +349,13 @@ def update_citizen_position(reference, lat, lng, accuracy=None):
     moved = (haversine_m(alert.lat, alert.lng, lat, lng)
              if alert.lat is not None and alert.lng is not None else None)
     if moved is not None and moved < 1:
-        return {"updated": False, "moved_m": 0}      # position inchangée
+        # Position inchangée : le citoyen la confirme, on rafraîchit l'horodatage
+        # pour que l'agent sache que la position est toujours d'actualité.
+        alert.position_updated_at = datetime.utcnow()
+        db.session.commit()
+        shown = alert.primary if (alert.duplicate_of_id and alert.primary) else alert
+        _emit("alert_updated", attach_reporter_flags([shown.to_dict()])[0])
+        return {"updated": False, "moved_m": 0}
     prev_lat, prev_lng = alert.lat, alert.lng
     alert.lat, alert.lng = lat, lng
     alert.gps_accuracy_m = accuracy

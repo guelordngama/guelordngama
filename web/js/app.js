@@ -1453,6 +1453,55 @@
       }
     }, { enableHighAccuracy: true, maximumAge: 5000, timeout: 30000 });
   }
+  // Envoi immédiat de la position actuelle (bouton « Mettre à jour ma position »).
+  // Fonctionne à tout moment tant que l'alerte est ouverte — y compris après la
+  // fin du partage en direct, un rechargement de la page, ou un long moment
+  // d'inactivité (les navigateurs suspendent la localisation en arrière-plan).
+  function posStatus(p, key, fallback, extra) {
+    let t = tr(key, fallback);
+    Object.keys(extra || {}).forEach((k) => { t = t.replace("{" + k + "}", extra[k]); });
+    $(p + "-pos-status").textContent = t;
+  }
+  function updateMyPosition(p) {
+    const c = cases[p];
+    if (!c || !c.ref || c.ended) return;
+    if (!navigator.geolocation) return posStatus(p, "pos.nogeo", "Localisation indisponible.");
+    const btn = $(p + "-pos-btn");
+    btn.disabled = true;
+    posStatus(p, "pos.searching", "Recherche de votre position…");
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      const lat = pos.coords.latitude, lng = pos.coords.longitude, acc = pos.coords.accuracy;
+      try {
+        const res = await fetch(API + "/api/alerts/track/" + encodeURIComponent(c.ref) + "/position", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ lat: lat, lng: lng, accuracy: acc }),
+        });
+        if (res.status === 409 || res.status === 404) { c.ended = true; return posStatus(p, "live.closed", "Alerte clôturée."); }
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        state.lat = lat; state.lng = lng; state.accuracy = acc;
+        if (miniMarker) miniMarker.setLatLng([lat, lng]);
+        if ($("cf-coords-val")) $("cf-coords-val").textContent = gpsSigned(lat, lng) + (acc != null ? "  (±" + Math.round(acc) + " m)" : "");
+        // Reprend (ou prolonge) le suivi en direct pour les prochains déplacements.
+        if (live && live.ref === c.ref) { live.until = Date.now() + LIVE_MAX_MS; live.last = [lat, lng]; }
+        else { startLiveShare(c.ref); if (live) live.last = [lat, lng]; }
+        const t = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+        posStatus(p, "pos.sent", "Position envoyée à {time}.", { time: t, acc: Math.round(acc || 0) });
+      } catch (e) {
+        posStatus(p, "pos.error", "Envoi impossible. Réessayez.");
+      } finally { btn.disabled = false; }
+    }, (err) => {
+      btn.disabled = false;
+      posStatus(p, err && err.code === 1 ? "pos.denied" : "pos.unavailable", "Position introuvable.");
+    }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
+  }
+  ["cf", "tk"].forEach((p) => $(p + "-pos-btn").addEventListener("click", () => updateMyPosition(p)));
+  // Retour sur la page (téléphone déverrouillé, onglet rouvert) : la localisation a
+  // pu être suspendue → on renvoie aussitôt la position pendant un suivi actif.
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden || !live || !navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(sendLivePosition, () => {},
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+  });
   if ($("btn-live-stop")) $("btn-live-stop").addEventListener("click", () => stopLiveShare("live.stoppedByUser"));
 
   function showConfirmation(alert) {
